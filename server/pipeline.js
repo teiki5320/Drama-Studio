@@ -12,6 +12,7 @@ import {
   buildEpisodePrompt,
   buildNewFacePrompt,
   drawVariety,
+  LEAD_ADJECTIVES,
 } from './claudegen.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -404,6 +405,30 @@ function usedNamesAndPlaces() {
   return { names: [...names].slice(0, 40), places: places.slice(0, 10) };
 }
 
+// Garantie : le personnage principal (premier de la liste) porte toujours les
+// adjectifs imposés dans sa description — et les prompts de scènes qui la
+// recopient mot pour mot sont mis à jour en même temps pour rester cohérents.
+function ensureLeadAdjectives(project) {
+  const c = (project.characters || [])[0];
+  if (!c || !c.visual) {
+    return;
+  }
+  const low = c.visual.toLowerCase();
+  const missing = LEAD_ADJECTIVES.filter((a) => !low.includes(a));
+  if (missing.length === 0) {
+    return;
+  }
+  const oldVisual = c.visual;
+  c.visual = `${missing.join(', ')}, ${oldVisual}`;
+  for (const ep of project.episodes || []) {
+    for (const s of ep.scenes || []) {
+      if (s.imagePrompt && s.imagePrompt.includes(oldVisual)) {
+        s.imagePrompt = s.imagePrompt.split(oldVisual).join(c.visual);
+      }
+    }
+  }
+}
+
 export async function createProject({ styles, theme, mode }, update) {
   update('Écriture du scénario par Claude (1 à 3 minutes)…');
   const data = await askClaudeForJson(
@@ -439,6 +464,7 @@ export async function createProject({ styles, theme, mode }, update) {
     throw new Error("Claude n'a pas fourni l'épisode 1.");
   }
   project.episodes.push(normalizeEpisode(ep1raw, 1));
+  ensureLeadAdjectives(project);
   // Parcours par étapes : le scénario doit être validé avant toute production.
   project.stage = 'script_review';
   saveProject(project);
@@ -488,6 +514,7 @@ export async function createCustomProject(answers, update) {
     throw new Error("Claude n'a pas fourni l'épisode 1.");
   }
   project.episodes.push(normalizeEpisode(ep1raw, 1));
+  ensureLeadAdjectives(project);
   project.stage = 'script_review';
   saveProject(project);
   return { projectId: id };
@@ -520,6 +547,7 @@ export async function regenerateScript(project, update) {
     throw new Error("Claude n'a pas fourni l'épisode 1.");
   }
   project.episodes = [normalizeEpisode(ep1raw, 1)];
+  ensureLeadAdjectives(project);
   project.stage = 'script_review';
   saveProject(project);
 }
@@ -635,12 +663,23 @@ export async function newCharacterFace(project, characterId, instructions, updat
   if (!c) {
     throw new Error('Personnage introuvable');
   }
+  const isLead = (project.characters || [])[0] === c;
   update(`Réécriture de ${c.name} par Claude…`);
-  const data = await askClaudeForJson(buildNewFacePrompt(c, (instructions || '').slice(0, 300)));
+  const data = await askClaudeForJson(
+    buildNewFacePrompt(c, (instructions || '').slice(0, 300), isLead),
+  );
   ensureUsage(project).claudeCalls += 1;
-  const newVisual = String(data.visual || '').trim();
+  let newVisual = String(data.visual || '').trim();
   if (!newVisual) {
     throw new Error("Claude n'a pas fourni de nouvelle description.");
+  }
+  // Le personnage principal garde toujours ses adjectifs imposés.
+  if (isLead) {
+    const low = newVisual.toLowerCase();
+    const missing = LEAD_ADJECTIVES.filter((a) => !low.includes(a));
+    if (missing.length > 0) {
+      newVisual = `${missing.join(', ')}, ${newVisual}`;
+    }
   }
   const oldVisual = c.visual;
   c.visual = newVisual;

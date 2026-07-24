@@ -87,11 +87,15 @@ const SCENE_SCHEMA = `{
   "imagePrompt": "EN ANGLAIS : le plan cinématographique précis (lieu, action, émotion, cadrage) en répétant mot pour mot la description visuelle 'visual' de chaque personnage présent, terminé par : cinematic film still, african drama series, warm natural light, shallow depth of field, 9:16 vertical"
 }`;
 
+// Le héros/l'héroïne doit crever l'écran : ces adjectifs sont OBLIGATOIRES
+// dans sa description visuelle (donc dans toutes ses images).
+export const LEAD_ADJECTIVES = ['beautiful', 'young', 'pretty', 'cute', 'charismatic'];
+
 const SERIES_SCHEMA = `{
   "title": "titre de la série",
   "logline": "accroche en une phrase",
   "setting": "lieu et contexte (ville/pays africain précis)",
-  "characters": [3 à 5 personnages : {
+  "characters": [3 à 5 personnages, le PREMIER de la liste est le héros ou l'héroïne principal(e) : {
     "id": "slug_court",
     "name": "prénom + nom",
     "gender": "homme" ou "femme",
@@ -111,6 +115,7 @@ const SERIES_SCHEMA = `{
 }`;
 
 const SERIES_RULES = `Contraintes STRICTES :
+- STAR DE L'ÉCRAN : le personnage principal (le PREMIER de la liste "characters", homme ou femme) doit être magnétique — sa description "visual" contient OBLIGATOIREMENT ces mots anglais : ${LEAD_ADJECTIVES.join(', ')}.
 - CLARTÉ AVANT TOUT : un spectateur qui découvre l'épisode sur son téléphone doit tout comprendre du premier coup. Phrases courtes et simples, aucun sous-entendu obscur, aucune ellipse confuse. Une scène = une seule idée claire qui fait avancer l'intrigue. Les personnages s'appellent par leur prénom dans les dialogues pour qu'on sache toujours qui parle à qui.
 - Le narrateur ("narrator") OUVRE l'épisode en posant la situation en une phrase simple (« Awa vient d'enterrer son père. Ce matin, le notaire lit le testament. »), puis n'intervient que pour clarifier une transition (3 fois max par épisode).
 - DRAMA MAXIMAL : conflits frontaux, confrontations directes en face à face, révélations chocs, phrases qui claquent. Chaque épisode contient AU MOINS une confrontation intense et une révélation. Émotions fortes et assumées : colère, larmes, menaces, amour interdit, humiliation publique.
@@ -290,14 +295,18 @@ Contraintes STRICTES :
 - "speaker" = "narrator" ou un id de personnage listé ci-dessus ; imagePrompt autonomes incluant les descriptions visuelles complètes.`;
 }
 
-export function buildNewFacePrompt(character, instructions) {
+export function buildNewFacePrompt(character, instructions, isLead = false) {
   return `Personnage d'une série micro-drama africaine : ${character.name}, ${character.gender}, ${character.age} ans, ${character.role}.
 Description visuelle actuelle (EN ANGLAIS) : ${character.visual}
 ${
   instructions
     ? `Consignes du réalisateur pour la NOUVELLE apparence : ${instructions}`
     : `Invente une apparence NETTEMENT différente de l'actuelle (autre visage, autre coiffure, autre tenue signature), cohérente avec l'âge, le genre et le rôle.`
-}
+}${
+    isLead
+      ? `\nC'est le personnage PRINCIPAL de la série : la nouvelle description doit contenir OBLIGATOIREMENT ces mots anglais : ${LEAD_ADJECTIVES.join(', ')}.`
+      : ''
+  }
 Réponds UNIQUEMENT avec un objet JSON valide : {"visual": "nouvelle description physique EN ANGLAIS, très détaillée et STABLE (âge apparent, visage, coiffure, tenue signature, corpulence)"}`;
 }
 
