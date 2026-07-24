@@ -173,18 +173,22 @@ function CustomCreate({ onSubmit, onCancel, busy }) {
       <div className="form-field">
         <label>1. 📖 Raconte ton histoire (obligatoire)</label>
         <p className="field-hint">
-          Colle ici ton script complet avec dialogues, un résumé détaillé, ou même une simple
-          idée développée. C'est la base des {EPISODE_COUNT} épisodes.
+          Colle TOUT ce que tu as : script complet avec dialogues, résumé, et même la
+          description de tes personnages en tête — l'appli comprend tout et fait le tri.
+          C'est la base des {EPISODE_COUNT} épisodes.
         </p>
         <textarea
-          rows={10}
+          rows={16}
           value={script}
-          maxLength={20000}
+          maxLength={100000}
           placeholder={
             'Ex. : Aminata, couturière à Abidjan, découvre que son mari Karim a une deuxième famille à Bouaké. Elle décide de se venger en… \n\nOu colle directement ton script :\nAMINATA : Karim, qui est cette femme sur la photo ?\nKARIM : Ce n’est personne, je te jure…'
           }
           onChange={(e) => setScript(e.target.value)}
         />
+        <p className="field-hint">
+          {script.length.toLocaleString('fr-FR')} / 100 000 caractères
+        </p>
       </div>
 
       <div className="form-field">
@@ -203,7 +207,8 @@ function CustomCreate({ onSubmit, onCancel, busy }) {
         <p className="field-hint">
           Un par ligne : nom, homme/femme, âge, rôle, apparence. Le genre et l'âge servent au
           casting des voix, l'apparence aux visages constants sur toutes les images. Ce qui
-          manque sera complété par Claude.
+          manque sera complété par Claude. Déjà décrits dans ton histoire (question 1) ? Laisse
+          vide, c'est compris.
         </p>
         <textarea
           rows={4}

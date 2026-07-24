@@ -256,7 +256,7 @@ export function buildEpisodePrompt(project, number) {
           project.source.fidelity === 'libre'
             ? ' (dialogues adaptables, sens des scènes intouchable)'
             : ' (reprends ses dialogues tels quels quand ils existent, raccourcis à 18 mots max)'
-        } :\n"""\n${project.source.script.slice(0, 9000)}\n"""\n${
+        } :\n"""\n${project.source.script.slice(0, 30000)}\n"""\n${
           project.source.mustHappen
             ? `Moments imposés par l'auteur : ${project.source.mustHappen}\n`
             : ''

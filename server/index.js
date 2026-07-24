@@ -159,7 +159,7 @@ app.post('/api/projects/custom', (req, res) => {
   }
   const validStyle = (s) => STYLES.some((x) => x.id === s);
   const answers = {
-    script: script.slice(0, 20000),
+    script: script.slice(0, 100000),
     title: String(b.title || '').trim().slice(0, 120),
     setting: String(b.setting || '').trim().slice(0, 300),
     charactersText: String(b.charactersText || '').trim().slice(0, 2000),
