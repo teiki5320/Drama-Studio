@@ -49,6 +49,13 @@ export function getJob(id) {
   return jobs.get(id) || null;
 }
 
+// Tous les jobs en cours — affichés sur la page d'accueil.
+export function listActiveJobs() {
+  return [...jobs.values()]
+    .filter((j) => j.status === 'running')
+    .sort((a, b) => a.startedAt - b.startedAt);
+}
+
 // Job en cours pour un projet — permet à l'interface de « raccrocher »
 // une production longue après un rechargement de la page.
 export function activeJobFor(projectId) {

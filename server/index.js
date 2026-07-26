@@ -15,7 +15,7 @@ import {
   findEpisode,
   findScene,
 } from './projects.js';
-import { startJob, getJob, activeJobFor } from './jobs.js';
+import { startJob, getJob, activeJobFor, listActiveJobs } from './jobs.js';
 import {
   createProject,
   createCustomProject,
@@ -125,6 +125,25 @@ app.get('/studio/:file', (req, res) => {
     return;
   }
   res.sendFile(target);
+});
+
+// Toutes les productions en cours (panneau d'avancement de l'accueil).
+app.get('/api/active-jobs', (req, res) => {
+  res.json(
+    listActiveJobs().map((j) => {
+      const p = j.projectId ? loadProject(j.projectId) : null;
+      return {
+        id: j.id,
+        projectId: j.projectId,
+        label: j.label,
+        step: j.step,
+        progress: j.progress,
+        startedAt: j.startedAt,
+        projectTitle: p ? p.title : null,
+        mode: p ? p.mode || 'normal' : 'normal',
+      };
+    }),
+  );
 });
 
 // ---------- Projets ----------
