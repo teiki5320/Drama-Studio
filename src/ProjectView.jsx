@@ -529,6 +529,7 @@ export function ProjectView({ projectId, onBack }) {
   const [credits, setCredits] = useState(null);
   const [studio, setStudio] = useState(null);
   const [justRendered, setJustRendered] = useState(null);
+  const [repairDismissed, setRepairDismissed] = useState(false);
 
   const loadCredits = () => api.credits().then(setCredits).catch(() => {});
 
@@ -573,6 +574,7 @@ export function ProjectView({ projectId, onBack }) {
 
   useEffect(() => {
     setJustRendered(null);
+    setRepairDismissed(false);
   }, [epNumber]);
 
   const duration = useMemo(
@@ -707,6 +709,77 @@ export function ProjectView({ projectId, onBack }) {
       {error && <div className="banner warn">{error}</div>}
     </>
   );
+
+  // ---------- Détection des ratés : images, clips vidéo prévus, voix ----------
+  const frList = (nums) =>
+    nums.length === 1 ? `${nums[0]}` : `${nums.slice(0, -1).join(', ')} et ${nums[nums.length - 1]}`;
+
+  const autoVideoIdx = episode
+    ? videoSceneIndexes(episode.scenes.length, project.videoScenes ?? DEFAULT_VIDEO_SCENES)
+    : [];
+  const failedImages = episode
+    ? episode.scenes.map((s, i) => (!s.image || s.imageError ? i + 1 : null)).filter(Boolean)
+    : [];
+  const failedVideos = episode
+    ? episode.scenes
+        .map((s, i) => {
+          const expected = autoVideoIdx.includes(i) || Boolean(s.videoError);
+          return expected && !s.videoDisabled && s.image && (!s.video || s.videoError)
+            ? i + 1
+            : null;
+        })
+        .filter(Boolean)
+    : [];
+  const failedVoices = episode
+    ? episode.scenes
+        .map((s, i) => ((s.lines || []).some((l) => !l.audio || l.audioError) ? i + 1 : null))
+        .filter(Boolean)
+    : [];
+
+  const failParts = [];
+  if (failedImages.length > 0) {
+    failParts.push(
+      failedImages.length > 1
+        ? `les images des scènes ${frList(failedImages)} n'ont pas été bien générées`
+        : `l'image de la scène ${failedImages[0]} n'a pas été bien générée`,
+    );
+  }
+  if (failedVideos.length > 0) {
+    failParts.push(
+      failedVideos.length > 1
+        ? `les clips vidéo des scènes ${frList(failedVideos)} manquent`
+        : `le clip vidéo de la scène ${failedVideos[0]} manque`,
+    );
+  }
+  if (failedVoices.length > 0) {
+    failParts.push(
+      failedVoices.length > 1
+        ? `des voix manquent aux scènes ${frList(failedVoices)}`
+        : `des voix manquent à la scène ${failedVoices[0]}`,
+    );
+  }
+  const repairSentence =
+    failParts.length > 0
+      ? failParts.join(' ; ').replace(/^./, (c) => c.toUpperCase())
+      : null;
+
+  const repairBanner =
+    !busy && !repairDismissed && episode && episode.status !== 'script' && repairSentence ? (
+      <div className="banner warn repair-banner">
+        <span>⚠️ {repairSentence}. Souhaites-tu les relancer ?</span>
+        <div className="repair-actions">
+          <button
+            className="btn-small primary"
+            onClick={() => runJob(() => api.retryAssets(projectId, epNumber))}
+          >
+            🔄 Oui, relancer
+          </button>
+          <button className="btn-small" onClick={() => setRepairDismissed(true)}>
+            Non, plus tard
+          </button>
+        </div>
+      </div>
+    ) : null;
 
   const u = project.usage || {};
   const fr = (n) => Number(n || 0).toLocaleString('fr-FR');
@@ -1040,6 +1113,7 @@ export function ProjectView({ projectId, onBack }) {
       {episodeTabs}
       {costRibbon}
       {jobBanner}
+      {repairBanner}
 
       {episode ? (
         <div className="studio-main">

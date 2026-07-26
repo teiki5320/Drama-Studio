@@ -25,6 +25,7 @@ import {
   ensureCharacterPortraits,
   regenerateAllImages,
   regenerateAllAudio,
+  retryFailedAssets,
   regenerateSceneImage,
   regenerateSceneAudio,
   generateSceneVideo,
@@ -478,6 +479,20 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
   }
   const job = startJob(`Production épisode ${n}`, (update) => produceEpisode(p, n, update), { projectId: p.id });
   res.json({ jobId: job.id });
+});
+
+// « Réparer » : relance uniquement les images/voix/vidéos ratées ou manquantes.
+app.post('/api/projects/:id/episodes/:n/retry-assets', (req, res) => {
+  withEpisode(req, res, (p, ep) => {
+    if (!ep) {
+      res.status(404).json({ error: 'Épisode introuvable' });
+      return;
+    }
+    const job = startJob(`Réparation épisode ${ep.number}`, (update) =>
+      retryFailedAssets(p, ep, update),
+    { projectId: p.id });
+    res.json({ jobId: job.id });
+  });
 });
 
 app.post('/api/projects/:id/episodes/:n/regen-images', (req, res) => {
