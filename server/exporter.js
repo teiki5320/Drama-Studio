@@ -70,12 +70,19 @@ export function exportEpisode(project, episode) {
     fs.mkdirSync(dir, { recursive: true });
     // Supprime les anciens exports de CET épisode (ancien nom « Episode NN - … »
     // ou légende différente) pour éviter les doublons après renommage.
-    const oldPrefix = `Episode ${String(episode.number).padStart(2, '0')}`;
-    const newPrefix = `Épisode ${episode.number} `;
-    for (const f of fs.readdirSync(dir)) {
-      if (f.endsWith('.mp4') && (f.startsWith(oldPrefix) || f.startsWith(newPrefix))) {
-        fs.rmSync(path.join(dir, f), { force: true });
+    // macOS peut refuser la LECTURE d'un dossier iCloud (EPERM) alors que la
+    // copie passe : le nettoyage est optionnel, la copie reste prioritaire.
+    try {
+      const oldPrefix = `Episode ${String(episode.number).padStart(2, '0')}`;
+      const newPrefix = `Épisode ${episode.number} `;
+      for (const f of fs.readdirSync(dir)) {
+        if (f.endsWith('.mp4') && (f.startsWith(oldPrefix) || f.startsWith(newPrefix))) {
+          fs.rmSync(path.join(dir, f), { force: true });
+        }
       }
+    } catch {
+      // dossier illisible (permissions iCloud) — d'éventuels doublons à l'ancien
+      // nom peuvent rester, mais l'épisode est bien exporté.
     }
     const dest = path.join(dir, episodeFileName(project, episode));
     fs.copyFileSync(src, dest);
