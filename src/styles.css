@@ -233,6 +233,21 @@ code {
   gap: 12px;
 }
 
+/* Bandeau de réparation (images/vidéos/voix ratées) */
+.repair-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.repair-banner .repair-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 /* ---------- Productions en cours (accueil) ---------- */
 
 .active-jobs {

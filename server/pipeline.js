@@ -602,6 +602,127 @@ export async function produceEpisode(project, number, update) {
   return { number };
 }
 
+// « Réparer » : relance UNIQUEMENT ce qui a échoué ou manque dans l'épisode —
+// images ratées, voix en erreur, et clips vidéo prévus mais absents (une
+// scène qui aurait dû être une vidéo est régénérée aussi). Ne touche pas
+// à ce qui est déjà bon : aucune re-consommation inutile de crédits.
+export async function retryFailedAssets(project, episode, update) {
+  const dir = assetsDir(project.id);
+  const provider = currentProvider();
+  const scenes = episode.scenes || [];
+  const failures = [];
+
+  await ensureCharacterPortraits(project, update);
+
+  // 1. Images manquantes ou en erreur
+  if (provider !== 'manual') {
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      if (scene.image && !scene.imageError) {
+        continue;
+      }
+      update(`Image de la scène ${i + 1}…`);
+      scene.version += 1;
+      const file = `e${episode.number}_${scene.id}_v${scene.version}.jpg`;
+      try {
+        const { ok, url, provider: used } = await generateImage(
+          scene.imagePrompt,
+          path.join(dir, file),
+          { referenceUrls: sceneReferenceUrls(project, scene) },
+        );
+        if (ok) {
+          scene.image = file;
+          scene.imageUrl = url || null;
+          scene.video = null;
+          countImage(project, used);
+          delete scene.imageError;
+        }
+      } catch (e) {
+        scene.imageError = e.message;
+        failures.push(`image scène ${i + 1}`);
+      }
+      saveProject(project);
+    }
+  }
+
+  // 2. Voix manquantes ou en erreur
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i];
+    let touched = false;
+    for (let j = 0; j < scene.lines.length; j++) {
+      const line = scene.lines[j];
+      if (line.audio && !line.audioError) {
+        continue;
+      }
+      update(`Voix de la scène ${i + 1}…`);
+      scene.version += 1;
+      const base = `e${episode.number}_${scene.id}_l${j}_v${scene.version}`;
+      try {
+        const result = await synthesize({
+          text: line.text,
+          ...voiceFor(project, line.speaker),
+          outBase: path.join(dir, base),
+        });
+        line.audio = path.basename(result.file);
+        line.audioDurationSec = result.durationSec;
+        line.audioEngine = result.engine;
+        countVoice(project, result);
+        delete line.audioError;
+        touched = true;
+      } catch (e) {
+        line.audioError = e.message;
+        failures.push(`voix scène ${i + 1}`);
+      }
+    }
+    if (touched) {
+      recomputeSceneDuration(scene);
+      if (project.mode === 'synchro' && scene.video && scene.lipsynced) {
+        scene.lipsynced = false;
+      }
+      saveProject(project);
+    }
+  }
+
+  // 3. Clips vidéo prévus mais absents, ou en erreur
+  const videoCount = Number.isInteger(project.videoScenes) ? project.videoScenes : undefined;
+  if (provider === 'openart' && VIDEO_SCENES && videoCount !== 0) {
+    const wanted = videoSceneIndexes(scenes.length, videoCount);
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      const expected = wanted.includes(i) || Boolean(scene.videoError);
+      if (!expected || scene.videoDisabled || !scene.image) {
+        continue;
+      }
+      if (scene.video && !scene.videoError) {
+        continue;
+      }
+      update(`Clip vidéo de la scène ${i + 1} (plusieurs minutes)…`);
+      try {
+        await generateSceneVideo(project, episode, scene, () => {});
+      } catch (e) {
+        scene.videoError = e.message;
+        failures.push(`vidéo scène ${i + 1}`);
+        saveProject(project);
+        continue;
+      }
+      if (project.mode === 'synchro') {
+        update(`Synchro labiale de la scène ${i + 1}…`);
+        try {
+          await lipsyncSceneVideo(project, episode, scene, () => {});
+        } catch (e) {
+          scene.lipsyncError = e.message;
+          failures.push(`synchro scène ${i + 1}`);
+          saveProject(project);
+        }
+      }
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Encore en échec : ${failures.join(', ')}. Le reste a été réparé.`);
+  }
+}
+
 export async function regenerateAllImages(project, episode, update) {
   const dir = assetsDir(project.id);
   const scenes = episode.scenes || [];
