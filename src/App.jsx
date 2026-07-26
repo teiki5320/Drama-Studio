@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { STYLES, MAX_STYLES, EPISODE_COUNT } from '../shared/catalog.js';
 import { api, followJob, fileToDataUrl } from './api.js';
 import { ProjectView } from './ProjectView.jsx';
@@ -284,7 +284,7 @@ function CustomCreate({ onSubmit, onCancel, busy }) {
   );
 }
 
-function CreationProgress({ job, error }) {
+function CreationProgress({ job, error, onBack }) {
   return (
     <div className="progress-panel">
       <div className="spinner" />
@@ -300,6 +300,11 @@ function CreationProgress({ job, error }) {
         Claude écrit le scénario complet (1 à 3 minutes). Ensuite tu pourras le valider ou le
         régénérer, puis valider les visages des personnages, avant de produire l'épisode 1.
       </p>
+      {onBack && (
+        <button className="btn-ghost" onClick={onBack}>
+          ← Retour à l'accueil (la création continue en arrière-plan)
+        </button>
+      )}
     </div>
   );
 }
@@ -347,6 +352,8 @@ export function App() {
   const [theme, setTheme] = useState('');
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
+  const [activeJobs, setActiveJobs] = useState([]);
+  const leftCreation = useRef(false);
 
   const refresh = () => api.listProjects().then(setProjects).catch(() => {});
 
@@ -359,20 +366,51 @@ export function App() {
     refreshStudio();
   }, []);
 
+  // Suivi des productions en cours sur l'accueil (toutes les 3 s).
+  useEffect(() => {
+    if (!mode || view.name !== 'home') {
+      return undefined;
+    }
+    let prevCount = -1;
+    const tick = () =>
+      api
+        .activeJobs()
+        .then((jobs) => {
+          setActiveJobs(jobs);
+          // Un job vient de se terminer → la liste des dramas a pu changer.
+          if (prevCount !== -1 && jobs.length < prevCount) {
+            refresh();
+          }
+          prevCount = jobs.length;
+        })
+        .catch(() => {});
+    tick();
+    const timer = setInterval(tick, 3000);
+    return () => clearInterval(timer);
+  }, [mode, view.name]);
+
   const toggleStyle = (id) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const runCreation = async (kickoff, backTo = 'home') => {
     setError(null);
+    leftCreation.current = false;
     setView({ name: 'creating' });
     try {
       const { jobId } = await kickoff();
       const done = await followJob(jobId, setJob);
       await refresh();
-      setView({ name: 'project', id: done.result.projectId });
+      // Si l'utilisateur est reparti à l'accueil, on ne le téléporte pas.
+      if (!leftCreation.current) {
+        setView({ name: 'project', id: done.result.projectId });
+      }
     } catch (e) {
       setError(e.message);
-      setTimeout(() => setView({ name: backTo }), 100);
+      if (!leftCreation.current) {
+        setTimeout(() => setView({ name: backTo }), 100);
+      }
+    } finally {
+      setJob(null);
     }
   };
 
@@ -399,7 +437,14 @@ export function App() {
   if (view.name === 'creating') {
     return (
       <div className="page centered">
-        <CreationProgress job={job} error={error} />
+        <CreationProgress
+          job={job}
+          error={error}
+          onBack={() => {
+            leftCreation.current = true;
+            setView({ name: 'home' });
+          }}
+        />
       </div>
     );
   }
@@ -489,6 +534,39 @@ export function App() {
             )}
           </p>
         )}
+
+      {activeJobs.length > 0 && (
+        <section className="active-jobs">
+          <h2>🏭 Productions en cours</h2>
+          {activeJobs.map((j) => (
+            <div
+              key={j.id}
+              className="active-job"
+              title="Cliquer pour ouvrir ce drama"
+              onClick={() => j.projectId && setView({ name: 'project', id: j.projectId })}
+            >
+              <div className="aj-head">
+                <strong>{j.projectTitle || 'Nouveau drama'}</strong>
+                {j.mode === 'synchro' && <span className="scene-badge">🗣️ Synchro</span>}
+                <span className="aj-label">{j.label}</span>
+              </div>
+              <div className="aj-step">
+                <span className="spinner small" />
+                {j.step || 'Démarrage…'}
+                {j.progress != null && ` — ${Math.round(j.progress * 100)} %`}
+              </div>
+              {j.progress != null && (
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${Math.round(j.progress * 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="create-card">
         <h2>Nouveau drama</h2>
