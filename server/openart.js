@@ -198,7 +198,11 @@ function buildVideoInstruction({ prompt, imageUrl, referenceUrls, durationSec })
 - Prompt : ${prompt}
 - Format : vertical 9:16 (par exemple 1080x1920).
 - Durée cible : ${durationSec} secondes — choisis l'option de durée disponible la plus proche, et en cas de doute la PLUS COURTE (maîtrise des crédits).${source}
-- Choisis un modèle vidéo de qualité qui accepte une image de référence (Kling, Seedance, PixVerse, Wan ou équivalent disponible) ; à qualité comparable, prends le moins cher en crédits.
+- Modèle : ${
+    process.env.OPENART_VIDEO_MODEL
+      ? `utilise EXACTEMENT le modèle "${process.env.OPENART_VIDEO_MODEL}".`
+      : `utilise un modèle image-to-video ÉCONOMIQUE (Wan, Seedance standard ou Fast, PixVerse standard, Kling standard). INTERDICTION ABSOLUE d'utiliser une version Pro / Master / Premium / Omni ou tout modèle coûtant plus d'environ 60 crédits par clip — vérifie le coût avant de lancer, et en cas de doute prends le MOINS CHER qui accepte une image de référence.`
+  }
 - RÈGLE ABSOLUE : personne ne parle dans le clip. Bouches FERMÉES et immobiles, aucun mouvement de lèvres (la voix off est ajoutée séparément, sans synchronisation labiale). Reformule le prompt si nécessaire pour que le modèle le respecte.
 Attends la fin de la génération — cela peut prendre plusieurs minutes, patiente et vérifie le statut si nécessaire. Puis réponds UNIQUEMENT avec l'URL directe du fichier vidéo généré (.mp4, une seule ligne, aucune autre phrase). Si la génération échoue, réponds "ERREUR: " suivi de la cause exacte.`;
 }
