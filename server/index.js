@@ -230,6 +230,13 @@ app.patch('/api/projects/:id', (req, res) => {
     }
     p.narratorVoice = req.body.narratorVoice;
   }
+  if (req.body.videoSeconds !== undefined) {
+    if (!['eco', 'auto'].includes(req.body.videoSeconds)) {
+      res.status(400).json({ error: 'Durée de clips inconnue (eco ou auto).' });
+      return;
+    }
+    p.videoSeconds = req.body.videoSeconds;
+  }
   saveProject(p);
   res.json(p);
 });

@@ -675,6 +675,25 @@ export function ProjectView({ projectId, onBack }) {
               ))}
             </select>
           </label>
+          <label
+            className="video-count"
+            title="Éco : tous les clips durent 5 secondes (le minimum facturé — moitié prix), puis l'image gèle jusqu'à la fin de la scène. Adaptée : le clip suit la durée de la scène (5 à 10 s, plus cher)."
+          >
+            ⏱️ Durée clips
+            <select
+              value={project.videoSeconds || 'eco'}
+              disabled={busy}
+              onChange={(e) =>
+                api
+                  .patchProject(projectId, { videoSeconds: e.target.value })
+                  .then(refresh)
+                  .catch((err) => alert(err.message))
+              }
+            >
+              <option value="eco">Éco — 5 s</option>
+              <option value="auto">Adaptée — 5 à 10 s</option>
+            </select>
+          </label>
           <button
             className="btn-ghost"
             disabled={busy}

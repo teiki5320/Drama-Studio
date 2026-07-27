@@ -294,7 +294,12 @@ export async function generateSceneVideo(project, episode, scene, update) {
   }
   delete scene.videoDisabled;
   update('Génération du clip vidéo par OpenArt (plusieurs minutes)…');
-  const durationSec = Math.max(5, Math.min(10, Math.round(scene.durationSec || 6)));
+  // Mode éco (défaut) : toujours la durée minimale facturée (5 s) — le clip
+  // gèle ensuite sur sa dernière image, et ça divise le coût par deux.
+  const durationSec =
+    project.videoSeconds === 'auto'
+      ? Math.max(5, Math.min(10, Math.round(scene.durationSec || 6)))
+      : 5;
   const { buffer } = await openartGenerateVideo({
     prompt: videoMotionPrompt(scene),
     imageUrl: scene.imageUrl || null,
