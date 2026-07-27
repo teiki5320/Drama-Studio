@@ -969,6 +969,29 @@ export function ProjectView({ projectId, onBack }) {
   const openFolder = () =>
     api.openFolder(projectId).catch((e) => alert(`Ouverture du dossier : ${e.message}`));
 
+  // Devis avant production — estimations moyennes (image ~8, clip éco ~30,
+  // clip adapté ~55 crédits OpenArt ; ~850 caractères ElevenLabs par épisode).
+  const quote = (nEpisodes) => {
+    const vids = project.videoScenes ?? DEFAULT_VIDEO_SCENES;
+    const vidCost = (project.videoSeconds || 'eco') === 'eco' ? 30 : 55;
+    const oa = (9 * 8 + vids * vidCost) * nEpisodes;
+    const el = 850 * nEpisodes;
+    const oaRest = credits?.openart?.credits;
+    let msg = `Estimation : ~${fr(oa)} crédits OpenArt et ~${fr(el)} crédits ElevenLabs.`;
+    if (oaRest != null || elRest != null) {
+      msg += `\nIl te reste :${oaRest != null ? ` ${fr(oaRest)} OpenArt` : ''}${
+        oaRest != null && elRest != null ? ' ·' : ''
+      }${elRest != null ? ` ${fr(elRest)} ElevenLabs` : ''}.`;
+    }
+    if (oaRest != null && oaRest < oa) {
+      msg += `\n⚠️ Ton solde OpenArt semble INSUFFISANT pour cette production !`;
+    }
+    if (elRest != null && elRest < el) {
+      msg += `\n⚠️ Ton solde ElevenLabs semble INSUFFISANT (les voix passeront en secours) !`;
+    }
+    return msg;
+  };
+
   const place =
     exportPlace(episode?.exportedTo) ||
     exportPlace(project.episodes.find((e) => e.exportedTo)?.exportedTo);
@@ -1045,7 +1068,10 @@ export function ProjectView({ projectId, onBack }) {
           className={`btn-primary next ${currentDone ? '' : 'secondary'}`}
           disabled={busy}
           onClick={() => {
-            if (currentDone || confirm("L'épisode courant n'est pas encore validé. Produire le suivant quand même ?")) {
+            const warn = currentDone
+              ? ''
+              : "L'épisode courant n'est pas encore validé.\n\n";
+            if (confirm(`${warn}Produire l'épisode ${nextNumber} ?\n\n${quote(1)}`)) {
               produce(nextNumber);
             }
           }}
@@ -1059,13 +1085,9 @@ export function ProjectView({ projectId, onBack }) {
           disabled={busy}
           onClick={() => {
             const nVid = project.videoScenes ?? DEFAULT_VIDEO_SCENES;
-            const vidNote =
-              nVid > 0
-                ? ` (${nVid} scène${nVid > 1 ? 's' : ''} par épisode animée${nVid > 1 ? 's' : ''} en vidéo, nettement plus coûteux)`
-                : '';
             if (
               confirm(
-                `Produire automatiquement les ${remainingCount} épisodes restants (scénario, images${nVid > 0 ? ', clips vidéo' : ''}, voix et MP4) ?\n\nC'est long — souvent plus d'une heure avec OpenArt — et ça consomme tes crédits images/vidéos et ElevenLabs${vidNote}. Tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
+                `Produire automatiquement les ${remainingCount} épisodes restants (scénario, images${nVid > 0 ? ', clips vidéo' : ''}, voix et MP4) ?\n\n${quote(remainingCount)}\n\nC'est long — souvent plus d'une heure avec OpenArt. Tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
               )
             ) {
               runJob(() => api.produceSeason(projectId));
