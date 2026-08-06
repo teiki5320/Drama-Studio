@@ -18,6 +18,10 @@ function resolveExportRoot() {
       'Dramas',
     );
   }
+  // « ~/… » = dossier personnel (les chemins iCloud s'écrivent souvent ainsi).
+  if (raw.startsWith('~/')) {
+    return path.join(os.homedir(), raw.slice(2));
+  }
   return raw || path.join(os.homedir(), 'Desktop', 'Dramas');
 }
 
