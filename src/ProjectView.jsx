@@ -998,6 +998,24 @@ export function ProjectView({ projectId, onBack }) {
 
   const playerActions = (
     <div className="player-actions">
+      {episode?.status === 'script' && (
+        <button
+          className="btn-primary"
+          disabled={busy}
+          title="La production de cet épisode a été interrompue : reprend là où elle s'était arrêtée. Ce qui existe déjà (images, voix, clips) n'est PAS régénéré."
+          onClick={() => {
+            if (
+              confirm(
+                `Reprendre la production de l'épisode ${epNumber} ?\n\nSeuls les éléments manquants seront générés — l'existant n'est pas re-payé.\n\n${quote(1)}\n(C'est le maximum : la reprise coûte souvent bien moins.)`,
+              )
+            ) {
+              runJob(() => api.produceEpisode(projectId, epNumber));
+            }
+          }}
+        >
+          ▶️ Reprendre la production de l'épisode {epNumber}
+        </button>
+      )}
       {justRendered === epNumber && episode?.renderedFile && (
         <div className="render-success">
           <div className="rs-title">🎉 Épisode {episode.number} terminé !</div>
