@@ -147,7 +147,8 @@ function BrandCard({ studio, onChange }) {
 
 // Formulaire guidé du mode « mon script » : pose toutes les questions dont la
 // suite a besoin (voix = genre/âge, visages constants = apparences, découpage…).
-function CustomCreate({ onSubmit, onCancel, busy }) {
+function CustomCreate({ onSubmit, onCancel, busy, mode, seasonEpisodes, onSeasonChange }) {
+  const epCount = mode === 'long' ? seasonEpisodes : EPISODE_COUNT;
   const [script, setScript] = useState('');
   const [title, setTitle] = useState('');
   const [setting, setSetting] = useState('');
@@ -170,12 +171,25 @@ function CustomCreate({ onSubmit, onCancel, busy }) {
         et tu valideras tout (scénario puis personnages) avant la production.
       </p>
 
+      {mode === 'long' && (
+        <div className="form-field">
+          <label>📺 Format long — épisodes dans la saison</label>
+          <select value={seasonEpisodes} onChange={(e) => onSeasonChange(Number(e.target.value))}>
+            {[30, 40, 50, 60].map((n) => (
+              <option key={n} value={n}>
+                {n} épisodes de 40 secondes
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="form-field">
         <label>1. 📖 Raconte ton histoire (obligatoire)</label>
         <p className="field-hint">
           Colle TOUT ce que tu as : script complet avec dialogues, résumé, et même la
           description de tes personnages en tête — l'appli comprend tout et fait le tri.
-          C'est la base des {EPISODE_COUNT} épisodes.
+          C'est la base des {epCount} épisodes.
         </p>
         <textarea
           rows={16}
@@ -251,7 +265,7 @@ function CustomCreate({ onSubmit, onCancel, busy }) {
         <label>7. 🔥 Ce qui doit absolument arriver (optionnel)</label>
         <p className="field-hint">
           Les moments clés, les révélations, la fin de la saison — ils seront respectés au fil
-          des {EPISODE_COUNT} épisodes.
+          des {epCount} épisodes.
         </p>
         <textarea
           rows={3}
@@ -336,6 +350,14 @@ function ModeGate({ onPick }) {
             Épisodes rangés dans <strong>Dramas Synchro</strong>.
           </span>
         </button>
+        <button className="mode-card" onClick={() => onPick('long')}>
+          <span className="mode-emoji">📺</span>
+          <strong>Format long</strong>
+          <span className="mode-desc">
+            Épisodes de 40 secondes, saisons de 30 à 60 épisodes — l'intrigue-fleuve qui rend
+            accro. Épisodes rangés dans <strong>Dramas Long</strong>.
+          </span>
+        </button>
       </div>
     </div>
   );
@@ -350,6 +372,7 @@ export function App() {
   const [studio, setStudio] = useState(null);
   const [selected, setSelected] = useState([]);
   const [theme, setTheme] = useState('');
+  const [seasonEpisodes, setSeasonEpisodes] = useState(40);
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
@@ -414,9 +437,13 @@ export function App() {
     }
   };
 
-  const create = () => runCreation(() => api.createProject(selected, theme, mode));
+  const create = () =>
+    runCreation(() => api.createProject(selected, theme, mode, seasonEpisodes));
   const createCustom = (answers) =>
-    runCreation(() => api.createCustomProject({ ...answers, mode }), 'custom');
+    runCreation(
+      () => api.createCustomProject({ ...answers, mode, episodeCount: seasonEpisodes }),
+      'custom',
+    );
 
   if (!mode) {
     return <ModeGate onPick={setMode} />;
@@ -459,6 +486,9 @@ export function App() {
         {error && <div className="banner warn">{error}</div>}
         <CustomCreate
           busy={false}
+          mode={mode}
+          seasonEpisodes={seasonEpisodes}
+          onSeasonChange={setSeasonEpisodes}
           onSubmit={createCustom}
           onCancel={() => {
             setError(null);
@@ -475,7 +505,11 @@ export function App() {
         <h1>Drama Studio</h1>
         <p className="tagline">Micro-dramas africains — 10 épisodes de 60 secondes, générés chez toi.</p>
         <p className="mode-line">
-          {mode === 'synchro' ? '🗣️ Version Synchro (lèvres animées)' : '🎬 Version normale'}
+          {mode === 'synchro'
+            ? '🗣️ Version Synchro (lèvres animées)'
+            : mode === 'long'
+              ? '📺 Format long (40 s × 30-60 épisodes)'
+              : '🎬 Version normale'}
           <button className="btn-small" onClick={() => setMode(null)}>
             ↔ Changer de version
           </button>
@@ -574,6 +608,23 @@ export function App() {
           Choisis 1 à {MAX_STYLES} styles ({selected.length} sélectionné{selected.length > 1 ? 's' : ''})
         </p>
         <StylePicker selected={selected} onToggle={toggleStyle} />
+        {mode === 'long' && (
+          <p className="section-label" style={{ marginTop: 14 }}>
+            📺 Épisodes dans la saison :{' '}
+            <select
+              className="season-select"
+              value={seasonEpisodes}
+              onChange={(e) => setSeasonEpisodes(Number(e.target.value))}
+            >
+              {[30, 40, 50, 60].map((n) => (
+                <option key={n} value={n}>
+                  {n} épisodes
+                </option>
+              ))}
+            </select>{' '}
+            de 40 secondes
+          </p>
+        )}
         <input
           className="theme-input"
           placeholder="Idée ou thème (optionnel) — ex. « une veuve découvre le secret de son mari »"
@@ -603,7 +654,9 @@ export function App() {
 
       {projects.filter((p) => (p.mode || 'normal') === mode).length > 0 && (
         <section className="library">
-          <h2>Mes dramas {mode === 'synchro' ? 'Synchro' : ''}</h2>
+          <h2>
+            Mes dramas {mode === 'synchro' ? 'Synchro' : mode === 'long' ? 'Format long' : ''}
+          </h2>
           <div className="project-grid">
             {projects.filter((p) => (p.mode || 'normal') === mode).map((p) => (
               <div key={p.id} className="project-card" onClick={() => setView({ name: 'project', id: p.id })}>
@@ -632,7 +685,7 @@ export function App() {
                   const mp4 = eps.filter((e) => e.rendered).length;
                   return (
                     <p className="ep-count">
-                      {produced} / {EPISODE_COUNT} épisodes produits
+                      {produced} / {p.episodeCount || EPISODE_COUNT} épisodes produits
                       {mp4 > 0 ? ` · ${mp4} MP4 prêt${mp4 > 1 ? 's' : ''}` : ''}
                     </p>
                   );

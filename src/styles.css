@@ -223,6 +223,16 @@ code {
   line-height: 1.5;
 }
 
+.season-select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  outline: none;
+}
+
 .mode-line {
   margin-top: 10px;
   color: var(--gold-dim);

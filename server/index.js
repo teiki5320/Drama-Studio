@@ -152,15 +152,30 @@ app.get('/api/projects', (req, res) => {
   res.json(listProjects());
 });
 
+// Format long : saison de 30 à 60 épisodes (choix à la création).
+function safeEpisodeCount(mode, raw) {
+  if (mode !== 'long') {
+    return undefined;
+  }
+  const v = Number(raw);
+  return Number.isInteger(v) && v >= 30 && v <= 60 ? v : 40;
+}
+
 app.post('/api/projects', (req, res) => {
-  const { styles, theme, mode } = req.body || {};
+  const { styles, theme, mode, episodeCount } = req.body || {};
   if (!Array.isArray(styles) || styles.length < 1 || styles.length > 3) {
     res.status(400).json({ error: 'Choisis 1 à 3 styles.' });
     return;
   }
+  const safeMode = ['synchro', 'long'].includes(mode) ? mode : 'normal';
   const job = startJob('Création du drama', (update) =>
     createProject(
-      { styles, theme: (theme || '').slice(0, 500), mode: mode === 'synchro' ? 'synchro' : 'normal' },
+      {
+        styles,
+        theme: (theme || '').slice(0, 500),
+        mode: safeMode,
+        episodeCount: safeEpisodeCount(safeMode, episodeCount),
+      },
       update,
     ),
   );
@@ -186,8 +201,9 @@ app.post('/api/projects/custom', (req, res) => {
     styles: (Array.isArray(b.styles) ? b.styles : []).filter(validStyle).slice(0, MAX_STYLES),
     mustHappen: String(b.mustHappen || '').trim().slice(0, 1000),
     fidelity: b.fidelity === 'libre' ? 'libre' : 'fidele',
-    mode: b.mode === 'synchro' ? 'synchro' : 'normal',
+    mode: ['synchro', 'long'].includes(b.mode) ? b.mode : 'normal',
   };
+  answers.episodeCount = safeEpisodeCount(answers.mode, b.episodeCount);
   const job = startJob('Création depuis ton script', (update) =>
     createCustomProject(answers, update),
   );
@@ -480,8 +496,9 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
     return;
   }
   const n = Number(req.params.n);
-  if (!(n >= 1 && n <= EPISODE_COUNT)) {
-    res.status(400).json({ error: `Numéro d'épisode invalide (1 à ${EPISODE_COUNT}).` });
+  const total = p.episodeCount || EPISODE_COUNT;
+  if (!(n >= 1 && n <= total)) {
+    res.status(400).json({ error: `Numéro d'épisode invalide (1 à ${total}).` });
     return;
   }
   const job = startJob(`Production épisode ${n}`, (update) => produceEpisode(p, n, update), { projectId: p.id });

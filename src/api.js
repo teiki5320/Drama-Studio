@@ -18,8 +18,11 @@ export const api = {
   deleteProject: (id) => request(`/api/projects/${id}`, { method: 'DELETE' }),
   patchProject: (id, patch) =>
     request(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  createProject: (styles, theme, mode) =>
-    request('/api/projects', { method: 'POST', body: JSON.stringify({ styles, theme, mode }) }),
+  createProject: (styles, theme, mode, episodeCount) =>
+    request('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify({ styles, theme, mode, episodeCount }),
+    }),
   createCustomProject: (answers) =>
     request('/api/projects/custom', { method: 'POST', body: JSON.stringify(answers) }),
   produceEpisode: (id, n) =>

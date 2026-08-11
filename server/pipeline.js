@@ -13,6 +13,8 @@ import {
   buildNewFacePrompt,
   drawVariety,
   LEAD_ADJECTIVES,
+  seriesFormat,
+  formatFor,
 } from './claudegen.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -434,10 +436,12 @@ function ensureLeadAdjectives(project) {
   }
 }
 
-export async function createProject({ styles, theme, mode }, update) {
+export async function createProject({ styles, theme, mode, episodeCount }, update) {
   update('Écriture du scénario par Claude (1 à 3 minutes)…');
+  const safeMode = ['synchro', 'long'].includes(mode) ? mode : 'normal';
+  const format = seriesFormat({ mode: safeMode, episodeCount });
   const data = await askClaudeForJson(
-    buildSeriesPrompt(styles, theme, drawVariety(), usedNamesAndPlaces()),
+    buildSeriesPrompt(styles, theme, drawVariety(), usedNamesAndPlaces(), format),
   );
 
   const id = newId();
@@ -445,7 +449,10 @@ export async function createProject({ styles, theme, mode }, update) {
 
   const project = {
     id,
-    mode: mode === 'synchro' ? 'synchro' : 'normal',
+    mode: safeMode,
+    episodeCount: format.count,
+    // Format long : 1 seul clip vidéo par épisode par défaut (30-60 épisodes !)
+    videoScenes: safeMode === 'long' ? 1 : undefined,
     title: data.title || 'Drama sans titre',
     logline: data.logline || '',
     setting: data.setting || '',
@@ -485,9 +492,13 @@ export async function createCustomProject(answers, update) {
   const id = newId();
   createProjectDirs(id);
 
+  const customMode = ['synchro', 'long'].includes(answers.mode) ? answers.mode : 'normal';
+  const customFormat = seriesFormat(answers);
   const project = {
     id,
-    mode: answers.mode === 'synchro' ? 'synchro' : 'normal',
+    mode: customMode,
+    episodeCount: customFormat.count,
+    videoScenes: customMode === 'long' ? 1 : undefined,
     title: answers.title || data.title || 'Drama sans titre',
     logline: data.logline || '',
     setting: answers.setting || data.setting || '',
@@ -534,7 +545,13 @@ export async function regenerateScript(project, update) {
   const data = await askClaudeForJson(
     project.customAnswers
       ? buildCustomSeriesPrompt(project.customAnswers)
-      : buildSeriesPrompt(project.styles, project.theme, drawVariety(), usedNamesAndPlaces()),
+      : buildSeriesPrompt(
+          project.styles,
+          project.theme,
+          drawVariety(),
+          usedNamesAndPlaces(),
+          formatFor(project),
+        ),
   );
   ensureUsage(project).claudeCalls += 1;
   project.title = (project.customAnswers && project.customAnswers.title) || data.title || project.title;
@@ -561,22 +578,23 @@ export async function regenerateScript(project, update) {
 // voix + rendu MP4. Long (souvent > 1 h avec OpenArt) — la progression est
 // détaillée épisode par épisode et l'interface peut raccrocher en cours de route.
 export async function produceSeason(project, update) {
+  const total = project.episodeCount || EPISODE_COUNT;
   let doneCount = 0;
   const failures = [];
-  for (let n = 1; n <= EPISODE_COUNT; n++) {
+  for (let n = 1; n <= total; n++) {
     const existing = findEpisode(project, n);
     if (existing && existing.status === 'done' && existing.renderedFile) {
       doneCount++;
       continue;
     }
-    const prefix = `Épisode ${n}/${EPISODE_COUNT} — `;
+    const prefix = `Épisode ${n}/${total} — `;
     try {
       await produceEpisode(project, n, (step, p) =>
-        update(prefix + step, (n - 1 + (p || 0) * 0.7) / EPISODE_COUNT),
+        update(prefix + step, (n - 1 + (p || 0) * 0.7) / total),
       );
       const ep = findEpisode(project, n);
       await renderEpisode(project, ep, (step, p) =>
-        update(prefix + step, (n - 1 + 0.7 + (p || 0) * 0.3) / EPISODE_COUNT),
+        update(prefix + step, (n - 1 + 0.7 + (p || 0) * 0.3) / total),
       );
       doneCount++;
     } catch (e) {
@@ -585,9 +603,7 @@ export async function produceSeason(project, update) {
     }
   }
   if (failures.length > 0) {
-    throw new Error(
-      `${doneCount}/${EPISODE_COUNT} épisodes terminés. En échec : ${failures.join(' ; ')}`,
-    );
+    throw new Error(`${doneCount}/${total} épisodes terminés. En échec : ${failures.join(' ; ')}`);
   }
   return { episodes: doneCount };
 }
