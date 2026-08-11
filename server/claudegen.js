@@ -91,7 +91,29 @@ const SCENE_SCHEMA = `{
 // dans sa description visuelle (donc dans toutes ses images).
 export const LEAD_ADJECTIVES = ['beautiful', 'young', 'pretty', 'cute', 'charismatic'];
 
-const SERIES_SCHEMA = `{
+// Formats d'épisodes : classique (10 × 60 s) ou long (30 à 60 × 40 s).
+export function seriesFormat({ mode, episodeCount } = {}) {
+  if (mode === 'long') {
+    return {
+      count: Number.isInteger(episodeCount) ? episodeCount : 40,
+      seconds: 40,
+      words: 95,
+      scenes: '5 à 7',
+    };
+  }
+  return {
+    count: Number.isInteger(episodeCount) ? episodeCount : EPISODE_COUNT,
+    seconds: 60,
+    words: 140,
+    scenes: '8 à 10',
+  };
+}
+
+export function formatFor(project) {
+  return seriesFormat({ mode: project.mode, episodeCount: project.episodeCount });
+}
+
+const seriesSchema = (format) => `{
   "title": "titre de la série",
   "logline": "accroche en une phrase",
   "setting": "lieu et contexte (ville/pays africain précis)",
@@ -104,22 +126,26 @@ const SERIES_SCHEMA = `{
     "visual": "EN ANGLAIS : description physique très détaillée et STABLE (âge apparent, visage, coiffure, tenue signature, corpulence) réutilisée à l'identique dans toutes les images",
     "voice": "CASTING VOCAL : l'id EXACT de la voix la plus adaptée au genre, à l'âge et à la personnalité du personnage, choisie dans ce catalogue : ${VOICE_CATALOG}"
   }],
-  "episodeSummaries": [${EPISODE_COUNT} éléments : {"number": n, "title": "titre", "summary": "résumé en 2 phrases avec le cliffhanger"}],
+  "episodeSummaries": [${format.count} éléments : {"number": n, "title": "titre", "summary": "résumé en 2 phrases avec le cliffhanger"}],
   "hashtags": [10 hashtags TikTok en minuscules SANS le symbole # : 4 génériques à gros volume (drama, pourtoi, storytime…) + 6 propres à la série (lieu, thème, métier, émotion)],
   "episode1": {
     "number": 1,
     "title": "titre de l'épisode 1",
-    "scenes": [8 à 10 scènes : ${SCENE_SCHEMA}],
+    "scenes": [${format.scenes} scènes : ${SCENE_SCHEMA}],
     "cliffhanger": "phrase de suspense qui donne envie de voir l'épisode 2"
   }
 }`;
 
-const SERIES_RULES = `Contraintes STRICTES :
+const seriesRules = (format) => `Contraintes STRICTES :
 - STAR DE L'ÉCRAN : le personnage principal (le PREMIER de la liste "characters", homme ou femme) doit être magnétique — sa description "visual" contient OBLIGATOIREMENT ces mots anglais : ${LEAD_ADJECTIVES.join(', ')}.
 - CLARTÉ AVANT TOUT : un spectateur qui découvre l'épisode sur son téléphone doit tout comprendre du premier coup. Phrases courtes et simples, aucun sous-entendu obscur, aucune ellipse confuse. Une scène = une seule idée claire qui fait avancer l'intrigue. Les personnages s'appellent par leur prénom dans les dialogues pour qu'on sache toujours qui parle à qui.
 - Le narrateur ("narrator") OUVRE l'épisode en posant la situation en une phrase simple (« Awa vient d'enterrer son père. Ce matin, le notaire lit le testament. »), puis n'intervient que pour clarifier une transition (3 fois max par épisode).
 - DRAMA MAXIMAL : conflits frontaux, confrontations directes en face à face, révélations chocs, phrases qui claquent. Chaque épisode contient AU MOINS une confrontation intense et une révélation. Émotions fortes et assumées : colère, larmes, menaces, amour interdit, humiliation publique.
-- Total des répliques de l'épisode ≈ 140 mots (≈ 60 secondes de voix). Répliques ≤ 18 mots, percutantes, naturelles à l'oral, expressions d'Afrique de l'Ouest francophone par petites touches.
+- Total des répliques de l'épisode ≈ ${format.words} mots (≈ ${format.seconds} secondes de voix). Répliques ≤ 18 mots, percutantes, naturelles à l'oral, expressions d'Afrique de l'Ouest francophone par petites touches.${
+  format.count > EPISODE_COUNT
+    ? `\n- SAISON LONGUE (${format.count} épisodes) : construis une intrigue-fleuve avec des arcs (3 à 5 épisodes chacun), des retournements réguliers, des alliances qui changent — le plan de saison doit tenir la distance sans tourner en rond.`
+    : ''
+}
 - Le cliffhanger final doit donner physiquement envie de voir la suite (danger imminent, secret sur le point d'éclater, retournement).
 - Les "imagePrompt" sont autonomes : quelqu'un qui n'a pas lu le script doit pouvoir générer l'image.`;
 
@@ -177,7 +203,7 @@ export function drawVariety() {
   };
 }
 
-export function buildSeriesPrompt(styles, theme, variety = null, avoid = null) {
+export function buildSeriesPrompt(styles, theme, variety = null, avoid = null, format = seriesFormat()) {
   const styleNames = styles.map((s) => styleLabel(s)).join(' + ');
   const bannedNames = [...new Set([...OVERUSED_NAMES, ...((avoid && avoid.names) || [])])];
   const varietyBlock = variety
@@ -197,23 +223,24 @@ Diversité OBLIGATOIRE (anti-répétition) :
 - Trouve un angle d'intrigue original : surprends, ne refais pas l'histoire attendue.
 `
     : '';
-  return `Tu es scénariste de micro-dramas africains au format vertical (type TikTok), épisodes de 60 secondes très addictifs.
+  return `Tu es scénariste de micro-dramas africains au format vertical (type TikTok), épisodes de ${format.seconds} secondes très addictifs.
 
-Crée une NOUVELLE série en ${EPISODE_COUNT} épisodes mêlant ces thèmes : ${styleNames}.${theme ? `\nIdée imposée par le producteur : ${theme}` : ''}
+Crée une NOUVELLE série en ${format.count} épisodes mêlant ces thèmes : ${styleNames}.${theme ? `\nIdée imposée par le producteur : ${theme}` : ''}
 ${varietyBlock}
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour, aucun commentaire), selon ce schéma exact :
-${SERIES_SCHEMA}
+${seriesSchema(format)}
 
-${SERIES_RULES}`;
+${seriesRules(format)}`;
 }
 
 // Série construite à partir du script fourni par l'auteur (mode « mon script »).
 export function buildCustomSeriesPrompt(answers) {
   const { script, title, setting, charactersText, styles = [], mustHappen, fidelity } = answers;
+  const format = seriesFormat(answers);
   const styleNames = styles.map((s) => styleLabel(s)).join(' + ');
-  return `Tu es scénariste de micro-dramas africains au format vertical (type TikTok), épisodes de 60 secondes très addictifs.
+  return `Tu es scénariste de micro-dramas africains au format vertical (type TikTok), épisodes de ${format.seconds} secondes très addictifs.
 
-Un auteur te confie SON histoire. Ta mission : la structurer en une série de ${EPISODE_COUNT} épisodes SANS la dénaturer — c'est son histoire, pas la tienne.
+Un auteur te confie SON histoire. Ta mission : la structurer en une série de ${format.count} épisodes SANS la dénaturer — c'est son histoire, pas la tienne.
 
 === MATÉRIAU DE L'AUTEUR ===
 ${title ? `Titre imposé : ${title}\n` : ''}${setting ? `Lieu et contexte imposés : ${setting}\n` : ''}${styleNames ? `Ton souhaité : ${styleNames}\n` : ''}${
@@ -227,22 +254,23 @@ ${script}
 ${mustHappen ? `Moments imposés (doivent absolument arriver dans la saison) : ${mustHappen}\n` : ''}=== FIN DU MATÉRIAU ===
 
 Règles de FIDÉLITÉ (prioritaires sur tout le reste) :
-- L'intrigue, les personnages et leurs noms viennent de l'auteur : tu ne changes RIEN à l'histoire. Tu la découpes en ${EPISODE_COUNT} épisodes équilibrés, tu la clarifies, et tu complètes UNIQUEMENT ce que l'auteur n'a pas précisé.
+- L'intrigue, les personnages et leurs noms viennent de l'auteur : tu ne changes RIEN à l'histoire. Tu la découpes en ${format.count} épisodes équilibrés, tu la clarifies, et tu complètes UNIQUEMENT ce que l'auteur n'a pas précisé.
 - ${
     fidelity === 'libre'
-      ? "Tu peux réécrire les dialogues pour le format 60 secondes, à condition de garder le sens des scènes et le caractère des personnages."
+      ? `Tu peux réécrire les dialogues pour le format ${format.seconds} secondes, à condition de garder le sens des scènes et le caractère des personnages.`
       : "Si l'auteur a écrit des dialogues, reprends-les tels quels dans les répliques (raccourcis à 18 mots maximum si nécessaire, sans changer le sens)."
   }
 - Complète sans contredire : genre, âge, rôle et description visuelle détaillée des personnages s'ils manquent ; lieu précis s'il manque ; cliffhanger par épisode.
-- Histoire trop courte pour ${EPISODE_COUNT} épisodes → développe des rebondissements cohérents avec l'univers de l'auteur. Trop longue → condense sans perdre les moments clés.
+- Histoire trop courte pour ${format.count} épisodes → développe des rebondissements cohérents avec l'univers de l'auteur. Trop longue → condense sans perdre les moments clés.
 
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour, aucun commentaire), selon ce schéma exact :
-${SERIES_SCHEMA}
+${seriesSchema(format)}
 
-${SERIES_RULES}`;
+${seriesRules(format)}`;
 }
 
 export function buildEpisodePrompt(project, number) {
+  const format = formatFor(project);
   const summaries = project.episodeSummaries
     .map((s) => `Épisode ${s.number} — ${s.title} : ${s.summary}`)
     .join('\n');
@@ -283,14 +311,14 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 {
   "number": ${number},
   "title": "titre de l'épisode",
-  "scenes": [8 à 10 scènes : ${SCENE_SCHEMA}],
+  "scenes": [${format.scenes} scènes : ${SCENE_SCHEMA}],
   "cliffhanger": "phrase de suspense finale"
 }
 
 Contraintes STRICTES :
 - CLARTÉ AVANT TOUT : tout doit se comprendre du premier coup. Phrases courtes et simples, une seule idée par scène, les personnages s'appellent par leur prénom. Le narrateur ouvre l'épisode en rappelant la situation en une phrase simple, puis 3 interventions max.
 - DRAMA MAXIMAL : au moins une confrontation intense en face à face et une révélation choc dans l'épisode. Émotions fortes et assumées, phrases qui claquent.
-- Total des répliques ≈ 140 mots ; répliques ≤ 18 mots, percutantes et naturelles à l'oral.
+- Total des répliques ≈ ${format.words} mots (≈ ${format.seconds} secondes de voix) ; répliques ≤ 18 mots, percutantes et naturelles à l'oral.
 - Cliffhanger final irrésistible (danger imminent, secret sur le point d'éclater, retournement).
 - "speaker" = "narrator" ou un id de personnage listé ci-dessus ; imagePrompt autonomes incluant les descriptions visuelles complètes.`;
 }

@@ -24,7 +24,11 @@ function exportPlace(exportedTo) {
   if (!exportedTo) {
     return null;
   }
-  const folder = exportedTo.includes('Dramas Synchro') ? 'Dramas Synchro' : 'Dramas';
+  const folder = exportedTo.includes('Dramas Synchro')
+    ? 'Dramas Synchro'
+    : exportedTo.includes('Dramas Long')
+      ? 'Dramas Long'
+      : 'Dramas';
   if (exportedTo.includes('com~apple~CloudDocs')) {
     return `☁️ iCloud Drive → ${folder}`;
   }
@@ -54,7 +58,7 @@ function ScriptReview({ project, busy, onRegen, onValidate }) {
         ))}
       </ul>
 
-      <h3>La saison en 10 épisodes</h3>
+      <h3>La saison en {project.episodeSummaries.length} épisodes</h3>
       <ol className="review-list">
         {project.episodeSummaries.map((s) => (
           <li key={s.number}>
@@ -627,13 +631,14 @@ export function ProjectView({ projectId, onBack }) {
     );
   }
 
+  const totalEpisodes = project.episodeCount || EPISODE_COUNT;
   const producedNumbers = project.episodes.map((e) => e.number);
-  const nextNumber = producedNumbers.length < EPISODE_COUNT ? Math.max(...producedNumbers) + 1 : null;
+  const nextNumber = producedNumbers.length < totalEpisodes ? Math.max(...producedNumbers) + 1 : null;
   const currentDone = episode?.status === 'done';
   const stage = project.stage || 'production';
   const renderedEpisodes = project.episodes.filter((e) => e.renderedFile);
   const remainingCount =
-    EPISODE_COUNT - project.episodes.filter((e) => e.status === 'done' && e.renderedFile).length;
+    totalEpisodes - project.episodes.filter((e) => e.status === 'done' && e.renderedFile).length;
 
   const header = (
     <header className="project-header">
@@ -646,6 +651,14 @@ export function ProjectView({ projectId, onBack }) {
           {project.mode === 'synchro' && (
             <span className="scene-badge" title="Version Synchro : lèvres animées via fal.ai">
               🗣️ Synchro
+            </span>
+          )}
+          {project.mode === 'long' && (
+            <span
+              className="scene-badge"
+              title={`Format long : ${project.episodeCount} épisodes de 40 secondes`}
+            >
+              📺 Long · {project.episodeCount} ép.
             </span>
           )}
         </h1>
@@ -947,7 +960,7 @@ export function ProjectView({ projectId, onBack }) {
 
   const episodeTabs = (
     <nav className="episode-tabs">
-      {Array.from({ length: EPISODE_COUNT }, (_, i) => i + 1).map((n) => {
+      {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((n) => {
         const ep = project.episodes.find((e) => e.number === n);
         const summary = project.episodeSummaries.find((s) => s.number === n);
         return (
@@ -974,8 +987,9 @@ export function ProjectView({ projectId, onBack }) {
   const quote = (nEpisodes) => {
     const vids = project.videoScenes ?? DEFAULT_VIDEO_SCENES;
     const vidCost = (project.videoSeconds || 'eco') === 'eco' ? 30 : 55;
-    const oa = (9 * 8 + vids * vidCost) * nEpisodes;
-    const el = 850 * nEpisodes;
+    const isLong = project.mode === 'long';
+    const oa = ((isLong ? 6 : 9) * 8 + vids * vidCost) * nEpisodes;
+    const el = (isLong ? 600 : 850) * nEpisodes;
     const oaRest = credits?.openart?.credits;
     let msg = `Estimation : ~${fr(oa)} crédits OpenArt et ~${fr(el)} crédits ElevenLabs.`;
     if (oaRest != null || elRest != null) {

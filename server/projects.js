@@ -58,6 +58,7 @@ export function listProjects() {
           styles: p.styles,
           custom: Boolean(p.custom),
           mode: p.mode || 'normal',
+          episodeCount: p.episodeCount || 10,
           stage: p.stage || 'production',
           createdAt: p.createdAt,
           updatedAt: p.updatedAt,

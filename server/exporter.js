@@ -26,11 +26,18 @@ function resolveExportRoot() {
 }
 
 export const EXPORT_ROOT = resolveExportRoot();
-// Les dramas « Version Synchro » sont rangés à part (ex. iCloud/Dramas Synchro).
+// Chaque version range ses dramas à part (ex. iCloud/Dramas Synchro, /Dramas Long).
 export const EXPORT_ROOT_SYNCHRO = `${EXPORT_ROOT} Synchro`;
+export const EXPORT_ROOT_LONG = `${EXPORT_ROOT} Long`;
 
 export function exportRootFor(project) {
-  return project && project.mode === 'synchro' ? EXPORT_ROOT_SYNCHRO : EXPORT_ROOT;
+  if (project && project.mode === 'synchro') {
+    return EXPORT_ROOT_SYNCHRO;
+  }
+  if (project && project.mode === 'long') {
+    return EXPORT_ROOT_LONG;
+  }
+  return EXPORT_ROOT;
 }
 
 export function sanitizeName(s) {
