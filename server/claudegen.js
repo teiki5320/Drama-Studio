@@ -95,6 +95,7 @@ export const LEAD_ADJECTIVES = ['beautiful', 'young', 'pretty', 'cute', 'charism
 export function seriesFormat({ mode, episodeCount } = {}) {
   if (mode === 'long') {
     return {
+      long: true,
       count: Number.isInteger(episodeCount) ? episodeCount : 40,
       seconds: 40,
       words: 95,
@@ -102,6 +103,7 @@ export function seriesFormat({ mode, episodeCount } = {}) {
     };
   }
   return {
+    long: false,
     count: Number.isInteger(episodeCount) ? episodeCount : EPISODE_COUNT,
     seconds: 60,
     words: 140,
@@ -116,7 +118,11 @@ export function formatFor(project) {
 const seriesSchema = (format) => `{
   "title": "titre de la série",
   "logline": "accroche en une phrase",
-  "setting": "lieu et contexte (ville/pays africain précis)",
+  "setting": "lieu et contexte (ville/pays africain précis)",${
+    format.long
+      ? `\n  "trope": "le trope principal de la série (en une phrase)",\n  "secret": "le secret du héros/de l'héroïne, tenu toute la saison",\n  "antagonist": "l'antagoniste principal (nom + ce qu'il veut)",`
+      : ''
+  }
   "characters": [3 à 5 personnages, le PREMIER de la liste est le héros ou l'héroïne principal(e) : {
     "id": "slug_court",
     "name": "prénom + nom",
@@ -142,9 +148,7 @@ const seriesRules = (format) => `Contraintes STRICTES :
 - Le narrateur ("narrator") OUVRE l'épisode en posant la situation en une phrase simple (« Awa vient d'enterrer son père. Ce matin, le notaire lit le testament. »), puis n'intervient que pour clarifier une transition (3 fois max par épisode).
 - DRAMA MAXIMAL : conflits frontaux, confrontations directes en face à face, révélations chocs, phrases qui claquent. Chaque épisode contient AU MOINS une confrontation intense et une révélation. Émotions fortes et assumées : colère, larmes, menaces, amour interdit, humiliation publique.
 - Total des répliques de l'épisode ≈ ${format.words} mots (≈ ${format.seconds} secondes de voix). Répliques ≤ 18 mots, percutantes, naturelles à l'oral, expressions d'Afrique de l'Ouest francophone par petites touches.${
-  format.count > EPISODE_COUNT
-    ? `\n- SAISON LONGUE (${format.count} épisodes) : construis une intrigue-fleuve avec des arcs (3 à 5 épisodes chacun), des retournements réguliers, des alliances qui changent — le plan de saison doit tenir la distance sans tourner en rond.`
-    : ''
+  format.long ? `\n${longSeasonBlock(format)}` : ''
 }
 - Le cliffhanger final doit donner physiquement envie de voir la suite (danger imminent, secret sur le point d'éclater, retournement).
 - Les "imagePrompt" sont autonomes : quelqu'un qui n'a pas lu le script doit pouvoir générer l'image.`;
@@ -193,6 +197,85 @@ const MILIEUX = [
 
 // Prénoms que les IA recyclent sans arrêt — bannis d'office.
 const OVERUSED_NAMES = ['Awa', 'Aminata', 'Fatou', 'Fatoumata', 'Aïcha', 'Mariam', 'Kwame', 'Kofi', 'Amara', 'Ismaël', 'Moussa', 'Sekou'];
+
+// ---------- Canevas professionnel du Format long (fourni par le producteur) ----------
+// Saison en 3 actes avec paywall, règles de placement, et blocs de 2 épisodes
+// aux beats chronométrés. Les bornes s'adaptent au nombre d'épisodes choisi.
+
+function longActBounds(count) {
+  if (count >= 55) {
+    return { a1: 8, a2a: 25, a2b: 50 };
+  }
+  return {
+    a1: Math.max(5, Math.round(count * 0.13)),
+    a2a: Math.round(count * 0.4),
+    a2b: Math.round(count * 0.8),
+  };
+}
+
+function longSeasonBlock(format) {
+  const c = format.count;
+  const b = longActBounds(c);
+  const mid = (x, y) => Math.round((x + y) / 2);
+  return `
+STRUCTURE DE SAISON OBLIGATOIRE (canevas professionnel des micro-dramas, ${c} épisodes) :
+Fondations à définir AVANT d'écrire, et à tenir toute la saison :
+- un TROPE principal fort (vengeance, héritier(e) caché(e), mariage contractuel, Cendrillon moderne, retour du fils prodigue…) ;
+- un SECRET du héros/de l'héroïne (révélé progressivement, indice par indice) ;
+- un ANTAGONISTE principal.
+■ ACTE 1 — MISE EN PLACE (ép. 1-${b.a1}) : injustice fondatrice dès l'ép. 1 ; UNE humiliation par épisode ; indices du secret distillés ; introduction de l'allié/love interest vers l'ép. ${Math.min(4, b.a1)} ; l'ép. ${b.a1} se termine sur le CLIFFHANGER LE PLUS FORT depuis le début (c'est lui qui accroche définitivement le spectateur).
+■ ACTE 2A — ESCALADE (ép. ${b.a1 + 1}-${b.a2a}) : le secret se révèle PARTIELLEMENT à un personnage ; première mini-revanche vers l'ép. ${mid(b.a1 + 3, b.a2a - 5)} ; un deuxième antagoniste/obstacle apparaît ; RETOURNEMENT MAJEUR n°1 vers l'ép. ${Math.round(b.a2a * 0.8)}.
+■ ACTE 2B — MONTAGNES RUSSES (ép. ${b.a2a + 1}-${b.a2b}) : cycles victoire → trahison → chute → remontée ; moment de satisfaction PUBLIQUE n°1 vers l'ép. ${mid(b.a2a, b.a2b) - Math.round(c * 0.1)} ; FAUSSE DÉFAITE (le héros perd tout) vers l'ép. ${Math.round(b.a2b * 0.8)} ; RETOURNEMENT MAJEUR n°2 vers l'ép. ${b.a2b - Math.max(3, Math.round(c * 0.06))}.
+■ ACTE 3 — REVANCHE TOTALE (ép. ${b.a2b + 1}-${c}) : révélation PUBLIQUE du secret vers l'ép. ${mid(b.a2b, c)} ; antagoniste détruit/humilié publiquement ; résolution de la romance ; happy end RAPIDE (2-3 épisodes maximum).
+■ RÈGLES DE PLACEMENT (les "episodeSummaries" doivent les refléter épisode par épisode) :
+- un retournement toutes les 3 à 5 épisodes ;
+- une satisfaction/revanche partielle toutes les 10 à 15 épisodes ;
+- cliffhanger MAXIMAL aux épisodes multiples de 10 ;
+- ratio injustice/revanche : 80/20 dans l'acte 1 → 50/50 au milieu → 20/80 à la fin.`;
+}
+
+// Position d'un épisode long dans son bloc de 2 et dans la saison → découpage
+// seconde par seconde (beats adaptés à la durée réelle des épisodes).
+export function longEpisodeBeats(format, number) {
+  const s = format.seconds;
+  const t = (f) => Math.round(s * f);
+  const b = longActBounds(format.count);
+  const isFirst = number % 2 === 1;
+  const blocStart = isFirst ? number : number - 1;
+  const act =
+    number <= b.a1
+      ? 'ACTE 1 — MISE EN PLACE (ratio injustice/revanche ≈ 80/20 : le héros subit)'
+      : number <= b.a2a
+        ? 'ACTE 2A — ESCALADE (le secret commence à filtrer, premières mini-revanches)'
+        : number <= b.a2b
+          ? 'ACTE 2B — MONTAGNES RUSSES (ratio ≈ 50/50 : victoire → trahison → chute → remontée)'
+          : 'ACTE 3 — REVANCHE TOTALE (ratio ≈ 20/80 : le héros domine)';
+  return `
+POSITION DANS LA SAISON : ${act}.
+DÉCOUPAGE OBLIGATOIRE (bloc d'épisodes ${blocStart}-${blocStart + 1} — celui-ci est le ${isFirst ? 'PREMIER' : 'SECOND'} du bloc, même question dramatique, AUCUNE ellipse de temps entre les deux) :
+■ 0-${t(0.05)} s — HOOK : ${
+    isFirst
+      ? "reprise DIRECTE du cliffhanger de l'épisode précédent"
+      : "réponse IMMÉDIATE au cliffhanger de l'épisode précédent"
+  } ;
+■ ${t(0.05)}-${t(0.42)} s — ${
+    isFirst
+      ? 'DÉVELOPPEMENT : le conflit avance + une information nouvelle'
+      : "CONSÉQUENCE : la situation empire OU s'inverse"
+  } ;
+■ ${t(0.42)}-${t(0.75)} s — ${
+    isFirst
+      ? 'ESCALADE : humiliation ou tension, avec un TÉMOIN présent'
+      : 'ÉLARGISSEMENT : le conflit devient plus public'
+  } ;
+■ ${t(0.75)}-${t(0.92)} s — INDICE DU SECRET, visible pour le spectateur${
+    isFirst ? '' : ", PLUS GROS que celui de l'épisode précédent"
+  } ;
+■ ${t(0.92)}-${s} s — CLIFFHANGER${
+    isFirst ? '' : " PLUS FORT que celui de l'épisode précédent"
+  }${number % 10 === 0 ? ' — épisode multiple de 10 : cliffhanger MAXIMAL' : ''}.
+Règle d'or : UN SEUL beat dramatique par épisode — pas deux.`;
+}
 
 export function drawVariety() {
   const s = AFRICAN_SETTINGS[Math.floor(Math.random() * AFRICAN_SETTINGS.length)];
@@ -296,15 +379,26 @@ export function buildEpisodePrompt(project, number) {
         }`
       : '';
 
+  // Format long : fondations de la saison + découpage du bloc de 2 épisodes.
+  const foundations =
+    format.long && (project.trope || project.secret || project.antagonist)
+      ? `\nFondations de la saison (à respecter dans CHAQUE épisode) :${
+          project.trope ? `\n- Trope principal : ${project.trope}` : ''
+        }${project.secret ? `\n- Secret du héros/de l'héroïne : ${project.secret}` : ''}${
+          project.antagonist ? `\n- Antagoniste principal : ${project.antagonist}` : ''
+        }\n`
+      : '';
+  const beats = format.long ? `\n${longEpisodeBeats(format, number)}\n` : '';
+
   return `Tu es scénariste de la série micro-drama africaine "${project.title}" (${project.logline}).
 Contexte : ${project.setting}
-
+${foundations}
 Personnages (ids et descriptions visuelles à réutiliser EXACTEMENT) :
 ${characters}
 
 Plan de la saison :
 ${summaries}
-${previous ? `\n${previous}\n` : ''}${source}
+${previous ? `\n${previous}\n` : ''}${source}${beats}
 Écris maintenant le scénario COMPLET de l'épisode ${number}, fidèle au plan de saison et à la continuité.
 
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :

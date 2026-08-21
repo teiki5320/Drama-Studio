@@ -158,7 +158,7 @@ function safeEpisodeCount(mode, raw) {
     return undefined;
   }
   const v = Number(raw);
-  return Number.isInteger(v) && v >= 30 && v <= 60 ? v : 40;
+  return Number.isInteger(v) && v >= 30 && v <= 80 ? v : 40;
 }
 
 app.post('/api/projects', (req, res) => {

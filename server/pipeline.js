@@ -465,6 +465,9 @@ export async function createProject({ styles, theme, mode, episodeCount }, updat
       summary: s.summary || '',
     })),
     hashtags: Array.isArray(data.hashtags) ? data.hashtags.slice(0, 12).map(String) : [],
+    trope: data.trope || '',
+    secret: data.secret || '',
+    antagonist: data.antagonist || '',
     musicFile: null,
     episodes: [],
     createdAt: new Date().toISOString(),
@@ -519,6 +522,9 @@ export async function createCustomProject(answers, update) {
       summary: s.summary || '',
     })),
     hashtags: Array.isArray(data.hashtags) ? data.hashtags.slice(0, 12).map(String) : [],
+    trope: data.trope || '',
+    secret: data.secret || '',
+    antagonist: data.antagonist || '',
     musicFile: null,
     episodes: [],
     createdAt: new Date().toISOString(),
@@ -564,6 +570,9 @@ export async function regenerateScript(project, update) {
     summary: s.summary || '',
   }));
   project.hashtags = Array.isArray(data.hashtags) ? data.hashtags.slice(0, 12).map(String) : [];
+  project.trope = data.trope || '';
+  project.secret = data.secret || '';
+  project.antagonist = data.antagonist || '';
   const ep1raw = data.episode1 || (Array.isArray(data.episodes) ? data.episodes[0] : null);
   if (!ep1raw) {
     throw new Error("Claude n'a pas fourni l'épisode 1.");
