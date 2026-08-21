@@ -175,7 +175,7 @@ function CustomCreate({ onSubmit, onCancel, busy, mode, seasonEpisodes, onSeason
         <div className="form-field">
           <label>📺 Format long — épisodes dans la saison</label>
           <select value={seasonEpisodes} onChange={(e) => onSeasonChange(Number(e.target.value))}>
-            {[30, 40, 50, 60].map((n) => (
+            {[30, 40, 50, 60, 70, 80].map((n) => (
               <option key={n} value={n}>
                 {n} épisodes de 40 secondes
               </option>
@@ -616,7 +616,7 @@ export function App() {
               value={seasonEpisodes}
               onChange={(e) => setSeasonEpisodes(Number(e.target.value))}
             >
-              {[30, 40, 50, 60].map((n) => (
+              {[30, 40, 50, 60, 70, 80].map((n) => (
                 <option key={n} value={n}>
                   {n} épisodes
                 </option>
