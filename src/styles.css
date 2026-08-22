@@ -258,6 +258,51 @@ code {
   flex-shrink: 0;
 }
 
+/* ---------- Chaînes : barre de sujets ---------- */
+
+.topic-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.topic-bar input {
+  flex: 1;
+  min-width: 260px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.topic-bar input:focus {
+  border-color: var(--gold-dim);
+}
+
+.topic-ideas {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.topic-ideas .dl-chip {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 /* ---------- Productions en cours (accueil) ---------- */
 
 .active-jobs {

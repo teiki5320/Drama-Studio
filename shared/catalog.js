@@ -114,6 +114,10 @@ export function tiktokHashtags(project) {
 }
 
 export function tiktokCaption(project, episode) {
+  // Vidéo de chaîne : pas de numéro d'épisode, le titre suffit.
+  if (project.mode === 'chaine') {
+    return `${episode.title || `Vidéo ${episode.number}`} ${tiktokHashtags(project).join(' ')}`;
+  }
   const title = episode.title ? ` — ${episode.title}` : '';
   return `Épisode ${episode.number}${title} ${tiktokHashtags(project).join(' ')}`;
 }

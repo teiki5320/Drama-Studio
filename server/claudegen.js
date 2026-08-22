@@ -81,11 +81,16 @@ export function extractJson(text) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-const SCENE_SCHEMA = `{
+const DRAMA_IMAGE_SUFFIX =
+  'cinematic film still, african drama series, warm natural light, shallow depth of field, 9:16 vertical';
+
+const sceneSchema = (suffix) => `{
   "lines": [1 à 2 répliques : {"speaker": "narrator" OU l'id d'un personnage, "text": "réplique courte et percutante en français, 18 mots maximum"}],
   "characters": [ids des personnages VISIBLES à l'image dans cette scène, [] si aucun],
-  "imagePrompt": "EN ANGLAIS : le plan cinématographique précis (lieu, action, émotion, cadrage) en répétant mot pour mot la description visuelle 'visual' de chaque personnage présent, terminé par : cinematic film still, african drama series, warm natural light, shallow depth of field, 9:16 vertical"
+  "imagePrompt": "EN ANGLAIS : le plan cinématographique précis (lieu, action, émotion, cadrage) en répétant mot pour mot la description visuelle 'visual' de chaque personnage présent, terminé par : ${suffix}"
 }`;
+
+const SCENE_SCHEMA = sceneSchema(DRAMA_IMAGE_SUFFIX);
 
 // Le héros/l'héroïne doit crever l'écran : ces adjectifs sont OBLIGATOIRES
 // dans sa description visuelle (donc dans toutes ses images).
@@ -415,6 +420,82 @@ Contraintes STRICTES :
 - Total des répliques ≈ ${format.words} mots (≈ ${format.seconds} secondes de voix) ; répliques ≤ 18 mots, percutantes et naturelles à l'oral.
 - Cliffhanger final irrésistible (danger imminent, secret sur le point d'éclater, retournement).
 - "speaker" = "narrator" ou un id de personnage listé ci-dessus ; imagePrompt autonomes incluant les descriptions visuelles complètes.`;
+}
+
+// ---------- Chaînes (vidéos 60-120 s, narrateur seul, hors dramas) ----------
+
+export const CHANNEL_GENRES = {
+  storytime: 'storytime / histoires et faits réels racontés',
+  educatif: 'éducatif / conseils pratiques',
+  classement: 'classements / tops',
+};
+
+export const CHANNEL_VISUAL_STYLES = {
+  photorealiste: 'photorealistic, cinematic, warm natural light, shallow depth of field, 9:16 vertical',
+  illustration: 'modern digital illustration, bold colors, clean shapes, 9:16 vertical',
+  archives: 'vintage archival photograph style, sepia tones, film grain, documentary feel, 9:16 vertical',
+  epure: 'minimalist clean aesthetic, soft gradients, elegant simple composition, 9:16 vertical',
+};
+
+function channelImageSuffix(project) {
+  return CHANNEL_VISUAL_STYLES[project.visualStyle] || CHANNEL_VISUAL_STYLES.photorealiste;
+}
+
+function channelDesc(ch) {
+  return `Chaîne "${ch.title}" — genre : ${CHANNEL_GENRES[ch.genre] || ch.genre || 'libre'} — thème : ${ch.themeDesc || 'libre'}. Vidéos verticales de ${ch.targetSeconds || 90} secondes, un NARRATEUR unique en voix off (aucun dialogue).`;
+}
+
+// À la création d'une chaîne : hashtags de la chaîne + 10 idées de sujets.
+export function buildChannelPrompt(ch) {
+  return `Tu es le directeur éditorial d'une chaîne TikTok francophone.
+${channelDesc(ch)}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "hashtags": [10 hashtags TikTok en minuscules SANS le symbole # : 4 génériques à gros volume adaptés au genre + 6 propres au thème de la chaîne],
+  "topics": [10 idées de sujets de vidéos pour cette chaîne — chacun en une phrase accrocheuse, précise et FACTUELLE (pas de sujet vague), variés, classés du plus fort au moins fort]
+}`;
+}
+
+// 10 nouvelles idées de sujets (en évitant celles déjà proposées ou produites).
+export function buildTopicsPrompt(project) {
+  const done = [
+    ...(project.episodes || []).map((e) => e.topic || e.title),
+    ...(project.topicIdeas || []),
+  ].filter(Boolean);
+  return `Tu es le directeur éditorial d'une chaîne TikTok francophone.
+${channelDesc(project)}
+${done.length > 0 ? `\nSujets déjà traités ou déjà proposés — INTERDIT de les répéter ou de les paraphraser :\n${done.map((t) => `- ${t}`).join('\n')}\n` : ''}
+Réponds UNIQUEMENT avec un objet JSON valide : {"topics": [10 NOUVELLES idées de sujets, une phrase accrocheuse et factuelle chacune, variées]}`;
+}
+
+// Script complet d'une vidéo de chaîne sur un sujet donné.
+export function buildChannelVideoPrompt(project, topic, number) {
+  const seconds = project.targetSeconds || 90;
+  const words = Math.round(seconds * 2.3);
+  const sMin = Math.max(6, Math.round(seconds / 10));
+  const sMax = Math.max(sMin + 2, Math.round(seconds / 7));
+  return `Tu écris les vidéos d'une chaîne TikTok francophone.
+${channelDesc(project)}
+
+SUJET DE CETTE VIDÉO (n°${number}) : ${topic}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "number": ${number},
+  "title": "titre court et accrocheur de la vidéo (pas le sujet recopié)",
+  "scenes": [${sMin} à ${sMax} scènes : ${sceneSchema(channelImageSuffix(project))}],
+  "cliffhanger": ""
+}
+
+Contraintes STRICTES :
+- NARRATEUR SEUL : toutes les répliques ont "speaker": "narrator", "characters": [] partout. C'est une voix off qui raconte, jamais un dialogue.
+- STRUCTURE OBLIGATOIRE (≈ ${seconds} secondes, ≈ ${words} mots au total) :
+  ■ HOOK (scène 1, 0-3 s) : la promesse choc ou la question qui interdit de scroller — jamais d'introduction molle.
+  ■ DÉVELOPPEMENT en 3 à 4 blocs (~20-25 s chacun) : UNE seule idée forte par bloc, et une relance de curiosité entre les blocs (« mais ce n'est pas le pire… », « et c'est là que tout bascule »).
+  ■ CHUTE (dernière scène) : l'information ou la phrase qu'on retient, PUIS un appel à l'abonnement naturel en toute fin (« abonne-toi pour la suite »).
+- FACTUEL ET CLAIR : si le sujet est réel, aucune invention — des faits vérifiables racontés simplement. Phrases courtes, orales, ≤ 18 mots par réplique.
+- Les "imagePrompt" sont autonomes et illustrent chaque moment du récit (lieux, objets, ambiances, silhouettes — PAS de personnage récurrent à visage constant), tous terminés par le style imposé de la chaîne.`;
 }
 
 export function buildNewFacePrompt(character, instructions, isLead = false) {

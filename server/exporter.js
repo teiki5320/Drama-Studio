@@ -37,6 +37,10 @@ export function exportRootFor(project) {
   if (project && project.mode === 'long') {
     return EXPORT_ROOT_LONG;
   }
+  // Chaîne : un dossier au nom de la chaîne, à côté du dossier Dramas.
+  if (project && project.mode === 'chaine') {
+    return path.join(path.dirname(EXPORT_ROOT), sanitizeName(project.title));
+  }
   return EXPORT_ROOT;
 }
 
@@ -51,7 +55,11 @@ export function sanitizeName(s) {
 }
 
 // Dossier d'export d'un drama (ex. iCloud Drive/Dramas/Ma Sœur, Mon Poison).
+// Pour une chaîne, la racine EST déjà le dossier de la chaîne.
 export function projectExportDir(project) {
+  if (project && project.mode === 'chaine') {
+    return exportRootFor(project);
+  }
   return path.join(exportRootFor(project), sanitizeName(project.title));
 }
 

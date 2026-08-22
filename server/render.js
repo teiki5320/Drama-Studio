@@ -23,6 +23,13 @@ async function getBundle() {
 }
 
 export function buildEpisodeProps(project, episode, assetBase, studioBase) {
+  // Marque de l'auteur (sticker + outro) — une chaîne peut avoir sa propre outro.
+  const studio = loadStudio();
+  if (project.channelOutro) {
+    studio.outro = project.channelOutro;
+    studio.outroIsVideo = Boolean(project.channelOutroIsVideo);
+    studio.outroDurationSec = project.channelOutroDurationSec || 4;
+  }
   return {
     episode: {
       number: episode.number,
@@ -34,9 +41,10 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
     assetBase,
     musicFile: project.musicFile,
     seriesTitle: project.title,
-    // Marque de l'auteur (sticker + outro), commune à tous les dramas.
-    studio: loadStudio(),
+    studio,
     studioBase: studioBase || '',
+    // Chaîne : la vidéo se termine sans carton « À suivre ».
+    noOutroCard: project.mode === 'chaine',
   };
 }
 

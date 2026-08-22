@@ -25,6 +25,18 @@ export const api = {
     }),
   createCustomProject: (answers) =>
     request('/api/projects/custom', { method: 'POST', body: JSON.stringify(answers) }),
+  createChannel: (info) =>
+    request('/api/projects/channel', { method: 'POST', body: JSON.stringify(info) }),
+  createChannelVideo: (id, topic) =>
+    request(`/api/projects/${id}/videos`, { method: 'POST', body: JSON.stringify({ topic }) }),
+  suggestTopics: (id) => request(`/api/projects/${id}/suggest-topics`, { method: 'POST' }),
+  uploadChannelOutro: (id, dataUrl) =>
+    request(`/api/projects/${id}/channel-outro`, {
+      method: 'POST',
+      body: JSON.stringify({ data: dataUrl }),
+    }),
+  deleteChannelOutro: (id) =>
+    request(`/api/projects/${id}/channel-outro`, { method: 'DELETE' }),
   produceEpisode: (id, n) =>
     request(`/api/projects/${id}/episodes/${n}/produce`, { method: 'POST' }),
   produceSeason: (id) => request(`/api/projects/${id}/produce-season`, { method: 'POST' }),

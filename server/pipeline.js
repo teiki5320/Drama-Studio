@@ -15,6 +15,9 @@ import {
   LEAD_ADJECTIVES,
   seriesFormat,
   formatFor,
+  buildChannelPrompt,
+  buildTopicsPrompt,
+  buildChannelVideoPrompt,
 } from './claudegen.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -542,6 +545,83 @@ export async function createCustomProject(answers, update) {
   return { projectId: id };
 }
 
+// ---------- Chaînes (vidéos 60-120 s, narrateur seul) ----------
+
+// Crée une chaîne : identité + hashtags + 10 idées de sujets par Claude.
+export async function createChannel(info, update) {
+  update('Préparation de la chaîne par Claude (moins d\'une minute)…');
+  const data = await askClaudeForJson(buildChannelPrompt(info));
+
+  const id = newId();
+  createProjectDirs(id);
+  const project = {
+    id,
+    mode: 'chaine',
+    title: info.title,
+    logline: info.themeDesc || '',
+    setting: '',
+    genre: info.genre || '',
+    themeDesc: info.themeDesc || '',
+    visualStyle: info.visualStyle || 'photorealiste',
+    targetSeconds: info.targetSeconds || 90,
+    narratorVoice: isCatalogVoice(info.narratorVoice) ? info.narratorVoice : undefined,
+    videoScenes: 1,
+    styles: [],
+    theme: '',
+    characters: [],
+    episodeSummaries: [],
+    episodeCount: 0,
+    hashtags: Array.isArray(data.hashtags) ? data.hashtags.slice(0, 12).map(String) : [],
+    topicIdeas: Array.isArray(data.topics) ? data.topics.slice(0, 15).map(String) : [],
+    musicFile: null,
+    episodes: [],
+    stage: 'production',
+    createdAt: new Date().toISOString(),
+  };
+  ensureUsage(project).claudeCalls += 1;
+  saveProject(project);
+  return { projectId: id };
+}
+
+// Écrit le script d'une nouvelle vidéo de la chaîne sur un sujet donné.
+export async function createChannelVideo(project, topic, update) {
+  if (project.mode !== 'chaine') {
+    throw new Error('Réservé aux chaînes.');
+  }
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  update(`Écriture du script « ${topic.slice(0, 60)} » par Claude…`);
+  const raw = await askClaudeForJson(buildChannelVideoPrompt(project, topic, number));
+  ensureUsage(project).claudeCalls += 1;
+  const episode = normalizeEpisode(raw, number);
+  // Narrateur seul : aucune autre voix, aucun personnage à l'image.
+  for (const s of episode.scenes) {
+    s.characters = [];
+    for (const l of s.lines) {
+      l.speaker = 'narrator';
+    }
+  }
+  episode.topic = topic;
+  episode.cliffhanger = '';
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  // Le sujet consommé sort de la liste d'idées.
+  project.topicIdeas = (project.topicIdeas || []).filter((t) => t !== topic);
+  saveProject(project);
+  return { number };
+}
+
+// 10 nouvelles idées de sujets pour la chaîne.
+export async function suggestTopics(project, update) {
+  update('Recherche de nouveaux sujets par Claude…');
+  const data = await askClaudeForJson(buildTopicsPrompt(project));
+  ensureUsage(project).claudeCalls += 1;
+  const fresh = Array.isArray(data.topics) ? data.topics.slice(0, 10).map(String) : [];
+  project.topicIdeas = [...fresh, ...(project.topicIdeas || [])].slice(0, 20);
+  saveProject(project);
+  return { topics: fresh };
+}
+
 // Réécrit entièrement la série (mêmes styles/thème — ou même script source
 // pour un drama en mode « mon script ») tant que le scénario n'est pas validé.
 export async function regenerateScript(project, update) {
@@ -619,6 +699,9 @@ export async function produceSeason(project, update) {
 
 export async function produceEpisode(project, number, update) {
   let episode = findEpisode(project, number);
+  if (!episode && project.mode === 'chaine') {
+    throw new Error('Crée d\'abord la vidéo avec « ➕ Nouvelle vidéo » (il faut son sujet).');
+  }
   if (!episode) {
     update(`Écriture du scénario de l'épisode ${number} par Claude…`);
     const raw = await askClaudeForJson(buildEpisodePrompt(project, number));

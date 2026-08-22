@@ -85,7 +85,7 @@ const Outro = ({ title, cliffhanger }) => {
   );
 };
 
-export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle, studio, studioBase }) => {
+export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle, studio, studioBase, noOutroCard }) => {
   const scenes = episode?.scenes || [];
 
   if (scenes.length === 0) {
@@ -97,11 +97,20 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
   }
 
   const clipFrames = outroClipFrames(studio);
-  // Fin des scènes + carton « À suivre » (l'outro personnel vient après).
-  const mainFrames = episodeDurationInFrames(episode);
+  // Fin du contenu principal (scènes + carton éventuel) — l'outro perso vient après.
+  const mainFrames = episodeDurationInFrames(episode, null, noOutroCard);
 
-  const seriesChildren = [
-    ...scenes.flatMap((scene, i) => [
+  const transition = (key) => (
+    <TransitionSeries.Transition
+      key={key}
+      presentation={fade()}
+      timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+    />
+  );
+
+  const seriesChildren = [];
+  scenes.forEach((scene, i) => {
+    seriesChildren.push(
       <TransitionSeries.Sequence key={`scene-${i}`} durationInFrames={sceneFrames(scene)}>
         <Scene
           scene={scene}
@@ -112,25 +121,23 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
           episodeNumber={episode.number}
         />
       </TransitionSeries.Sequence>,
-      <TransitionSeries.Transition
-        key={`tr-${i}`}
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />,
-    ]),
-    <TransitionSeries.Sequence key="outro-card" durationInFrames={Math.round(OUTRO_SECONDS * FPS)}>
-      <Outro title={seriesTitle} cliffhanger={episode.cliffhanger} />
-    </TransitionSeries.Sequence>,
-  ];
-
-  // Outro personnel de l'auteur (vidéo ou image), après le carton « À suivre ».
+    );
+    if (i < scenes.length - 1) {
+      seriesChildren.push(transition(`tr-${i}`));
+    }
+  });
+  // Éléments de fin : carton « À suivre » (dramas), puis outro perso (vidéo/image).
+  if (!noOutroCard) {
+    seriesChildren.push(
+      transition('tr-outro-card'),
+      <TransitionSeries.Sequence key="outro-card" durationInFrames={Math.round(OUTRO_SECONDS * FPS)}>
+        <Outro title={seriesTitle} cliffhanger={episode.cliffhanger} />
+      </TransitionSeries.Sequence>,
+    );
+  }
   if (clipFrames > 0) {
     seriesChildren.push(
-      <TransitionSeries.Transition
-        key="tr-outro-clip"
-        presentation={fade()}
-        timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-      />,
+      transition('tr-outro-clip'),
       <TransitionSeries.Sequence key="outro-clip" durationInFrames={clipFrames}>
         {studio.outroIsVideo ? (
           <OffthreadVideo

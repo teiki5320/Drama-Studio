@@ -132,6 +132,48 @@ export async function saveOutro(base64Data) {
   return persist(s);
 }
 
+// Outro propre à une chaîne (mêmes formats que l'outro globale) — le fichier
+// vit dans le dossier studio, référencé par le projet de la chaîne.
+export async function saveChannelOutro(projectId, base64Data) {
+  const m = base64Data.match(
+    /^data:(video\/(?:mp4|quicktime)|image\/(?:png|jpe?g|webp));base64,(.+)$/,
+  );
+  if (!m) {
+    throw new Error('Format attendu : vidéo MP4/MOV ou image PNG/JPG/WebP.');
+  }
+  const mime = m[1];
+  const isVideo = mime.startsWith('video/');
+  const ext = isVideo
+    ? mime.includes('quicktime')
+      ? 'mov'
+      : 'mp4'
+    : mime.includes('png')
+      ? 'png'
+      : mime.includes('webp')
+        ? 'webp'
+        : 'jpg';
+  const file = `chaine_${projectId}_outro_${Date.now()}.${ext}`;
+  const full = path.join(STUDIO_DIR, file);
+  fs.writeFileSync(full, Buffer.from(m[2], 'base64'));
+  let durationSec = 3.5;
+  if (isVideo) {
+    try {
+      durationSec = Math.min(15, Math.max(1, await videoDurationSec(full)));
+    } catch {
+      try {
+        durationSec = Math.min(15, Math.max(1, await audioDurationSec(full)));
+      } catch {
+        durationSec = 4;
+      }
+    }
+  }
+  return { file, isVideo, durationSec };
+}
+
+export function removeChannelOutroFile(file) {
+  removeFile(file);
+}
+
 export function removeOutro() {
   const s = loadStudio();
   removeFile(s.outro);
