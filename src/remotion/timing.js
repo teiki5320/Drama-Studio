@@ -33,16 +33,18 @@ export function outroClipFrames(studio) {
   return Math.max(FPS, Math.round((studio.outroDurationSec || 4) * FPS));
 }
 
-export function episodeDurationInFrames(episode, studio) {
+// noOutroCard (chaînes) : la vidéo se termine sans carton « À suivre » —
+// directement sur l'outro perso s'il existe.
+export function episodeDurationInFrames(episode, studio, noOutroCard = false) {
   const scenes = episode?.scenes || [];
   if (scenes.length === 0) {
     return FPS * 3;
   }
   const scenesTotal = scenes.reduce((sum, sc) => sum + sceneFrames(sc), 0);
-  const outro = Math.round(OUTRO_SECONDS * FPS);
-  // TransitionSeries : les fondus se superposent, la durée totale est donc
-  // la somme des séquences moins un fondu par coupe (scènes + carton de fin).
-  const cuts = scenes.length; // scènes-1 coupes internes + 1 coupe vers l'outro
+  const card = noOutroCard ? 0 : Math.round(OUTRO_SECONDS * FPS);
   const clip = outroClipFrames(studio);
-  return scenesTotal + outro - TRANSITION_FRAMES * cuts + (clip ? clip - TRANSITION_FRAMES : 0);
+  // TransitionSeries : un fondu par coupe — entre les scènes, puis vers
+  // chaque élément de fin présent (carton et/ou outro perso).
+  const cuts = scenes.length - 1 + (noOutroCard ? 0 : 1) + (clip > 0 ? 1 : 0);
+  return scenesTotal + card + clip - TRANSITION_FRAMES * cuts;
 }

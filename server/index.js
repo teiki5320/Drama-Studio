@@ -19,6 +19,9 @@ import { startJob, getJob, activeJobFor, listActiveJobs } from './jobs.js';
 import {
   createProject,
   createCustomProject,
+  createChannel,
+  createChannelVideo,
+  suggestTopics,
   produceEpisode,
   produceSeason,
   regenerateScript,
@@ -49,6 +52,8 @@ import {
   removeSticker,
   saveOutro,
   removeOutro,
+  saveChannelOutro,
+  removeChannelOutroFile,
 } from './studio.js';
 
 const app = express();
@@ -208,6 +213,93 @@ app.post('/api/projects/custom', (req, res) => {
     createCustomProject(answers, update),
   );
   res.json({ jobId: job.id });
+});
+
+// ---------- Chaînes (vidéos 60-120 s, narrateur seul) ----------
+app.post('/api/projects/channel', (req, res) => {
+  const b = req.body || {};
+  const title = String(b.name || '').trim().slice(0, 80);
+  if (title.length < 2) {
+    res.status(400).json({ error: 'Donne un nom à ta chaîne.' });
+    return;
+  }
+  const seconds = Number(b.targetSeconds);
+  const info = {
+    title,
+    genre: String(b.genre || '').slice(0, 40),
+    themeDesc: String(b.themeDesc || '').trim().slice(0, 300),
+    visualStyle: String(b.visualStyle || 'photorealiste').slice(0, 30),
+    targetSeconds: Number.isInteger(seconds) && seconds >= 60 && seconds <= 120 ? seconds : 90,
+    narratorVoice: b.narratorVoice,
+  };
+  const job = startJob('Création de la chaîne', (update) => createChannel(info, update));
+  res.json({ jobId: job.id });
+});
+
+app.post('/api/projects/:id/videos', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  const topic = String((req.body || {}).topic || '').trim().slice(0, 300);
+  if (topic.length < 5) {
+    res.status(400).json({ error: 'Donne le sujet de la vidéo (une phrase).' });
+    return;
+  }
+  const job = startJob('Nouvelle vidéo', (update) => createChannelVideo(p, topic, update), {
+    projectId: p.id,
+  });
+  res.json({ jobId: job.id });
+});
+
+app.post('/api/projects/:id/suggest-topics', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  const job = startJob('Idées de sujets', (update) => suggestTopics(p, update), {
+    projectId: p.id,
+  });
+  res.json({ jobId: job.id });
+});
+
+app.post('/api/projects/:id/channel-outro', async (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  try {
+    const r = await saveChannelOutro(p.id, req.body.data || '');
+    if (p.channelOutro) {
+      removeChannelOutroFile(p.channelOutro);
+    }
+    p.channelOutro = r.file;
+    p.channelOutroIsVideo = r.isVideo;
+    p.channelOutroDurationSec = r.durationSec;
+    saveProject(p);
+    res.json(p);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/projects/:id/channel-outro', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  if (p.channelOutro) {
+    removeChannelOutroFile(p.channelOutro);
+  }
+  p.channelOutro = null;
+  p.channelOutroIsVideo = false;
+  p.channelOutroDurationSec = 0;
+  saveProject(p);
+  res.json(p);
 });
 
 app.get('/api/projects/:id', (req, res) => {
@@ -496,7 +588,7 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
     return;
   }
   const n = Number(req.params.n);
-  const total = p.episodeCount || EPISODE_COUNT;
+  const total = p.mode === 'chaine' ? (p.episodes || []).length : p.episodeCount || EPISODE_COUNT;
   if (!(n >= 1 && n <= total)) {
     res.status(400).json({ error: `Numéro d'épisode invalide (1 à ${total}).` });
     return;

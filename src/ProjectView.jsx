@@ -534,6 +534,7 @@ export function ProjectView({ projectId, onBack }) {
   const [studio, setStudio] = useState(null);
   const [justRendered, setJustRendered] = useState(null);
   const [repairDismissed, setRepairDismissed] = useState(false);
+  const [topic, setTopic] = useState('');
 
   const loadCredits = () => api.credits().then(setCredits).catch(() => {});
 
@@ -581,9 +582,24 @@ export function ProjectView({ projectId, onBack }) {
     setRepairDismissed(false);
   }, [epNumber]);
 
+  const isChaine = project?.mode === 'chaine';
+
+  // Une chaîne peut avoir sa propre outro (sinon la marque globale s'applique).
+  const effectiveStudio = useMemo(() => {
+    if (project?.channelOutro) {
+      return {
+        ...(studio || {}),
+        outro: project.channelOutro,
+        outroIsVideo: Boolean(project.channelOutroIsVideo),
+        outroDurationSec: project.channelOutroDurationSec || 4,
+      };
+    }
+    return studio;
+  }, [studio, project]);
+
   const duration = useMemo(
-    () => (episode ? episodeDurationInFrames(episode, studio) : FPS * 3),
-    [episode, studio],
+    () => (episode ? episodeDurationInFrames(episode, effectiveStudio, isChaine) : FPS * 3),
+    [episode, effectiveStudio, isChaine],
   );
 
   const runJob = async (kickoff) => {
@@ -661,9 +677,47 @@ export function ProjectView({ projectId, onBack }) {
               📺 Long · {project.episodeCount} ép.
             </span>
           )}
+          {isChaine && (
+            <span
+              className="scene-badge"
+              title={`Chaîne : vidéos de ${project.targetSeconds || 90} s, narrateur seul`}
+            >
+              🎥 Chaîne · {project.targetSeconds || 90} s
+            </span>
+          )}
         </h1>
         <p className="logline">{project.logline}</p>
       </div>
+      {isChaine && (
+        <>
+          <label className="btn-ghost upload" title="L'outro de cette chaîne (vidéo courte ou image), ajoutée à la fin de chaque vidéo. Sinon, l'outro globale de « Ma marque » s'applique.">
+            {project.channelOutro ? '🎞️ Changer l\'outro' : '🎞️ Outro de la chaîne'}
+            <input
+              type="file"
+              accept="video/mp4,video/quicktime,image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files[0];
+                if (f) {
+                  fileToDataUrl(f)
+                    .then((d) => api.uploadChannelOutro(projectId, d))
+                    .then(refresh)
+                    .catch((err) => alert(`Envoi impossible : ${err.message}`));
+                }
+              }}
+            />
+          </label>
+          {project.channelOutro && (
+            <button
+              className="btn-ghost"
+              title="Retirer l'outro de la chaîne (retour à l'outro globale)"
+              onClick={() => api.deleteChannelOutro(projectId).then(refresh)}
+            >
+              🗑️
+            </button>
+          )}
+        </>
+      )}
       {stage === 'production' && (
         <>
           <label
@@ -707,14 +761,16 @@ export function ProjectView({ projectId, onBack }) {
               <option value="auto">Adaptée — 5 à 10 s</option>
             </select>
           </label>
-          <button
-            className="btn-ghost"
-            disabled={busy}
-            title="Revoir les visages et les voix des personnages"
-            onClick={() => api.reviewCharacters(projectId).then(refresh)}
-          >
-            👥 Personnages
-          </button>
+          {!isChaine && (
+            <button
+              className="btn-ghost"
+              disabled={busy}
+              title="Revoir les visages et les voix des personnages"
+              onClick={() => api.reviewCharacters(projectId).then(refresh)}
+            >
+              👥 Personnages
+            </button>
+          )}
         </>
       )}
       <label className="btn-ghost upload" title="Musique de fond de tous les épisodes (MP3)">
@@ -958,16 +1014,26 @@ export function ProjectView({ projectId, onBack }) {
     );
   }
 
+  const tabNumbers = isChaine
+    ? project.episodes.map((e) => e.number)
+    : Array.from({ length: totalEpisodes }, (_, i) => i + 1);
+
   const episodeTabs = (
     <nav className="episode-tabs">
-      {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((n) => {
+      {tabNumbers.map((n) => {
         const ep = project.episodes.find((e) => e.number === n);
         const summary = project.episodeSummaries.find((s) => s.number === n);
         return (
           <button
             key={n}
             className={`ep-tab ${n === epNumber ? 'active' : ''} ${ep ? 'exists' : ''}`}
-            title={summary ? `${summary.title} — ${summary.summary}` : ''}
+            title={
+              isChaine && ep
+                ? ep.topic || ep.title
+                : summary
+                  ? `${summary.title} — ${summary.summary}`
+                  : ''
+            }
             onClick={() => ep && setEpNumber(n)}
             disabled={!ep}
           >
@@ -976,8 +1042,69 @@ export function ProjectView({ projectId, onBack }) {
           </button>
         );
       })}
+      {isChaine && tabNumbers.length === 0 && (
+        <span className="cast-hint" style={{ margin: 0 }}>
+          Aucune vidéo pour l'instant — donne un sujet ci-dessous pour créer la première.
+        </span>
+      )}
     </nav>
   );
+
+  // Barre des chaînes : créer une vidéo par sujet + idées proposées par Claude.
+  const createVideoFromTopic = async (t) => {
+    const ok = await runJob(() => api.createChannelVideo(projectId, t));
+    if (ok) {
+      setTopic('');
+      const p = await api.getProject(projectId).catch(() => null);
+      if (p) {
+        setProject(p);
+        const maxN = Math.max(...p.episodes.map((e) => e.number));
+        setEpNumber(maxN);
+      }
+    }
+  };
+
+  const topicBar = isChaine ? (
+    <>
+      <div className="topic-bar">
+        <input
+          value={topic}
+          maxLength={300}
+          placeholder="Sujet de la prochaine vidéo — ex. « l'histoire vraie de Thomas Sankara »"
+          onChange={(e) => setTopic(e.target.value)}
+        />
+        <button
+          className="btn-primary"
+          disabled={busy || topic.trim().length < 5}
+          onClick={() => createVideoFromTopic(topic.trim())}
+        >
+          ➕ Créer la vidéo
+        </button>
+        <button
+          className="btn-ghost"
+          disabled={busy}
+          title="Claude propose 10 sujets dans le thème de la chaîne"
+          onClick={() => runJob(() => api.suggestTopics(projectId))}
+        >
+          💡 Proposer des sujets
+        </button>
+      </div>
+      {(project.topicIdeas || []).length > 0 && (
+        <div className="topic-ideas">
+          {(project.topicIdeas || []).slice(0, 10).map((t, i) => (
+            <button
+              key={i}
+              className="dl-chip"
+              title="Cliquer pour reprendre ce sujet"
+              onClick={() => setTopic(t)}
+            >
+              💡 {t}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  ) : null;
 
   const openFolder = () =>
     api.openFolder(projectId).catch((e) => alert(`Ouverture du dossier : ${e.message}`));
@@ -987,9 +1114,19 @@ export function ProjectView({ projectId, onBack }) {
   const quote = (nEpisodes) => {
     const vids = project.videoScenes ?? DEFAULT_VIDEO_SCENES;
     const vidCost = (project.videoSeconds || 'eco') === 'eco' ? 30 : 55;
-    const isLong = project.mode === 'long';
-    const oa = ((isLong ? 6 : 9) * 8 + vids * vidCost) * nEpisodes;
-    const el = (isLong ? 600 : 850) * nEpisodes;
+    let imgs = 9;
+    let chars = 850;
+    if (project.mode === 'long') {
+      imgs = 6;
+      chars = 600;
+    }
+    if (isChaine) {
+      const sec = project.targetSeconds || 90;
+      imgs = Math.max(6, Math.round(sec / 8));
+      chars = Math.round(sec * 14);
+    }
+    const oa = (imgs * 8 + vids * vidCost) * nEpisodes;
+    const el = chars * nEpisodes;
     const oaRest = credits?.openart?.credits;
     let msg = `Estimation : ~${fr(oa)} crédits OpenArt et ~${fr(el)} crédits ElevenLabs.`;
     if (oaRest != null || elRest != null) {
@@ -1009,6 +1146,12 @@ export function ProjectView({ projectId, onBack }) {
   const place =
     exportPlace(episode?.exportedTo) ||
     exportPlace(project.episodes.find((e) => e.exportedTo)?.exportedTo);
+  // Chaîne : le dossier porte le nom de la chaîne (pas « Dramas »).
+  const placeText = isChaine
+    ? `${place ? place.split('→')[0].trim() : '📁'} → ${project.title}`
+    : place
+      ? `${place} → ${project.title}`
+      : null;
 
   const playerActions = (
     <div className="player-actions">
@@ -1020,14 +1163,16 @@ export function ProjectView({ projectId, onBack }) {
           onClick={() => {
             if (
               confirm(
-                `Reprendre la production de l'épisode ${epNumber} ?\n\nSeuls les éléments manquants seront générés — l'existant n'est pas re-payé.\n\n${quote(1)}\n(C'est le maximum : la reprise coûte souvent bien moins.)`,
+                isChaine
+                  ? `Produire la vidéo ${epNumber} (images, voix, clip) ?\n\n${quote(1)}`
+                  : `Reprendre la production de l'épisode ${epNumber} ?\n\nSeuls les éléments manquants seront générés — l'existant n'est pas re-payé.\n\n${quote(1)}\n(C'est le maximum : la reprise coûte souvent bien moins.)`,
               )
             ) {
               runJob(() => api.produceEpisode(projectId, epNumber));
             }
           }}
         >
-          ▶️ Reprendre la production de l'épisode {epNumber}
+          ▶️ {isChaine ? `Produire la vidéo ${epNumber}` : `Reprendre la production de l'épisode ${epNumber}`}
         </button>
       )}
       {justRendered === epNumber && episode?.renderedFile && (
@@ -1035,7 +1180,7 @@ export function ProjectView({ projectId, onBack }) {
           <div className="rs-title">🎉 Épisode {episode.number} terminé !</div>
           <p>
             Le MP4 est rangé automatiquement dans{' '}
-            <strong>{place || 'le dossier Dramas'} → {project.title}</strong>.
+            <strong>{placeText || `le dossier ${isChaine ? project.title : 'Dramas'}`}</strong>.
           </p>
           <div className="rs-actions">
             <button className="btn-small primary" onClick={openFolder}>
@@ -1095,7 +1240,7 @@ export function ProjectView({ projectId, onBack }) {
           ⬇️ Télécharger l'épisode {episode.number}
         </a>
       )}
-      {nextNumber && (
+      {nextNumber && !isChaine && (
         <button
           className={`btn-primary next ${currentDone ? '' : 'secondary'}`}
           disabled={busy}
@@ -1111,7 +1256,7 @@ export function ProjectView({ projectId, onBack }) {
           ▶️ Produire l'épisode {nextNumber}
         </button>
       )}
-      {remainingCount > 0 && (
+      {remainingCount > 0 && !isChaine && (
         <button
           className="btn-ghost"
           disabled={busy}
@@ -1151,12 +1296,15 @@ export function ProjectView({ projectId, onBack }) {
             )}
           </div>
           <p className="downloads-hint">
-            {place ? (
+            {placeText ? (
               <>
-                Rangés automatiquement dans <strong>{place} → {project.title}</strong>{' '}
+                Rangés automatiquement dans <strong>{placeText}</strong>{' '}
               </>
             ) : (
-              <>Rangés automatiquement dans le dossier <strong>Dramas</strong> </>
+              <>
+                Rangés automatiquement dans le dossier{' '}
+                <strong>{isChaine ? project.title : 'Dramas'}</strong>{' '}
+              </>
             )}
             <button className="btn-small" onClick={openFolder} title="Ouvrir dans le Finder">
               📂 Ouvrir
@@ -1184,6 +1332,7 @@ export function ProjectView({ projectId, onBack }) {
     <div className="studio project">
       {header}
       {episodeTabs}
+      {topicBar}
       {costRibbon}
       {jobBanner}
       {repairBanner}
@@ -1202,8 +1351,9 @@ export function ProjectView({ projectId, onBack }) {
                   assetBase: `/files/${project.id}`,
                   musicFile: project.musicFile,
                   seriesTitle: project.title,
-                  studio,
+                  studio: effectiveStudio,
                   studioBase: '/studio',
+                  noOutroCard: isChaine,
                 }}
                 durationInFrames={duration}
                 fps={FPS}
@@ -1245,7 +1395,7 @@ export function ProjectView({ projectId, onBack }) {
               une scène — ou « 🔊 Générer toutes les voix » — pour l'appliquer.
             </p>
             <h2>
-              Épisode {episode.number} — {episode.title}
+              {isChaine ? 'Vidéo' : 'Épisode'} {episode.number} — {episode.title}
             </h2>
             {episode.cliffhanger && <p className="cliffhanger">Cliffhanger : « {episode.cliffhanger} »</p>}
             {episode.scenes.map((scene, i) => (

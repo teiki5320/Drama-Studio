@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { STYLES, MAX_STYLES, EPISODE_COUNT } from '../shared/catalog.js';
+import { STYLES, MAX_STYLES, EPISODE_COUNT, VOICES } from '../shared/catalog.js';
 import { api, followJob, fileToDataUrl } from './api.js';
 import { ProjectView } from './ProjectView.jsx';
 
@@ -358,8 +358,109 @@ function ModeGate({ onPick }) {
             accro. Épisodes rangés dans <strong>Dramas Long</strong>.
           </span>
         </button>
+        <button className="mode-card" onClick={() => onPick('chaine')}>
+          <span className="mode-emoji">🎥</span>
+          <strong>Chaînes</strong>
+          <span className="mode-desc">
+            Hors dramas : vidéos de 1 à 2 minutes racontées par un narrateur (storytime,
+            éducatif, tops…). Chaque chaîne a son style, sa voix et son dossier iCloud.
+          </span>
+        </button>
       </div>
     </div>
+  );
+}
+
+// Création d'une chaîne : identité fixe (nom, genre, thème, style, durée, voix).
+function ChannelCreate({ onSubmit, error }) {
+  const [name, setName] = useState('');
+  const [genre, setGenre] = useState('storytime');
+  const [themeDesc, setThemeDesc] = useState('');
+  const [visualStyle, setVisualStyle] = useState('photorealiste');
+  const [targetSeconds, setTargetSeconds] = useState(90);
+  const [narratorVoice, setNarratorVoice] = useState('onwK4e9ZLuTAKqWW03F9');
+
+  return (
+    <section className="create-card custom-form">
+      <h2>➕ Nouvelle chaîne</h2>
+      <p className="section-label">
+        Une chaîne fixe une identité — son nom, son thème, son style d'images, sa voix — puis tu
+        enchaînes les vidéos dedans, sujet par sujet. Le nom de la chaîne devient le nom de son
+        dossier iCloud.
+      </p>
+      <div className="form-field">
+        <label>1. 🏷️ Nom de la chaîne (obligatoire)</label>
+        <input
+          value={name}
+          maxLength={80}
+          placeholder="Ex. : Histoires Vraies d'Afrique"
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>2. 🎭 Genre</label>
+        <select value={genre} onChange={(e) => setGenre(e.target.value)}>
+          <option value="storytime">📖 Storytime — histoires et faits réels</option>
+          <option value="educatif">🎓 Éducatif — conseils pratiques</option>
+          <option value="classement">🏆 Classements — tops</option>
+        </select>
+      </div>
+      <div className="form-field">
+        <label>3. 🧭 Le thème de la chaîne, en une phrase</label>
+        <p className="field-hint">
+          C'est la ligne éditoriale : tous les sujets proposés et tous les scripts la suivront.
+        </p>
+        <input
+          value={themeDesc}
+          maxLength={300}
+          placeholder="Ex. : les grandes histoires vraies et destins incroyables d'Afrique"
+          onChange={(e) => setThemeDesc(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>4. 🎨 Style des images</label>
+        <select value={visualStyle} onChange={(e) => setVisualStyle(e.target.value)}>
+          <option value="photorealiste">📷 Photoréaliste (comme les dramas)</option>
+          <option value="illustration">🖌️ Illustration moderne</option>
+          <option value="archives">🎞️ Style archives / sépia</option>
+          <option value="epure">◻️ Épuré / minimaliste</option>
+        </select>
+      </div>
+      <div className="form-field">
+        <label>5. ⏱️ Durée des vidéos</label>
+        <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))}>
+          {[60, 75, 90, 105, 120].map((s) => (
+            <option key={s} value={s}>
+              {s} secondes {s === 90 ? '(recommandé)' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="form-field">
+        <label>6. 🎙️ La voix du narrateur</label>
+        <p className="field-hint">
+          C'est l'identité sonore de la chaîne — la même voix sur toutes les vidéos (modifiable
+          ensuite, avec pré-écoute, dans la chaîne).
+        </p>
+        <select value={narratorVoice} onChange={(e) => setNarratorVoice(e.target.value)}>
+          {VOICES.map((v) => (
+            <option key={v.id} value={v.id}>
+              🎙️ {v.name} — {v.desc}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="error">{error}</p>}
+      <button
+        className="btn-primary"
+        disabled={name.trim().length < 2}
+        onClick={() =>
+          onSubmit({ name: name.trim(), genre, themeDesc, visualStyle, targetSeconds, narratorVoice })
+        }
+      >
+        🎥 Créer la chaîne
+      </button>
+    </section>
   );
 }
 
@@ -509,7 +610,9 @@ export function App() {
             ? '🗣️ Version Synchro (lèvres animées)'
             : mode === 'long'
               ? '📺 Format long (40 s × 30-60 épisodes)'
-              : '🎬 Version normale'}
+              : mode === 'chaine'
+                ? '🎥 Chaînes (vidéos 1-2 min, narrateur)'
+                : '🎬 Version normale'}
           <button className="btn-small" onClick={() => setMode(null)}>
             ↔ Changer de version
           </button>
@@ -602,6 +705,9 @@ export function App() {
         </section>
       )}
 
+      {mode === 'chaine' ? (
+        <ChannelCreate error={error} onSubmit={(info) => runCreation(() => api.createChannel(info))} />
+      ) : (
       <section className="create-card">
         <h2>Nouveau drama</h2>
         <p className="section-label">
@@ -649,13 +755,16 @@ export function App() {
           </button>
         </div>
       </section>
+      )}
 
       <BrandCard studio={studio} onChange={refreshStudio} />
 
       {projects.filter((p) => (p.mode || 'normal') === mode).length > 0 && (
         <section className="library">
           <h2>
-            Mes dramas {mode === 'synchro' ? 'Synchro' : mode === 'long' ? 'Format long' : ''}
+            {mode === 'chaine'
+              ? 'Mes chaînes'
+              : `Mes dramas ${mode === 'synchro' ? 'Synchro' : mode === 'long' ? 'Format long' : ''}`}
           </h2>
           <div className="project-grid">
             {projects.filter((p) => (p.mode || 'normal') === mode).map((p) => (
@@ -683,6 +792,14 @@ export function App() {
                   const eps = p.episodes || [];
                   const produced = eps.filter((e) => e.status === 'ready' || e.status === 'done').length;
                   const mp4 = eps.filter((e) => e.rendered).length;
+                  if (p.mode === 'chaine') {
+                    return (
+                      <p className="ep-count">
+                        {eps.length} vidéo{eps.length > 1 ? 's' : ''}
+                        {mp4 > 0 ? ` · ${mp4} MP4 prêt${mp4 > 1 ? 's' : ''}` : ''}
+                      </p>
+                    );
+                  }
                   return (
                     <p className="ep-count">
                       {produced} / {p.episodeCount || EPISODE_COUNT} épisodes produits
