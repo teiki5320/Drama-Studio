@@ -20,6 +20,9 @@ if (fs.existsSync(envFile)) {
 export const PROJECTS_DIR = path.join(ROOT, 'projects');
 export const DIST_DIR = path.join(ROOT, 'dist');
 export const PORT = Number(process.env.PORT || 4600);
+// HOST=0.0.0.0 dans .env → accessible depuis le réseau privé (Tailscale) et
+// le réseau local. Par défaut : uniquement depuis ce Mac (127.0.0.1).
+export const HOST = process.env.HOST || '127.0.0.1';
 export const IMAGE_PROVIDER = (process.env.IMAGE_PROVIDER || 'pollinations').toLowerCase();
 // Clips vidéo automatiques (1re scène, milieu, dernière) — VIDEO_SCENES=off pour couper.
 export const VIDEO_SCENES = !['off', '0', 'false', 'non'].includes(
