@@ -103,6 +103,11 @@ export const api = {
       body: JSON.stringify({ data: dataUrl }),
     }),
   openFolder: (id) => request(`/api/projects/${id}/open-folder`, { method: 'POST' }),
+  voices: () => request('/api/voices'),
+  libraryVoices: () => request('/api/voices/library'),
+  adoptVoice: (voice) =>
+    request('/api/voices/adopt', { method: 'POST', body: JSON.stringify(voice) }),
+  removeCustomVoice: (id) => request(`/api/voices/custom/${id}`, { method: 'DELETE' }),
   getStudio: () => request('/api/studio'),
   uploadSticker: (dataUrl) =>
     request('/api/studio/sticker', { method: 'POST', body: JSON.stringify({ data: dataUrl }) }),

@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { VOICES } from '../shared/catalog.js';
+import { ROOT } from './config.js';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { parseFile } from 'music-metadata';
@@ -54,12 +56,57 @@ const ELEVEN_MALE = VOICES.filter((v) => v.gender === 'homme').map((v) => v.id);
 const ELEVEN_FEMALE = VOICES.filter((v) => v.gender === 'femme').map((v) => v.id);
 const ELEVEN_NARRATOR = 'onwK4e9ZLuTAKqWW03F9'; // Daniel
 
+// ---------- Voix adoptées depuis la bibliothèque ElevenLabs ----------
+// Les voix natives françaises adoptées par l'utilisateur s'ajoutent au
+// catalogue de base (studio/voices.json), pour le casting ET les menus.
+const CUSTOM_VOICES_FILE = path.join(ROOT, 'studio', 'voices.json');
+
+export function customVoices() {
+  try {
+    const list = JSON.parse(fs.readFileSync(CUSTOM_VOICES_FILE, 'utf8'));
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export function allVoices() {
+  const base = [...VOICES];
+  for (const v of customVoices()) {
+    if (!base.some((x) => x.id === v.id)) {
+      base.push(v);
+    }
+  }
+  return base;
+}
+
+export function addCustomVoice(v) {
+  const list = customVoices();
+  if (!list.some((x) => x.id === v.id) && !VOICES.some((x) => x.id === v.id)) {
+    list.push(v);
+    fs.mkdirSync(path.dirname(CUSTOM_VOICES_FILE), { recursive: true });
+    fs.writeFileSync(CUSTOM_VOICES_FILE, JSON.stringify(list, null, 2));
+  }
+  return list;
+}
+
+export function removeCustomVoice(id) {
+  const list = customVoices().filter((v) => v.id !== id);
+  fs.mkdirSync(path.dirname(CUSTOM_VOICES_FILE), { recursive: true });
+  fs.writeFileSync(CUSTOM_VOICES_FILE, JSON.stringify(list, null, 2));
+  return list;
+}
+
 export function isCatalogVoice(id) {
-  return VOICES.some((v) => v.id === id);
+  return allVoices().some((v) => v.id === id);
 }
 
 // Attribue une voix distincte à chaque personnage selon son genre.
+// Les pools ElevenLabs incluent les voix adoptées depuis la bibliothèque.
 export function assignVoices(characters) {
+  const voices = allVoices();
+  const poolF = voices.filter((v) => v.gender === 'femme').map((v) => v.id);
+  const poolM = voices.filter((v) => v.gender === 'homme').map((v) => v.id);
   let m = 0;
   let f = 0;
   for (const c of characters) {
@@ -67,12 +114,12 @@ export function assignVoices(characters) {
       c.voice = FEMALE_VOICES[f % FEMALE_VOICES.length];
       c.sayVoice = SAY_FEMALE[f % SAY_FEMALE.length];
       // ne pas écraser un casting déjà fait (par Claude ou par l'utilisateur)
-      c.elevenVoice = c.elevenVoice || ELEVEN_FEMALE[f % ELEVEN_FEMALE.length];
+      c.elevenVoice = c.elevenVoice || poolF[f % poolF.length];
       f++;
     } else {
       c.voice = MALE_VOICES[m % MALE_VOICES.length];
       c.sayVoice = SAY_MALE[m % SAY_MALE.length];
-      c.elevenVoice = c.elevenVoice || ELEVEN_MALE[m % ELEVEN_MALE.length];
+      c.elevenVoice = c.elevenVoice || poolM[m % poolM.length];
       m++;
     }
   }

@@ -105,7 +105,7 @@ function ScriptReview({ project, busy, onRegen, onValidate }) {
 }
 
 // Carte d'un personnage à l'étape de validation : visage + casting vocal.
-function CharReviewCard({ project, projectId, c, busy, runJob }) {
+function CharReviewCard({ project, projectId, c, busy, runJob, voices = VOICES }) {
   const [instructions, setInstructions] = useState('');
   const [listening, setListening] = useState(false);
   const [voice, setVoice] = useState(c.elevenVoice || '');
@@ -114,7 +114,7 @@ function CharReviewCard({ project, projectId, c, busy, runJob }) {
     setVoice(c.elevenVoice || '');
   }, [c.elevenVoice]);
 
-  const voiceOptions = VOICES.filter(
+  const voiceOptions = voices.filter(
     (v) => v.gender === (c.gender || 'homme') || v.id === voice,
   );
 
@@ -199,7 +199,7 @@ function CharReviewCard({ project, projectId, c, busy, runJob }) {
 }
 
 // ---------- Étape 2 : validation des personnages ----------
-function CharactersReview({ project, busy, runJob, onValidate, projectId }) {
+function CharactersReview({ project, busy, runJob, onValidate, projectId, voices }) {
   const missing = project.characters.filter((c) => !c.portrait).length;
   return (
     <div className="review-panel wide">
@@ -218,6 +218,7 @@ function CharactersReview({ project, busy, runJob, onValidate, projectId }) {
             c={c}
             busy={busy}
             runJob={runJob}
+            voices={voices}
           />
         ))}
       </div>
@@ -241,7 +242,7 @@ function CharactersReview({ project, busy, runJob, onValidate, projectId }) {
 
 // Puce de casting dans l'atelier : portrait + voix modifiable + pré-écoute.
 // c = personnage, ou null pour le narrateur (voix stockée sur le projet).
-function VoiceChip({ project, projectId, c, busy, runJob, onRefresh }) {
+function VoiceChip({ project, projectId, c, busy, runJob, onRefresh, voices = VOICES }) {
   const isNarrator = !c;
   const current = isNarrator
     ? project.narratorVoice || 'onwK4e9ZLuTAKqWW03F9'
@@ -249,8 +250,8 @@ function VoiceChip({ project, projectId, c, busy, runJob, onRefresh }) {
   const [listening, setListening] = useState(false);
 
   const options = isNarrator
-    ? VOICES
-    : VOICES.filter((v) => v.gender === (c.gender || 'homme') || v.id === current);
+    ? voices
+    : voices.filter((v) => v.gender === (c.gender || 'homme') || v.id === current);
 
   const change = async (voiceId) => {
     try {
@@ -535,6 +536,7 @@ export function ProjectView({ projectId, onBack }) {
   const [justRendered, setJustRendered] = useState(null);
   const [repairDismissed, setRepairDismissed] = useState(false);
   const [topic, setTopic] = useState('');
+  const [voices, setVoices] = useState(VOICES);
 
   const loadCredits = () => api.credits().then(setCredits).catch(() => {});
 
@@ -549,6 +551,7 @@ export function ProjectView({ projectId, onBack }) {
     refresh().catch((e) => setError(e.message));
     loadCredits();
     api.getStudio().then(setStudio).catch(() => {});
+    api.voices().then(setVoices).catch(() => {});
     // Raccroche une production en cours (après un rechargement de la page)
     api
       .activeJob(projectId)
@@ -1008,6 +1011,7 @@ export function ProjectView({ projectId, onBack }) {
           projectId={projectId}
           busy={busy}
           runJob={runJob}
+          voices={voices}
           onValidate={() => runJob(() => api.validateCharacters(projectId)).then((ok) => ok && setEpNumber(1))}
         />
       </div>
@@ -1377,6 +1381,7 @@ export function ProjectView({ projectId, onBack }) {
                 busy={busy}
                 runJob={runJob}
                 onRefresh={refresh}
+                voices={voices}
               />
               {project.characters.map((c) => (
                 <VoiceChip
@@ -1387,6 +1392,7 @@ export function ProjectView({ projectId, onBack }) {
                   busy={busy}
                   runJob={runJob}
                   onRefresh={refresh}
+                  voices={voices}
                 />
               ))}
             </div>

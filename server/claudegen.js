@@ -1,8 +1,14 @@
 import { spawn } from 'node:child_process';
-import { EPISODE_COUNT, styleLabel, VOICES } from '../shared/catalog.js';
+import { EPISODE_COUNT, styleLabel } from '../shared/catalog.js';
 import { claudeBin } from './claudebin.js';
+import { allVoices } from './tts.js';
 
-const VOICE_CATALOG = VOICES.map((v) => `"${v.id}" = ${v.name} (${v.gender}, ${v.desc})`).join(' ; ');
+// Catalogue dynamique : voix de base + voix françaises adoptées depuis la
+// bibliothèque ElevenLabs (studio/voices.json) — évalué à chaque prompt.
+const voiceCatalog = () =>
+  allVoices()
+    .map((v) => `"${v.id}" = ${v.name} (${v.gender}, ${v.desc})`)
+    .join(' ; ');
 
 // Appelle Claude Code en mode non interactif (`claude -p`).
 // Utilise la session Claude Code de la machine (abonnement) — aucune clé API.
@@ -136,7 +142,7 @@ const seriesSchema = (format) => `{
     "age": nombre,
     "role": "rôle dans l'histoire",
     "visual": "EN ANGLAIS : description physique très détaillée et STABLE (âge apparent, visage, coiffure, tenue signature, corpulence) réutilisée à l'identique dans toutes les images",
-    "voice": "CASTING VOCAL : l'id EXACT de la voix la plus adaptée au genre, à l'âge et à la personnalité du personnage, choisie dans ce catalogue : ${VOICE_CATALOG}"
+    "voice": "CASTING VOCAL : l'id EXACT de la voix la plus adaptée au genre, à l'âge et à la personnalité du personnage, choisie dans ce catalogue : ${voiceCatalog()}"
   }],
   "episodeSummaries": [${format.count} éléments : {"number": n, "title": "titre", "summary": "résumé en 2 phrases avec le cliffhanger"}],
   "hashtags": [10 hashtags TikTok en minuscules SANS le symbole # : 4 génériques à gros volume (drama, pourtoi, storytime…) + 6 propres à la série (lieu, thème, métier, émotion)],

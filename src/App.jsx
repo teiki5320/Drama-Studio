@@ -145,6 +145,134 @@ function BrandCard({ studio, onChange }) {
   );
 }
 
+// « Voix françaises » : découverte des meilleures voix NATIVEMENT françaises de
+// la bibliothèque ElevenLabs — pré-écoute gratuite, adoption en un clic. Les
+// voix adoptées rejoignent le catalogue (casting Claude + menus de voix).
+function FrenchVoicesCard({ voices, onChange }) {
+  const [library, setLibrary] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const audioRef = useRef(null);
+  const adopted = voices.filter((v) => v.custom);
+
+  const search = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setLibrary(await api.libraryVoices());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const listen = (url) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    audioRef.current = new Audio(url);
+    audioRef.current.play().catch(() => {});
+  };
+
+  const adopt = async (v) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.adoptVoice({
+        publicOwnerId: v.publicOwnerId,
+        voiceId: v.voiceId,
+        name: v.name,
+        gender: v.gender,
+        desc: v.desc,
+      });
+      onChange();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id) => {
+    setBusy(true);
+    try {
+      await api.removeCustomVoice(id);
+      onChange();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <details className="brand-card">
+      <summary>
+        🇫🇷 Voix françaises {adopted.length > 0 ? `✅ ${adopted.length}` : ''}
+        <span className="brand-hint">
+          adopte de vraies voix françaises ElevenLabs — fini l'accent
+        </span>
+      </summary>
+      <p className="field-hint">
+        Les voix de base du studio sont anglophones (accent en français). Ici tu pré-écoutes
+        gratuitement les meilleures voix <strong>natives françaises</strong> de la bibliothèque
+        ElevenLabs et tu les adoptes : elles rejoignent les menus de voix et le casting
+        automatique des nouveaux dramas. (Adoption réservée aux plans ElevenLabs payants.)
+      </p>
+
+      {adopted.length > 0 && (
+        <div className="voice-lib-list">
+          {adopted.map((v) => (
+            <div key={v.id} className="voice-lib-row adopted">
+              <span className="voice-lib-name">
+                ✅ {v.name} <em>({v.gender})</em>
+              </span>
+              <span className="voice-lib-desc">{v.desc}</span>
+              <button className="btn-small" disabled={busy} onClick={() => remove(v.id)}>
+                🗑️ Retirer
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <p className="error">{error}</p>}
+
+      {!library ? (
+        <button className="btn-small upload" disabled={busy} onClick={search}>
+          {busy ? '⏳ Recherche…' : '🔍 Chercher les meilleures voix françaises'}
+        </button>
+      ) : (
+        <div className="voice-lib-list">
+          {library.length === 0 && <p className="field-hint">Aucune voix trouvée.</p>}
+          {library.map((v) => {
+            const already = voices.some((x) => x.id === v.voiceId);
+            return (
+              <div key={v.voiceId} className="voice-lib-row">
+                <span className="voice-lib-name">
+                  {v.gender === 'femme' ? '👩' : '👨'} {v.name} <em>({v.gender})</em>
+                </span>
+                <span className="voice-lib-desc">{v.desc}</span>
+                {v.previewUrl && (
+                  <button className="btn-small" onClick={() => listen(v.previewUrl)}>
+                    ▶️ Écouter
+                  </button>
+                )}
+                {already ? (
+                  <span className="voice-lib-ok">✅ Adoptée</span>
+                ) : (
+                  <button className="btn-small upload" disabled={busy} onClick={() => adopt(v)}>
+                    ➕ Adopter
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </details>
+  );
+}
+
 // Formulaire guidé du mode « mon script » : pose toutes les questions dont la
 // suite a besoin (voix = genre/âge, visages constants = apparences, découpage…).
 function CustomCreate({ onSubmit, onCancel, busy, mode, seasonEpisodes, onSeasonChange }) {
@@ -372,7 +500,7 @@ function ModeGate({ onPick }) {
 }
 
 // Création d'une chaîne : identité fixe (nom, genre, thème, style, durée, voix).
-function ChannelCreate({ onSubmit, error }) {
+function ChannelCreate({ onSubmit, error, voices = VOICES }) {
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('storytime');
   const [themeDesc, setThemeDesc] = useState('');
@@ -443,7 +571,7 @@ function ChannelCreate({ onSubmit, error }) {
           ensuite, avec pré-écoute, dans la chaîne).
         </p>
         <select value={narratorVoice} onChange={(e) => setNarratorVoice(e.target.value)}>
-          {VOICES.map((v) => (
+          {voices.map((v) => (
             <option key={v.id} value={v.id}>
               🎙️ {v.name} — {v.desc}
             </option>
@@ -477,17 +605,21 @@ export function App() {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
+  const [voicesCatalog, setVoicesCatalog] = useState(VOICES);
   const leftCreation = useRef(false);
 
   const refresh = () => api.listProjects().then(setProjects).catch(() => {});
 
   const refreshStudio = () => api.getStudio().then(setStudio).catch(() => {});
 
+  const refreshVoices = () => api.voices().then(setVoicesCatalog).catch(() => {});
+
   useEffect(() => {
     refresh();
     api.health().then(setHealth).catch(() => {});
     api.credits().then(setCredits).catch(() => {});
     refreshStudio();
+    refreshVoices();
   }, []);
 
   // Suivi des productions en cours sur l'accueil (toutes les 3 s).
@@ -706,7 +838,11 @@ export function App() {
       )}
 
       {mode === 'chaine' ? (
-        <ChannelCreate error={error} onSubmit={(info) => runCreation(() => api.createChannel(info))} />
+        <ChannelCreate
+          error={error}
+          voices={voicesCatalog}
+          onSubmit={(info) => runCreation(() => api.createChannel(info))}
+        />
       ) : (
       <section className="create-card">
         <h2>Nouveau drama</h2>
@@ -758,6 +894,8 @@ export function App() {
       )}
 
       <BrandCard studio={studio} onChange={refreshStudio} />
+
+      <FrenchVoicesCard voices={voicesCatalog} onChange={refreshVoices} />
 
       {projects.filter((p) => (p.mode || 'normal') === mode).length > 0 && (
         <section className="library">
