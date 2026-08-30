@@ -1,4 +1,5 @@
 import { spawn, execFile } from 'node:child_process';
+import { claudeBin } from './claudebin.js';
 
 // Génération d'images via le MCP officiel OpenArt (https://mcp.openart.ai/mcp),
 // piloté par Claude Code en mode headless. Le MCP doit être enregistré sur la
@@ -16,7 +17,7 @@ function detectMcpName() {
   }
   if (!mcpNamePromise) {
     mcpNamePromise = new Promise((resolve, reject) => {
-      execFile('claude', ['mcp', 'list'], { timeout: 60000 }, (err, stdout) => {
+      execFile(claudeBin(), ['mcp', 'list'], { timeout: 60000 }, (err, stdout) => {
         const lines = String(stdout || '').split('\n');
         const hit = lines.find((l) => /openart/i.test(l));
         if (hit) {
@@ -57,7 +58,7 @@ Attends la fin de la génération. Puis réponds UNIQUEMENT avec l'URL directe d
 function runClaude(instruction, mcpName, timeoutMs = TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      'claude',
+      claudeBin(),
       [
         '-p',
         instruction,

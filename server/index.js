@@ -45,6 +45,7 @@ import { renderEpisode } from './render.js';
 import { currentProvider } from './images.js';
 import { ttsInfo, elevenBalance, isCatalogVoice } from './tts.js';
 import { openartCredits } from './openart.js';
+import { claudeBin } from './claudebin.js';
 import { exportAllProjects, EXPORT_ROOT, exportRootFor, projectExportDir } from './exporter.js';
 import {
   STUDIO_DIR,
@@ -62,7 +63,7 @@ app.use(express.json({ limit: '60mb' }));
 
 // ---------- Santé ----------
 app.get('/api/health', (req, res) => {
-  execFile('claude', ['--version'], { timeout: 15000 }, (err, stdout) => {
+  execFile(claudeBin(), ['--version'], { timeout: 15000 }, (err, stdout) => {
     res.json({
       ok: true,
       claude: err ? null : String(stdout).trim(),

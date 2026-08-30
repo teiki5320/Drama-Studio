@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { EPISODE_COUNT, styleLabel, VOICES } from '../shared/catalog.js';
+import { claudeBin } from './claudebin.js';
 
 const VOICE_CATALOG = VOICES.map((v) => `"${v.id}" = ${v.name} (${v.gender}, ${v.desc})`).join(' ; ');
 
@@ -7,7 +8,7 @@ const VOICE_CATALOG = VOICES.map((v) => `"${v.id}" = ${v.name} (${v.gender}, ${v
 // Utilise la session Claude Code de la machine (abonnement) — aucune clé API.
 export function askClaude(prompt, { timeoutMs = 15 * 60 * 1000 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', ['-p', prompt, '--output-format', 'json'], {
+    const child = spawn(claudeBin(), ['-p', prompt, '--output-format', 'json'], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: process.env,
     });
