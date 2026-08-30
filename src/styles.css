@@ -413,6 +413,57 @@ code {
   gap: 8px;
 }
 
+/* ---------- Voix françaises (bibliothèque ElevenLabs) ---------- */
+
+.voice-lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.voice-lib-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #0d0b07;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.voice-lib-row.adopted {
+  border-color: #3b6e3b;
+}
+
+.voice-lib-name {
+  font-weight: 600;
+  min-width: 150px;
+}
+
+.voice-lib-name em {
+  color: var(--muted);
+  font-weight: 400;
+  font-style: normal;
+  font-size: 0.82rem;
+}
+
+.voice-lib-desc {
+  flex: 1;
+  color: var(--muted);
+  font-size: 0.82rem;
+  min-width: 160px;
+}
+
+.voice-lib-ok {
+  color: #7fc97f;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 /* ---------- Mode « mon script » (formulaire guidé) ---------- */
 
 .create-actions {

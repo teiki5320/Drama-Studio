@@ -43,7 +43,8 @@ import {
 } from './pipeline.js';
 import { renderEpisode } from './render.js';
 import { currentProvider } from './images.js';
-import { ttsInfo, elevenBalance, isCatalogVoice } from './tts.js';
+import { ttsInfo, elevenBalance, isCatalogVoice, allVoices, removeCustomVoice } from './tts.js';
+import { searchFrenchLibraryVoices, adoptLibraryVoice } from './elevenlib.js';
 import { openartCredits } from './openart.js';
 import { claudeBin } from './claudebin.js';
 import { exportAllProjects, EXPORT_ROOT, exportRootFor, projectExportDir } from './exporter.js';
@@ -90,6 +91,43 @@ app.get('/api/credits', async (req, res) => {
   ]);
   creditsCache = { at: Date.now(), data: { elevenlabs, openart } };
   res.json(creditsCache.data);
+});
+
+// ---------- Voix (catalogue + bibliothèque française ElevenLabs) ----------
+app.get('/api/voices', (req, res) => {
+  res.json(allVoices());
+});
+
+app.get('/api/voices/library', async (req, res) => {
+  try {
+    res.json(await searchFrenchLibraryVoices());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/voices/adopt', async (req, res) => {
+  const b = req.body || {};
+  const publicOwnerId = String(b.publicOwnerId || '').trim();
+  const voiceId = String(b.voiceId || '').trim();
+  const name = String(b.name || '').trim().slice(0, 60);
+  const gender = b.gender === 'femme' ? 'femme' : 'homme';
+  const desc = String(b.desc || '').trim().slice(0, 120);
+  if (!publicOwnerId || !voiceId || !name) {
+    res.status(400).json({ error: 'Voix incomplète (id, propriétaire ou nom manquant).' });
+    return;
+  }
+  try {
+    await adoptLibraryVoice({ publicOwnerId, voiceId, name, gender, desc });
+    res.json(allVoices());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/voices/custom/:id', (req, res) => {
+  removeCustomVoice(req.params.id);
+  res.json(allVoices());
 });
 
 // ---------- Ma marque (sticker + outro, communs à tous les dramas) ----------
