@@ -200,6 +200,39 @@ const MILIEUX = [
   'un restaurant réputé et ses cuisines',
 ];
 
+// Tropes éprouvés des applis de micro-dramas (ReelShort, DramaBox…), adaptés
+// au contexte africain. Tiré au sort à chaque série, comme le cadre — l'idée
+// du producteur prime toujours.
+const TROPES = [
+  { label: 'Le PDG caché', pitch: "un(e) riche héritier(ère) ou PDG se fait passer pour un(e) employé(e) modeste (chauffeur, serveuse, livreur) et observe qui le/la méprise" },
+  { label: "L'épouse de contrat", pitch: 'un mariage arrangé « sur le papier » entre deux inconnus qui tombent lentement amoureux — malgré les clauses' },
+  { label: "L'héritière répudiée", pitch: 'humiliée et chassée par sa belle-famille, elle revient plus riche et plus puissante qu\'eux tous' },
+  { label: 'Le gendre méprisé', pitch: "traité comme un bon à rien par sa belle-famille, il est en secret le patron ou l'héritier que tout le monde courtise" },
+  { label: 'La double vie', pitch: "le/la protagoniste mène une double identité (star masquée, guérisseuse célèbre, grand patron anonyme) que son entourage ignore" },
+  { label: 'La seconde chance', pitch: "après une trahison fatale, le héros/l'héroïne obtient de « revivre » les événements en sachant tout — et corrige chaque humiliation une par une" },
+  { label: 'Le bébé secret', pitch: "elle a disparu enceinte ; des années plus tard, le père puissant découvre l'enfant — et la femme qu'il a perdue" },
+  { label: 'Le mariage éclair', pitch: 'mariés en 24 heures sur un pari ou une urgence — puis chacun découvre qui est vraiment l\'autre' },
+  { label: "L'amour interdit", pitch: 'deux familles ou deux entreprises rivales, deux amoureux au milieu — chaque rendez-vous est une trahison' },
+  { label: 'Le vrai héritier', pitch: "l'enfant échangé à la naissance : le « faux » héritier règne, le vrai revient réclamer son dû" },
+  { label: 'La revanche de la co-épouse', pitch: 'méprisée par la première épouse et la belle-mère, la co-épouse patiente détient un secret qui renversera toute la maison' },
+  { label: 'Le protecteur obsédé', pitch: "un homme puissant et possessif protège l'héroïne contre tous — jusqu'à l'étouffer ; elle devra le dompter" },
+  { label: "L'amnésie", pitch: "après un accident, il/elle a tout oublié — y compris son mariage, sa fortune ou son ennemi juré" },
+  { label: 'La servante milliardaire', pitch: "prise pour une domestique ou une vendeuse, elle est en réalité la propriétaire de tout ce que ses humiliateurs convoitent" },
+  { label: 'Le retour de la diaspora', pitch: "parti(e) sans rien, revenu(e) de l'étranger avec fortune et diplômes — face à ceux qui l'avaient enterré(e)" },
+  { label: 'Le testament piégé', pitch: "l'héritage ne revient qu'à celui qui remplira une condition impossible (se marier en 30 jours, réconcilier la famille, avoir un enfant…)" },
+];
+
+// La « promesse secondaire » : le type de révélation qui rythme les retournements.
+const SECONDARY_TWISTS = [
+  'une identité cachée révélée en public au pire moment',
+  'un enfant ou une grossesse gardés secrets',
+  'un document qui change tout (testament, test ADN, contrat signé)',
+  "un retour que personne n'attendait (mort présumé, disparu, exilé)",
+  'une alliance secrète entre deux ennemis apparents',
+  'une dette ou une promesse ancienne qui lie deux familles',
+  "un enregistrement/une photo qui prouve la trahison",
+];
+
 // Prénoms que les IA recyclent sans arrêt — bannis d'office.
 const OVERUSED_NAMES = ['Awa', 'Aminata', 'Fatou', 'Fatoumata', 'Aïcha', 'Mariam', 'Kwame', 'Kofi', 'Amara', 'Ismaël', 'Moussa', 'Sekou'];
 
@@ -284,10 +317,13 @@ Règle d'or : UN SEUL beat dramatique par épisode — pas deux.`;
 
 export function drawVariety() {
   const s = AFRICAN_SETTINGS[Math.floor(Math.random() * AFRICAN_SETTINGS.length)];
+  const trope = TROPES[Math.floor(Math.random() * TROPES.length)];
   return {
     country: s.country,
     city: s.cities[Math.floor(Math.random() * s.cities.length)],
     milieu: MILIEUX[Math.floor(Math.random() * MILIEUX.length)],
+    trope,
+    twist: SECONDARY_TWISTS[Math.floor(Math.random() * SECONDARY_TWISTS.length)],
   };
 }
 
@@ -298,8 +334,16 @@ export function buildSeriesPrompt(styles, theme, variety = null, avoid = null, f
     ? `
 Cadre TIRÉ AU SORT pour cette série (chaque série doit dépayser par rapport aux précédentes) :
 - Pays : ${variety.country} — ville principale : ${variety.city}.
-- Univers de l'intrigue : ${variety.milieu}.
-Ce cadre est OBLIGATOIRE${theme ? " — sauf si l'idée du producteur impose un autre lieu, auquel cas elle prime" : ''}.
+- Univers de l'intrigue : ${variety.milieu}.${
+        variety.trope
+          ? `\n- TROPE PRINCIPAL imposé (recette éprouvée des micro-dramas à succès) : ${variety.trope.label} — ${variety.trope.pitch}. Adapte-le à fond au cadre ci-dessus ; c'est le moteur de toute l'histoire.`
+          : ''
+      }${
+        variety.twist
+          ? `\n- PROMESSE SECONDAIRE imposée (le type de révélation qui rythme les retournements) : ${variety.twist}.`
+          : ''
+      }
+Ce cadre est OBLIGATOIRE${theme ? " — sauf si l'idée du producteur impose un autre lieu ou une autre intrigue, auquel cas elle prime" : ''}.
 
 Diversité OBLIGATOIRE (anti-répétition) :
 - Prénoms ET noms de famille authentiques et variés du pays choisi (${variety.country}), crédibles pour chaque ethnie/région.
