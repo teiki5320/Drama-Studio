@@ -3,7 +3,8 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { execFile } from 'node:child_process';
-import { PORT, DIST_DIR } from './config.js';
+import os from 'node:os';
+import { PORT, HOST, DIST_DIR } from './config.js';
 import { EPISODE_COUNT, STYLES, MAX_STYLES, MAX_VIDEO_SCENES } from '../shared/catalog.js';
 import {
   listProjects,
@@ -788,10 +789,24 @@ if (fs.existsSync(DIST_DIR)) {
   });
 }
 
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, HOST, () => {
   console.log('');
   console.log('  🎬 Drama Studio');
   console.log(`  → http://localhost:${PORT}`);
+  // Accès distant activé (HOST=0.0.0.0) : affiche les adresses utilisables,
+  // en signalant celle du réseau privé Tailscale (plage 100.x).
+  if (HOST !== '127.0.0.1') {
+    for (const list of Object.values(os.networkInterfaces())) {
+      for (const iface of list || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          const tailscale = iface.address.startsWith('100.');
+          console.log(
+            `  → http://${iface.address}:${PORT}${tailscale ? '  ← Tailscale (téléphone, autre ordi)' : ''}`,
+          );
+        }
+      }
+    }
+  }
   if (!fs.existsSync(DIST_DIR)) {
     console.log('  (interface non construite : lance `npm run dev` ou `npm run build`)');
   }
