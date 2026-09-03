@@ -13,6 +13,20 @@ function apiKey() {
   return key;
 }
 
+// Clé restreinte : ElevenLabs répond 401 « missing the permission voices_read /
+// voices_write ». Le remède est côté compte, pas côté appli — on l'explique.
+function permissionError(status, text) {
+  if (status === 401 && /missing the permission|voices_read|voices_write/i.test(text)) {
+    return new Error(
+      "Ta clé ElevenLabs n'a pas la permission « Voices ». Sur elevenlabs.io → " +
+        'ton profil (en bas à gauche) → API Keys → modifie ta clé (crayon) et ' +
+        'active « Voices » en LECTURE et ÉCRITURE (ou « Full access »), ' +
+        'sauvegarde, puis réessaie ici — sans rien changer dans l\'appli.',
+    );
+  }
+  return null;
+}
+
 function frDesc(v) {
   const bits = [];
   if (v.age) bits.push(v.age === 'young' ? 'jeune' : v.age === 'old' ? 'âgé(e)' : v.age.replace('middle_aged', 'âge mûr').replace('middle-aged', 'âge mûr'));
@@ -33,7 +47,8 @@ export async function searchFrenchLibraryVoices() {
     );
     if (!res.ok) {
       const t = await res.text().catch(() => '');
-      throw new Error(`Bibliothèque ElevenLabs : HTTP ${res.status} ${t.slice(0, 150)}`);
+      throw permissionError(res.status, t) ||
+        new Error(`Bibliothèque ElevenLabs : HTTP ${res.status} ${t.slice(0, 150)}`);
     }
     const data = await res.json();
     for (const v of data.voices || []) {
@@ -78,6 +93,10 @@ export async function adoptLibraryVoice({ publicOwnerId, voiceId, name, gender, 
     const t = await res.text().catch(() => '');
     // Déjà dans « My Voices » → pas une erreur, on l'ajoute juste au catalogue.
     if (!(res.status === 400 && /already|exist/i.test(t))) {
+      const perm = permissionError(res.status, t);
+      if (perm) {
+        throw perm;
+      }
       if (res.status === 402 || /free/i.test(t)) {
         throw new Error(
           "ElevenLabs refuse l'ajout : les voix de la bibliothèque via l'API nécessitent un plan payant.",
