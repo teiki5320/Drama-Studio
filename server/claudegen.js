@@ -10,9 +10,26 @@ const voiceCatalog = () =>
     .map((v) => `"${v.id}" = ${v.name} (${v.gender}, ${v.desc})`)
     .join(' ; ');
 
+// Coupures réseau passagères entre le Mac et Claude : un seul ré-essai suffit
+// presque toujours (connexion fermée en cours de réponse, service surchargé…).
+const TRANSIENT_CLAUDE_ERROR =
+  /connection closed|mid-response|econnreset|etimedout|fetch failed|socket hang up|overloaded|network error|\b5[0-2][0-9]\b/i;
+
 // Appelle Claude Code en mode non interactif (`claude -p`).
 // Utilise la session Claude Code de la machine (abonnement) — aucune clé API.
-export function askClaude(prompt, { timeoutMs = 15 * 60 * 1000 } = {}) {
+export async function askClaude(prompt, opts = {}) {
+  try {
+    return await askClaudeOnce(prompt, opts);
+  } catch (e) {
+    if (!TRANSIENT_CLAUDE_ERROR.test(e.message)) {
+      throw e;
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+    return askClaudeOnce(prompt, opts);
+  }
+}
+
+function askClaudeOnce(prompt, { timeoutMs = 15 * 60 * 1000 } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(claudeBin(), ['-p', prompt, '--output-format', 'json'], {
       stdio: ['ignore', 'pipe', 'pipe'],
