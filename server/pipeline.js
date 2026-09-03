@@ -1,6 +1,12 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { SPEAKER_COLORS, EPISODE_COUNT, videoSceneIndexes } from '../shared/catalog.js';
+import {
+  SPEAKER_COLORS,
+  EPISODE_COUNT,
+  plannedVideoIndexes,
+  wantsLipsync,
+  sceneHasDialogue,
+} from '../shared/catalog.js';
 import { VIDEO_SCENES } from './config.js';
 import { openartGenerateVideo } from './openart.js';
 import { buildSceneVoiceTrack, lipsyncVideo } from './lipsync.js';
@@ -235,11 +241,11 @@ async function generateEpisodeAssets(project, episode, update) {
     saveProject(project);
   }
 
-  // 3. Clips vidéo (OpenArt) : nombre réglable par drama (3 par défaut),
-  // scènes réparties uniformément. Après les voix, pour connaître la durée cible.
-  const videoCount = Number.isInteger(project.videoScenes) ? project.videoScenes : undefined;
-  if (provider === 'openart' && VIDEO_SCENES && videoCount !== 0) {
-    const wanted = videoSceneIndexes(scenes.length, videoCount);
+  // 3. Clips vidéo (OpenArt) : nombre réglable par drama — Format long :
+  // TOUTES les scènes par défaut (style DramaWave). Après les voix, pour
+  // connaître la durée cible.
+  if (provider === 'openart' && VIDEO_SCENES) {
+    const wanted = plannedVideoIndexes(project, scenes.length);
     for (let k = 0; k < wanted.length; k++) {
       const scene = scenes[wanted[k]];
       if (scene.video || scene.videoDisabled || !scene.image) {
@@ -256,8 +262,9 @@ async function generateEpisodeAssets(project, episode, update) {
         scene.videoError = e.message;
         saveProject(project);
       }
-      // Version Synchro : lèvres animées sur la voix, dans la foulée du clip.
-      if (project.mode === 'synchro' && scene.video && !scene.lipsynced) {
+      // Lèvres animées sur la voix, dans la foulée du clip — seulement quand
+      // un personnage parle (narrateur seul = bouches fermées, rien à caler).
+      if (wantsLipsync(project) && sceneHasDialogue(scene) && scene.video && !scene.lipsynced) {
         update(
           `Épisode ${episode.number} — synchro labiale ${k + 1}/${wanted.length} (scène ${wanted[k] + 1})…`,
           k / wanted.length,
@@ -315,7 +322,7 @@ export async function generateSceneVideo(project, episode, scene, update) {
   const file = `e${episode.number}_${scene.id}_vid${scene.videoVersion}.mp4`;
   fs.writeFileSync(path.join(assetsDir(project.id), file), buffer);
   scene.video = file;
-  // Nouveau clip = lèvres plus synchronisées (Version Synchro).
+  // Nouveau clip = lèvres plus synchronisées.
   scene.lipsynced = false;
   delete scene.videoError;
   countVideo(project);
@@ -326,12 +333,17 @@ export async function generateSceneVideo(project, episode, scene, update) {
   return file;
 }
 
-// Version Synchro : anime les lèvres du clip sur la piste voix de la scène
-// (fal.ai). Le clip synchronisé remplace le clip muet ; la voix ElevenLabs
-// d'origine joue par-dessus dans le montage, parfaitement calée.
+// Anime les lèvres du clip sur la piste voix de la scène (fal.ai) — Format
+// long et anciens dramas Version Synchro. Le clip synchronisé remplace le
+// clip muet ; la voix ElevenLabs d'origine joue par-dessus dans le montage.
 export async function lipsyncSceneVideo(project, episode, scene, update) {
-  if (project.mode !== 'synchro') {
-    throw new Error('La synchro labiale est réservée aux dramas « Version Synchro ».');
+  if (!wantsLipsync(project)) {
+    throw new Error('La synchro labiale est réservée aux dramas Format long.');
+  }
+  if (!sceneHasDialogue(scene)) {
+    throw new Error(
+      'Scène racontée par le narrateur seul — rien à synchroniser (les bouches restent fermées).',
+    );
   }
   if (!scene.video) {
     throw new Error("Génère d'abord le clip vidéo de la scène.");
@@ -454,8 +466,8 @@ export async function createProject({ styles, theme, mode, episodeCount }, updat
     id,
     mode: safeMode,
     episodeCount: format.count,
-    // Format long : 1 seul clip vidéo par épisode par défaut (30-60 épisodes !)
-    videoScenes: safeMode === 'long' ? 1 : undefined,
+    // Format long : pas de réglage stocké → toutes les scènes en vidéo
+    // (plannedVideoCount), lèvres synchronisées. Ajustable dans le drama.
     title: data.title || 'Drama sans titre',
     logline: data.logline || '',
     setting: data.setting || '',
@@ -504,7 +516,6 @@ export async function createCustomProject(answers, update) {
     id,
     mode: customMode,
     episodeCount: customFormat.count,
-    videoScenes: customMode === 'long' ? 1 : undefined,
     title: answers.title || data.title || 'Drama sans titre',
     logline: data.logline || '',
     setting: answers.setting || data.setting || '',
@@ -789,7 +800,7 @@ export async function retryFailedAssets(project, episode, update) {
     }
     if (touched) {
       recomputeSceneDuration(scene);
-      if (project.mode === 'synchro' && scene.video && scene.lipsynced) {
+      if (wantsLipsync(project) && scene.video && scene.lipsynced) {
         scene.lipsynced = false;
       }
       saveProject(project);
@@ -797,9 +808,8 @@ export async function retryFailedAssets(project, episode, update) {
   }
 
   // 3. Clips vidéo prévus mais absents, ou en erreur
-  const videoCount = Number.isInteger(project.videoScenes) ? project.videoScenes : undefined;
-  if (provider === 'openart' && VIDEO_SCENES && videoCount !== 0) {
-    const wanted = videoSceneIndexes(scenes.length, videoCount);
+  if (provider === 'openart' && VIDEO_SCENES) {
+    const wanted = plannedVideoIndexes(project, scenes.length);
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       const expected = wanted.includes(i) || Boolean(scene.videoError);
@@ -816,17 +826,25 @@ export async function retryFailedAssets(project, episode, update) {
         scene.videoError = e.message;
         failures.push(`vidéo scène ${i + 1}`);
         saveProject(project);
+      }
+    }
+  }
+
+  // 4. Synchros labiales manquantes ou en erreur (clips tout juste générés
+  // inclus : generateSceneVideo remet lipsynced à false).
+  if (wantsLipsync(project)) {
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      if (!scene.video || scene.videoDisabled || !sceneHasDialogue(scene) || scene.lipsynced) {
         continue;
       }
-      if (project.mode === 'synchro') {
-        update(`Synchro labiale de la scène ${i + 1}…`);
-        try {
-          await lipsyncSceneVideo(project, episode, scene, () => {});
-        } catch (e) {
-          scene.lipsyncError = e.message;
-          failures.push(`synchro scène ${i + 1}`);
-          saveProject(project);
-        }
+      update(`Synchro labiale de la scène ${i + 1}…`);
+      try {
+        await lipsyncSceneVideo(project, episode, scene, () => {});
+      } catch (e) {
+        scene.lipsyncError = e.message;
+        failures.push(`synchro scène ${i + 1}`);
+        saveProject(project);
       }
     }
   }
@@ -1008,7 +1026,7 @@ export async function regenerateSceneAudio(project, episode, scene, update) {
   }
   recomputeSceneDuration(scene);
   // Voix refaites → les lèvres du clip synchronisé ne correspondent plus.
-  if (project.mode === 'synchro' && scene.video && scene.lipsynced) {
+  if (wantsLipsync(project) && scene.video && scene.lipsynced) {
     scene.lipsynced = false;
   }
   saveProject(project);

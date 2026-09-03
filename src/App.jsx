@@ -451,9 +451,12 @@ function CreationProgress({ job, error, onBack }) {
   );
 }
 
-// Écran d'entrée : deux applis en une. La Version normale reste exactement
-// comme avant ; la Version Synchro anime les lèvres (fal.ai) et range ses
-// épisodes dans un dossier iCloud séparé (Dramas Synchro).
+// Les anciens dramas « Version Synchro » (entrée retirée du menu) restent
+// accessibles dans la liste de la Version normale.
+const homeMode = (p) => (p.mode === 'synchro' ? 'normal' : p.mode || 'normal');
+
+// Écran d'entrée : la Version normale (voix off + sous-titres), le Format
+// long façon DramaWave (tout vidéo, lèvres animées via fal.ai), les Chaînes.
 function ModeGate({ onPick }) {
   return (
     <div className="page centered">
@@ -470,20 +473,13 @@ function ModeGate({ onPick }) {
             rangés dans <strong>Dramas</strong>.
           </span>
         </button>
-        <button className="mode-card" onClick={() => onPick('synchro')}>
-          <span className="mode-emoji">🗣️</span>
-          <strong>Version Synchro</strong>
-          <span className="mode-desc">
-            Les lèvres des personnages bougent sur les voix (via fal.ai, payant à l'usage).
-            Épisodes rangés dans <strong>Dramas Synchro</strong>.
-          </span>
-        </button>
         <button className="mode-card" onClick={() => onPick('long')}>
           <span className="mode-emoji">📺</span>
           <strong>Format long</strong>
           <span className="mode-desc">
-            Épisodes de 40 secondes, saisons de 30 à 60 épisodes — l'intrigue-fleuve qui rend
-            accro. Épisodes rangés dans <strong>Dramas Long</strong>.
+            Le format DramaWave : épisodes de 40 secondes, saisons de 30 à 80 épisodes,{' '}
+            <strong>tout en vidéo</strong> avec les lèvres animées sur les voix (fal.ai).
+            Épisodes rangés dans <strong>Dramas Long</strong>.
           </span>
         </button>
         <button className="mode-card" onClick={() => onPick('chaine')}>
@@ -738,24 +734,22 @@ export function App() {
         <h1>Drama Studio</h1>
         <p className="tagline">Micro-dramas africains — 10 épisodes de 60 secondes, générés chez toi.</p>
         <p className="mode-line">
-          {mode === 'synchro'
-            ? '🗣️ Version Synchro (lèvres animées)'
-            : mode === 'long'
-              ? '📺 Format long (40 s × 30-60 épisodes)'
-              : mode === 'chaine'
-                ? '🎥 Chaînes (vidéos 1-2 min, narrateur)'
-                : '🎬 Version normale'}
+          {mode === 'long'
+            ? '📺 Format long (40 s, tout vidéo + lèvres animées)'
+            : mode === 'chaine'
+              ? '🎥 Chaînes (vidéos 1-2 min, narrateur)'
+              : '🎬 Version normale'}
           <button className="btn-small" onClick={() => setMode(null)}>
             ↔ Changer de version
           </button>
         </p>
       </header>
 
-      {mode === 'synchro' && health && !health.fal && (
+      {mode === 'long' && health && !health.fal && (
         <div className="banner warn">
-          🗣️ La Version Synchro a besoin d'une clé fal.ai pour animer les lèvres : crée un compte
-          sur fal.ai, puis ajoute <code>FAL_KEY=...</code> dans le fichier <code>.env</code> et
-          relance. Sans clé, les dramas se créent normalement mais la synchro échouera.
+          🗣️ Le Format long anime les lèvres sur les voix via fal.ai : crée un compte sur
+          fal.ai, puis ajoute <code>FAL_KEY=...</code> dans le fichier <code>.env</code> et
+          relance. Sans clé, les dramas se créent normalement mais la synchro labiale échouera.
         </div>
       )}
 
@@ -897,20 +891,19 @@ export function App() {
 
       <FrenchVoicesCard voices={voicesCatalog} onChange={refreshVoices} />
 
-      {projects.filter((p) => (p.mode || 'normal') === mode).length > 0 && (
+      {projects.filter((p) => homeMode(p) === mode).length > 0 && (
         <section className="library">
           <h2>
-            {mode === 'chaine'
-              ? 'Mes chaînes'
-              : `Mes dramas ${mode === 'synchro' ? 'Synchro' : mode === 'long' ? 'Format long' : ''}`}
+            {mode === 'chaine' ? 'Mes chaînes' : `Mes dramas ${mode === 'long' ? 'Format long' : ''}`}
           </h2>
           <div className="project-grid">
-            {projects.filter((p) => (p.mode || 'normal') === mode).map((p) => (
+            {projects.filter((p) => homeMode(p) === mode).map((p) => (
               <div key={p.id} className="project-card" onClick={() => setView({ name: 'project', id: p.id })}>
                 <h3>{p.title}</h3>
                 <p className="logline">{p.logline}</p>
                 <div className="badges">
                   {p.custom && <span className="badge">✍️ Mon script</span>}
+                  {p.mode === 'synchro' && <span className="badge">🗣️ Synchro</span>}
                   {(p.styles || []).map((s) => {
                     const st = STYLES.find((x) => x.id === s);
                     return (

@@ -49,6 +49,6 @@ iCloud → Dramas, descriptions TikTok incluses dans les noms de fichiers).
 - Publier les 3 premiers épisodes d'une série sur TikTok (fichiers prêts dans iCloud → Dramas) et noter les premières métriques
 - Décider de la stratégie de compte : une chaîne TikTok par série ou une chaîne « studio » unique
 - Fixer un rythme de publication tenable (recommandé : 1 épisode/jour) et le caler au calendrier
-- Activer la clé fal.ai pour tester la Version Synchro sur un épisode pilote
+- Activer la clé fal.ai pour tester la synchro labiale du Format long sur un épisode pilote
 - Passer ElevenLabs en plan payant (~5 $/mois) : volume nécessaire au Format long + voix natives françaises
 - Renseigner les objectifs chiffrés des KPIs après 2 semaines de publication réelle
