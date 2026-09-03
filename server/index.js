@@ -476,7 +476,8 @@ app.get('/api/projects/:id/active-job', (req, res) => {
   res.json(activeJobFor(req.params.id));
 });
 
-// Production de TOUTE la saison (script + images + voix + MP4 par épisode)
+// Production en chaîne des épisodes restants (script + images + voix + MP4
+// par épisode). Sans `count` : toute la saison ; avec : les N prochains.
 app.post('/api/projects/:id/produce-season', (req, res) => {
   const p = loadProject(req.params.id);
   if (!p) {
@@ -487,9 +488,20 @@ app.post('/api/projects/:id/produce-season', (req, res) => {
     res.status(409).json({ error: 'Une production est déjà en cours sur ce drama.' });
     return;
   }
-  const job = startJob('Production de la saison', (update) => produceSeason(p, update), {
-    projectId: p.id,
-  });
+  let count;
+  if (req.body && req.body.count !== undefined) {
+    const c = Number(req.body.count);
+    if (!Number.isInteger(c) || c < 1 || c > 100) {
+      res.status(400).json({ error: "Nombre d'épisodes invalide (1 à 100)." });
+      return;
+    }
+    count = c;
+  }
+  const job = startJob(
+    count ? `Production de ${count} épisodes` : 'Production de la saison',
+    (update) => produceSeason(p, update, count),
+    { projectId: p.id },
+  );
   res.json({ jobId: job.id });
 });
 

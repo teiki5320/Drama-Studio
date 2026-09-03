@@ -543,6 +543,7 @@ export function ProjectView({ projectId, onBack }) {
   const [justRendered, setJustRendered] = useState(null);
   const [repairDismissed, setRepairDismissed] = useState(false);
   const [topic, setTopic] = useState('');
+  const [batchCount, setBatchCount] = useState(5);
   const [voices, setVoices] = useState(VOICES);
 
   const loadCredits = () => api.credits().then(setCredits).catch(() => {});
@@ -1290,6 +1291,40 @@ export function ProjectView({ projectId, onBack }) {
         >
           ▶️ Produire l'épisode {nextNumber}
         </button>
+      )}
+      {remainingCount > 1 && !isChaine && (
+        <span className="batch-produce">
+          <button
+            className="btn-ghost"
+            disabled={busy}
+            title="Enchaîne automatiquement la production des prochains épisodes (scénario, images, clips, voix et MP4), puis s'arrête"
+            onClick={() => {
+              const k = Math.min(batchCount, remainingCount);
+              if (
+                confirm(
+                  `Produire automatiquement les ${k} prochains épisodes (scénario, images, voix et MP4) ?\n\n${quote(k)}\n\nC'est long — tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
+                )
+              ) {
+                runJob(() => api.produceSeason(projectId, k));
+              }
+            }}
+          >
+            ⏩ Produire les {Math.min(batchCount, remainingCount)} prochains
+          </button>
+          <select
+            className="season-select"
+            value={batchCount}
+            disabled={busy}
+            title="Combien d'épisodes produire d'un coup"
+            onChange={(e) => setBatchCount(Number(e.target.value))}
+          >
+            {[2, 3, 5, 10].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </span>
       )}
       {remainingCount > 0 && !isChaine && (
         <button
