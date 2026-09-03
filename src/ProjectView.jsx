@@ -6,7 +6,10 @@ import { api, followJob, fileToDataUrl } from './api.js';
 import {
   EPISODE_COUNT,
   VOICES,
-  videoSceneIndexes,
+  plannedVideoCount,
+  plannedVideoIndexes,
+  wantsLipsync,
+  sceneHasDialogue,
   DEFAULT_VIDEO_SCENES,
   MAX_VIDEO_SCENES,
   tiktokCaption,
@@ -482,7 +485,7 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
         >
           🎬 {scene.video ? 'Régénérer la vidéo' : 'Générer la vidéo'}
         </button>
-        {scene.video && project.mode === 'synchro' && (
+        {scene.video && wantsLipsync(project) && sceneHasDialogue(scene) && (
           <button
             className={`btn-small ${scene.lipsynced ? '' : 'primary'}`}
             disabled={busy}
@@ -506,11 +509,15 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
       {scene.imageError && <p className="error small">Image : {scene.imageError}</p>}
       {scene.videoError && <p className="error small">Vidéo : {scene.videoError}</p>}
       {scene.lipsyncError && <p className="error small">Synchro : {scene.lipsyncError}</p>}
-      {project.mode === 'synchro' && scene.video && !scene.lipsynced && !scene.lipsyncError && (
-        <p className="error small">
-          🗣️ Clip pas encore synchronisé avec les voix — clique « Synchroniser les lèvres ».
-        </p>
-      )}
+      {wantsLipsync(project) &&
+        sceneHasDialogue(scene) &&
+        scene.video &&
+        !scene.lipsynced &&
+        !scene.lipsyncError && (
+          <p className="error small">
+            🗣️ Clip pas encore synchronisé avec les voix — clique « Synchroniser les lèvres ».
+          </p>
+        )}
       {scene.lines.some((l) => l.audioFallback) && (
         <p className="error small">
           ⚠️ Voix de secours utilisée (ElevenLabs indisponible — crédits épuisés ?). Régénère la
@@ -675,7 +682,7 @@ export function ProjectView({ projectId, onBack }) {
           {project.mode === 'long' && (
             <span
               className="scene-badge"
-              title={`Format long : ${project.episodeCount} épisodes de 40 secondes`}
+              title={`Format long : ${project.episodeCount} épisodes de 40 secondes — tout vidéo, lèvres synchronisées`}
             >
               📺 Long · {project.episodeCount} ép.
             </span>
@@ -725,19 +732,24 @@ export function ProjectView({ projectId, onBack }) {
         <>
           <label
             className="video-count"
-            title="Nombre de scènes animées en clip vidéo par épisode (réparties de la première à la dernière). Chaque vidéo coûte nettement plus de crédits OpenArt qu'une image — 0 pour tout garder en images animées."
+            title="Nombre de scènes animées en clip vidéo par épisode (réparties de la première à la dernière). Chaque vidéo coûte nettement plus de crédits OpenArt qu'une image — 0 pour tout garder en images animées. En Format long, « Toutes » (le défaut) = style DramaWave, tout en vidéo."
           >
             🎬 Vidéos/épisode
             <select
-              value={project.videoScenes ?? DEFAULT_VIDEO_SCENES}
+              value={
+                project.videoScenes ?? (project.mode === 'long' ? 'all' : DEFAULT_VIDEO_SCENES)
+              }
               disabled={busy}
               onChange={(e) =>
                 api
-                  .patchProject(projectId, { videoScenes: Number(e.target.value) })
+                  .patchProject(projectId, {
+                    videoScenes: e.target.value === 'all' ? null : Number(e.target.value),
+                  })
                   .then(refresh)
                   .catch((err) => alert(err.message))
               }
             >
+              {project.mode === 'long' && <option value="all">Toutes</option>}
               {Array.from({ length: MAX_VIDEO_SCENES + 1 }, (_, n) => (
                 <option key={n} value={n}>
                   {n}
@@ -805,9 +817,7 @@ export function ProjectView({ projectId, onBack }) {
   const frList = (nums) =>
     nums.length === 1 ? `${nums[0]}` : `${nums.slice(0, -1).join(', ')} et ${nums[nums.length - 1]}`;
 
-  const autoVideoIdx = episode
-    ? videoSceneIndexes(episode.scenes.length, project.videoScenes ?? DEFAULT_VIDEO_SCENES)
-    : [];
+  const autoVideoIdx = episode ? plannedVideoIndexes(project, episode.scenes.length) : [];
   const failedImages = episode
     ? episode.scenes.map((s, i) => (!s.image || s.imageError ? i + 1 : null)).filter(Boolean)
     : [];
@@ -826,6 +836,16 @@ export function ProjectView({ projectId, onBack }) {
         .map((s, i) => ((s.lines || []).some((l) => !l.audio || l.audioError) ? i + 1 : null))
         .filter(Boolean)
     : [];
+  const failedSyncs =
+    episode && wantsLipsync(project)
+      ? episode.scenes
+          .map((s, i) =>
+            s.video && !s.videoDisabled && sceneHasDialogue(s) && (!s.lipsynced || s.lipsyncError)
+              ? i + 1
+              : null,
+          )
+          .filter(Boolean)
+      : [];
 
   const failParts = [];
   if (failedImages.length > 0) {
@@ -847,6 +867,13 @@ export function ProjectView({ projectId, onBack }) {
       failedVoices.length > 1
         ? `des voix manquent aux scènes ${frList(failedVoices)}`
         : `des voix manquent à la scène ${failedVoices[0]}`,
+    );
+  }
+  if (failedSyncs.length > 0) {
+    failParts.push(
+      failedSyncs.length > 1
+        ? `la synchro labiale manque aux scènes ${frList(failedSyncs)}`
+        : `la synchro labiale manque à la scène ${failedSyncs[0]}`,
     );
   }
   const repairSentence =
@@ -1116,7 +1143,6 @@ export function ProjectView({ projectId, onBack }) {
   // Devis avant production — estimations moyennes (image ~8, clip éco ~30,
   // clip adapté ~55 crédits OpenArt ; ~850 caractères ElevenLabs par épisode).
   const quote = (nEpisodes) => {
-    const vids = project.videoScenes ?? DEFAULT_VIDEO_SCENES;
     const vidCost = (project.videoSeconds || 'eco') === 'eco' ? 30 : 55;
     let imgs = 9;
     let chars = 850;
@@ -1129,10 +1155,15 @@ export function ProjectView({ projectId, onBack }) {
       imgs = Math.max(6, Math.round(sec / 8));
       chars = Math.round(sec * 14);
     }
+    // « imgs » sert aussi d'estimation du nombre de scènes par épisode.
+    const vids = plannedVideoCount(project, imgs);
     const oa = (imgs * 8 + vids * vidCost) * nEpisodes;
     const el = chars * nEpisodes;
     const oaRest = credits?.openart?.credits;
     let msg = `Estimation : ~${fr(oa)} crédits OpenArt et ~${fr(el)} crédits ElevenLabs.`;
+    if (vids > 0 && wantsLipsync(project)) {
+      msg += `\n+ la synchro labiale fal.ai des scènes parlées (facturée à l'usage sur ton compte fal.ai).`;
+    }
     if (oaRest != null || elRest != null) {
       msg += `\nIl te reste :${oaRest != null ? ` ${fr(oaRest)} OpenArt` : ''}${
         oaRest != null && elRest != null ? ' ·' : ''
@@ -1265,7 +1296,7 @@ export function ProjectView({ projectId, onBack }) {
           className="btn-ghost"
           disabled={busy}
           onClick={() => {
-            const nVid = project.videoScenes ?? DEFAULT_VIDEO_SCENES;
+            const nVid = plannedVideoCount(project, 6);
             if (
               confirm(
                 `Produire automatiquement les ${remainingCount} épisodes restants (scénario, images${nVid > 0 ? ', clips vidéo' : ''}, voix et MP4) ?\n\n${quote(remainingCount)}\n\nC'est long — souvent plus d'une heure avec OpenArt. Tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
@@ -1411,10 +1442,7 @@ export function ProjectView({ projectId, onBack }) {
                 episode={episode}
                 scene={scene}
                 index={i}
-                isAutoVideo={videoSceneIndexes(
-                  episode.scenes.length,
-                  project.videoScenes ?? DEFAULT_VIDEO_SCENES,
-                ).includes(i)}
+                isAutoVideo={plannedVideoIndexes(project, episode.scenes.length).includes(i)}
                 busy={busy}
                 runJob={runJob}
                 onRefresh={refresh}

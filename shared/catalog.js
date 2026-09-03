@@ -54,6 +54,31 @@ export function voiceById(id) {
 export const DEFAULT_VIDEO_SCENES = 3;
 export const MAX_VIDEO_SCENES = 8;
 
+// Nombre de clips vidéo prévus pour un épisode : le réglage du drama s'il
+// existe, sinon TOUTES les scènes en Format long (style DramaWave), sinon 3.
+export function plannedVideoCount(project, sceneCount) {
+  if (Number.isInteger(project?.videoScenes)) {
+    return Math.min(project.videoScenes, sceneCount);
+  }
+  return project?.mode === 'long' ? sceneCount : Math.min(DEFAULT_VIDEO_SCENES, sceneCount);
+}
+
+export function plannedVideoIndexes(project, sceneCount) {
+  return videoSceneIndexes(sceneCount, plannedVideoCount(project, sceneCount));
+}
+
+// La synchro labiale (fal.ai) fait partie du Format long — et reste active
+// sur les anciens dramas « Version Synchro ».
+export function wantsLipsync(project) {
+  return project?.mode === 'long' || project?.mode === 'synchro';
+}
+
+// Une scène racontée par le narrateur seul n'a pas de lèvres à synchroniser :
+// les bouches restent fermées dans le clip, la voix off joue par-dessus.
+export function sceneHasDialogue(scene) {
+  return (scene?.lines || []).some((l) => l.speaker && l.speaker !== 'narrator');
+}
+
 // Scènes animées en clip vidéo (image-to-video), réparties uniformément :
 // 1 → la première ; 2 → première + dernière ; 3 → première, milieu, dernière…
 // Les autres scènes restent en images animées Ken Burns.

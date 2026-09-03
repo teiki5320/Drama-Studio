@@ -45,11 +45,11 @@ Généré le 21 août 2026 par un scan du dépôt. Pour mettre à jour : relance
 
 ### 5. fal.ai
 
-- **Rôle** : synchronisation labiale de la « Version Synchro » (clip + piste voix → lèvres animées, modèle `fal-ai/sync-lipsync` par défaut) ; peut aussi servir de fournisseur d'images (`IMAGE_PROVIDER=fal`, FLUX).
+- **Rôle** : synchronisation labiale du Format long (clip + piste voix des personnages → lèvres animées, modèle `fal-ai/sync-lipsync` par défaut) ; peut aussi servir de fournisseur d'images (`IMAGE_PROVIDER=fal`, FLUX).
 - **Console** : https://fal.ai/dashboard (clés : https://fal.ai/dashboard/keys).
 - **Identifiants publics** : néant.
 - **Secrets** : `FAL_KEY` dans `~/bd/.env` (gitignoré). Variable optionnelle sans secret : `FAL_LIPSYNC_MODEL`.
-- **Coût** : à l'usage (~0,10-0,50 $ par clip synchronisé). **Statut : pas encore activé** — la Version Synchro affiche un rappel tant que la clé est absente.
+- **Coût** : à l'usage (~0,10-0,50 $ par clip synchronisé). **Statut : pas encore activé** — le Format long affiche un rappel tant que la clé est absente.
 
 ### 6. iCloud Drive
 

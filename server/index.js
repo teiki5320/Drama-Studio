@@ -5,7 +5,14 @@ import fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import os from 'node:os';
 import { PORT, HOST, DIST_DIR } from './config.js';
-import { EPISODE_COUNT, STYLES, MAX_STYLES, MAX_VIDEO_SCENES } from '../shared/catalog.js';
+import {
+  EPISODE_COUNT,
+  STYLES,
+  MAX_STYLES,
+  MAX_VIDEO_SCENES,
+  wantsLipsync,
+  sceneHasDialogue,
+} from '../shared/catalog.js';
 import {
   listProjects,
   loadProject,
@@ -364,12 +371,17 @@ app.patch('/api/projects/:id', (req, res) => {
     return;
   }
   if (req.body.videoScenes !== undefined) {
-    const v = Number(req.body.videoScenes);
-    if (!Number.isInteger(v) || v < 0 || v > MAX_VIDEO_SCENES) {
-      res.status(400).json({ error: `Nombre de vidéos invalide (0 à ${MAX_VIDEO_SCENES}).` });
-      return;
+    if (req.body.videoScenes === null) {
+      // Retour au défaut : toutes les scènes en Format long, 3 sinon.
+      delete p.videoScenes;
+    } else {
+      const v = Number(req.body.videoScenes);
+      if (!Number.isInteger(v) || v < 0 || v > MAX_VIDEO_SCENES) {
+        res.status(400).json({ error: `Nombre de vidéos invalide (0 à ${MAX_VIDEO_SCENES}).` });
+        return;
+      }
+      p.videoScenes = v;
     }
-    p.videoScenes = v;
   }
   if (req.body.narratorVoice !== undefined) {
     if (!isCatalogVoice(req.body.narratorVoice)) {
@@ -733,12 +745,13 @@ app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/image', (req, res) => {
 });
 
 // Clip vidéo d'une scène : génération (coûteuse en crédits) ou retour à l'image fixe.
-// En Version Synchro, la synchro labiale s'enchaîne automatiquement.
+// En Format long, la synchro labiale s'enchaîne automatiquement quand un
+// personnage parle dans la scène.
 app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/video', (req, res) => {
   withScene(req, res, (p, ep, scene) => {
     const job = startJob('Clip vidéo de la scène', async (update) => {
       await generateSceneVideo(p, ep, scene, update);
-      if (p.mode === 'synchro') {
+      if (wantsLipsync(p) && sceneHasDialogue(scene)) {
         await lipsyncSceneVideo(p, ep, scene, update);
       }
     }, { projectId: p.id });

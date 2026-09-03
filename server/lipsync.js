@@ -5,11 +5,11 @@ import { findFfmpeg } from './studio.js';
 import { assetsDir } from './projects.js';
 import { LINE_START_DELAY, LINE_GAP } from '../src/remotion/timing.js';
 
-// Synchronisation labiale via fal.ai (Version Synchro uniquement) :
-// le clip vidéo de la scène + la piste voix (calée exactement comme dans
-// Remotion) sont envoyés à un modèle de lip-sync, qui renvoie le clip avec
-// les lèvres animées sur la voix. Le clip reste muet dans le montage : la
-// voix ElevenLabs d'origine joue par-dessus, parfaitement alignée.
+// Synchronisation labiale via fal.ai (Format long, et anciens dramas
+// Version Synchro) : le clip vidéo de la scène + la piste voix (calée
+// exactement comme dans Remotion) sont envoyés à un modèle de lip-sync, qui
+// renvoie le clip avec les lèvres animées sur la voix. Le clip reste muet
+// dans le montage : la voix ElevenLabs d'origine joue par-dessus, alignée.
 
 const LIPSYNC_TIMEOUT_MS = 12 * 60 * 1000;
 
@@ -32,21 +32,26 @@ function ffmpegP(args) {
 
 // Reconstitue la piste voix de la scène avec les MÊMES décalages que le
 // montage Remotion (lineOffsets) — les lèvres tomberont pile sur la voix.
+// Seules les répliques des PERSONNAGES entrent dans la piste : le narrateur
+// reste en voix off (bouches fermées pendant qu'il parle), mais sa durée
+// compte dans les décalages pour que tout reste calé.
 export async function buildSceneVoiceTrack(project, scene, outPath) {
   const dir = assetsDir(project.id);
   const inputs = [];
   const delays = [];
   let t = LINE_START_DELAY;
   for (const line of scene.lines || []) {
-    if (!line.audio) {
-      throw new Error('Toutes les voix de la scène doivent être générées avant la synchro.');
+    if (line.speaker && line.speaker !== 'narrator') {
+      if (!line.audio) {
+        throw new Error('Toutes les voix de la scène doivent être générées avant la synchro.');
+      }
+      inputs.push(path.join(dir, line.audio));
+      delays.push(Math.round(t * 1000));
     }
-    inputs.push(path.join(dir, line.audio));
-    delays.push(Math.round(t * 1000));
     t += (line.audioDurationSec || 2) + LINE_GAP;
   }
   if (inputs.length === 0) {
-    throw new Error('Aucune réplique dans cette scène.');
+    throw new Error('Aucune réplique de personnage dans cette scène.');
   }
   const args = [];
   for (const f of inputs) {
