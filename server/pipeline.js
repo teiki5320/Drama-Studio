@@ -674,36 +674,47 @@ export async function regenerateScript(project, update) {
   saveProject(project);
 }
 
-// Produit TOUTE la saison : pour chaque épisode restant, scénario + images +
-// voix + rendu MP4. Long (souvent > 1 h avec OpenArt) — la progression est
-// détaillée épisode par épisode et l'interface peut raccrocher en cours de route.
-export async function produceSeason(project, update) {
+// Produit les épisodes restants dans l'ordre : scénario + images + voix +
+// rendu MP4 pour chacun. `count` limite la fournée (« les 5 prochains ») ;
+// sans limite, c'est toute la saison. Long (souvent > 1 h avec OpenArt) —
+// la progression est détaillée épisode par épisode et l'interface peut
+// raccrocher en cours de route.
+export async function produceSeason(project, update, count) {
   const total = project.episodeCount || EPISODE_COUNT;
-  let doneCount = 0;
-  const failures = [];
+  const remaining = [];
   for (let n = 1; n <= total; n++) {
     const existing = findEpisode(project, n);
-    if (existing && existing.status === 'done' && existing.renderedFile) {
-      doneCount++;
-      continue;
+    if (!(existing && existing.status === 'done' && existing.renderedFile)) {
+      remaining.push(n);
     }
-    const prefix = `Épisode ${n}/${total} — `;
+  }
+  const todo = Number.isInteger(count) && count > 0 ? remaining.slice(0, count) : remaining;
+  if (todo.length === 0) {
+    return { episodes: 0 };
+  }
+  let doneCount = 0;
+  const failures = [];
+  for (let k = 0; k < todo.length; k++) {
+    const n = todo[k];
+    const prefix = `Épisode ${n} (${k + 1}/${todo.length}) — `;
     try {
       await produceEpisode(project, n, (step, p) =>
-        update(prefix + step, (n - 1 + (p || 0) * 0.7) / total),
+        update(prefix + step, (k + (p || 0) * 0.7) / todo.length),
       );
       const ep = findEpisode(project, n);
       await renderEpisode(project, ep, (step, p) =>
-        update(prefix + step, (n - 1 + 0.7 + (p || 0) * 0.3) / total),
+        update(prefix + step, (k + 0.7 + (p || 0) * 0.3) / todo.length),
       );
       doneCount++;
     } catch (e) {
-      console.error(`Saison — épisode ${n} :`, e.message);
+      console.error(`Production — épisode ${n} :`, e.message);
       failures.push(`épisode ${n} (${e.message.slice(0, 120)})`);
     }
   }
   if (failures.length > 0) {
-    throw new Error(`${doneCount}/${total} épisodes terminés. En échec : ${failures.join(' ; ')}`);
+    throw new Error(
+      `${doneCount}/${todo.length} épisodes produits. En échec : ${failures.join(' ; ')}`,
+    );
   }
   return { episodes: doneCount };
 }

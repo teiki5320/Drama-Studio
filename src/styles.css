@@ -233,6 +233,13 @@ code {
   outline: none;
 }
 
+/* Bouton « Produire les N prochains » + son sélecteur de fournée */
+.batch-produce {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .mode-line {
   margin-top: 10px;
   color: var(--gold-dim);

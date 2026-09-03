@@ -39,7 +39,11 @@ export const api = {
     request(`/api/projects/${id}/channel-outro`, { method: 'DELETE' }),
   produceEpisode: (id, n) =>
     request(`/api/projects/${id}/episodes/${n}/produce`, { method: 'POST' }),
-  produceSeason: (id) => request(`/api/projects/${id}/produce-season`, { method: 'POST' }),
+  produceSeason: (id, count) =>
+    request(`/api/projects/${id}/produce-season`, {
+      method: 'POST',
+      body: JSON.stringify(count ? { count } : {}),
+    }),
   activeJob: (id) => request(`/api/projects/${id}/active-job`),
   activeJobs: () => request('/api/active-jobs'),
   renderEpisode: (id, n) =>
