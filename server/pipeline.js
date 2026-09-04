@@ -161,10 +161,10 @@ export async function ensureCharacterPortraits(project, update) {
     // télénovela ; les autres gardent un portrait neutre de référence.
     const prompt =
       i === 0
-        ? `Glamorous lead ${c.gender === 'femme' ? 'actress' : 'actor'} reference portrait for a hit TV drama, ` +
-          `waist-up, facing camera, confident captivating gaze, soft subtle smile, ` +
-          `flattering cinematic beauty lighting, flawless elegant styling, ` +
-          `plain warm background: ${c.visual}. ` +
+        ? `Glamorous lead ${c.gender === 'femme' ? 'actress' : 'actor'} reference portrait for a hit ` +
+          `vertical short drama (DramaWave / ReelShort style), waist-up, facing camera, ` +
+          `confident captivating gaze, soft subtle smile, flattering cinematic beauty lighting, ` +
+          `flawless elegant styling, plain warm background: ${c.visual}. ` +
           `Magazine-cover quality, photorealistic, cinematic film still, 9:16 vertical.`
         : `Character reference portrait, waist-up, facing camera, neutral expression, ` +
           `plain warm background, soft natural light: ${c.visual}. ` +
