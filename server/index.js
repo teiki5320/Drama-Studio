@@ -661,6 +661,52 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
   res.json({ jobId: job.id });
 });
 
+// Supprime un épisode (scénario + images + clips + voix + MP4) pour le
+// refaire de zéro : il repasse en « à produire ». Sa copie exportée est
+// retirée aussi ; une vidéo de chaîne rend son sujet aux idées.
+app.delete('/api/projects/:id/episodes/:n', (req, res) => {
+  withEpisode(req, res, (p, ep) => {
+    if (!ep) {
+      res.status(404).json({ error: 'Épisode introuvable' });
+      return;
+    }
+    if (activeJobFor(p.id)) {
+      res.status(409).json({ error: 'Une production est en cours sur ce drama — attends la fin.' });
+      return;
+    }
+    const dir = projectDir(p.id);
+    const assets = path.join(dir, 'assets');
+    try {
+      for (const f of fs.readdirSync(assets)) {
+        if (f.startsWith(`e${ep.number}_`)) {
+          fs.rmSync(path.join(assets, f), { force: true });
+        }
+      }
+    } catch {
+      // pas de dossier assets : rien à nettoyer
+    }
+    if (ep.renderedFile) {
+      fs.rmSync(path.join(dir, ep.renderedFile), { force: true });
+    }
+    if (ep.exportedTo) {
+      try {
+        fs.rmSync(ep.exportedTo, { force: true });
+      } catch {
+        // dossier d'export indisponible (iCloud) : on n'insiste pas
+      }
+    }
+    if (p.mode === 'chaine' && ep.topic) {
+      p.topicIdeas = [ep.topic, ...(p.topicIdeas || []).filter((t) => t !== ep.topic)].slice(0, 20);
+    }
+    p.episodes = (p.episodes || []).filter((e) => e.number !== ep.number);
+    if (p.mode === 'chaine') {
+      p.episodeCount = p.episodes.length;
+    }
+    saveProject(p);
+    res.json({ ok: true });
+  });
+});
+
 // « Réparer » : relance uniquement les images/voix/vidéos ratées ou manquantes.
 app.post('/api/projects/:id/episodes/:n/retry-assets', (req, res) => {
   withEpisode(req, res, (p, ep) => {

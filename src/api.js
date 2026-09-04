@@ -39,6 +39,8 @@ export const api = {
     request(`/api/projects/${id}/channel-outro`, { method: 'DELETE' }),
   produceEpisode: (id, n) =>
     request(`/api/projects/${id}/episodes/${n}/produce`, { method: 'POST' }),
+  deleteEpisode: (id, n) =>
+    request(`/api/projects/${id}/episodes/${n}`, { method: 'DELETE' }),
   produceSeason: (id, count) =>
     request(`/api/projects/${id}/produce-season`, {
       method: 'POST',

@@ -660,7 +660,15 @@ export function ProjectView({ projectId, onBack }) {
 
   const totalEpisodes = project.episodeCount || EPISODE_COUNT;
   const producedNumbers = project.episodes.map((e) => e.number);
-  const nextNumber = producedNumbers.length < totalEpisodes ? Math.max(...producedNumbers) + 1 : null;
+  // Prochain épisode à produire : le plus petit manquant — un épisode
+  // supprimé pour être refait redevient donc le prochain de la liste.
+  let nextNumber = null;
+  for (let n = 1; n <= totalEpisodes; n++) {
+    if (!producedNumbers.includes(n)) {
+      nextNumber = n;
+      break;
+    }
+  }
   const currentDone = episode?.status === 'done';
   const stage = project.stage || 'production';
   const renderedEpisodes = project.episodes.filter((e) => e.renderedFile);
@@ -1266,6 +1274,31 @@ export function ProjectView({ projectId, onBack }) {
       >
         🔊 Générer toutes les voix
       </button>
+      {episode && (
+        <button
+          className="btn-ghost"
+          disabled={busy}
+          title="Supprime le scénario, les images, les clips, les voix et le MP4 de cet épisode — pour le réécrire et le reproduire de zéro"
+          onClick={() => {
+            if (
+              confirm(
+                `Supprimer ${isChaine ? 'cette vidéo' : `l'épisode ${episode.number}`} (scénario, images, clips, voix et MP4) ?\n\n${
+                  isChaine
+                    ? 'Son sujet retournera dans les idées de la chaîne.'
+                    : `Il repassera en « à produire » : clique ensuite « ▶️ Produire l'épisode ${episode.number} » pour le refaire de zéro.`
+                }\n\nLes crédits déjà dépensés ne sont pas remboursés.`,
+              )
+            ) {
+              api
+                .deleteEpisode(projectId, episode.number)
+                .then(refresh)
+                .catch((e) => alert(`Suppression impossible : ${e.message}`));
+            }
+          }}
+        >
+          🗑️ Supprimer {isChaine ? 'la vidéo' : `l'épisode ${episode.number}`} (pour le refaire)
+        </button>
+      )}
       {episode?.renderedFile && (
         <a
           className="btn-ghost"
@@ -1488,6 +1521,19 @@ export function ProjectView({ projectId, onBack }) {
       ) : (
         <div className="centered">
           <p>Cet épisode n'a pas encore été produit.</p>
+          {!isChaine && stage === 'production' && epNumber >= 1 && epNumber <= totalEpisodes && (
+            <button
+              className="btn-primary"
+              disabled={busy}
+              onClick={() => {
+                if (confirm(`Produire l'épisode ${epNumber} ?\n\n${quote(1)}`)) {
+                  produce(epNumber);
+                }
+              }}
+            >
+              ▶️ Produire l'épisode {epNumber}
+            </button>
+          )}
         </div>
       )}
     </div>
