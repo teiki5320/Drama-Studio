@@ -18,7 +18,7 @@ import {
   buildEpisodePrompt,
   buildNewFacePrompt,
   drawVariety,
-  LEAD_ADJECTIVES,
+  leadAdjectives,
   seriesFormat,
   formatFor,
   buildChannelPrompt,
@@ -157,10 +157,18 @@ export async function ensureCharacterPortraits(project, update) {
     update(`Portrait de référence ${i + 1}/${chars.length} — ${c.name}…`, i / chars.length);
     c.portraitVersion = (c.portraitVersion || 0) + 1;
     const file = `char_${c.id}_v${c.portraitVersion}.jpg`;
+    // La star (premier personnage) a droit à un vrai portrait glamour de
+    // télénovela ; les autres gardent un portrait neutre de référence.
     const prompt =
-      `Character reference portrait, waist-up, facing camera, neutral expression, ` +
-      `plain warm background, soft natural light: ${c.visual}. ` +
-      `Photorealistic, cinematic film still, 9:16 vertical.`;
+      i === 0
+        ? `Glamorous lead ${c.gender === 'femme' ? 'actress' : 'actor'} reference portrait for a hit TV drama, ` +
+          `waist-up, facing camera, confident captivating gaze, soft subtle smile, ` +
+          `flattering cinematic beauty lighting, flawless elegant styling, ` +
+          `plain warm background: ${c.visual}. ` +
+          `Magazine-cover quality, photorealistic, cinematic film still, 9:16 vertical.`
+        : `Character reference portrait, waist-up, facing camera, neutral expression, ` +
+          `plain warm background, soft natural light: ${c.visual}. ` +
+          `Photorealistic, cinematic film still, 9:16 vertical.`;
     const { ok, url, provider } = await generateImage(prompt, path.join(dir, file), {});
     if (ok) {
       c.portrait = file;
@@ -436,7 +444,7 @@ function ensureLeadAdjectives(project) {
     return;
   }
   const low = c.visual.toLowerCase();
-  const missing = LEAD_ADJECTIVES.filter((a) => !low.includes(a));
+  const missing = leadAdjectives(c.gender).filter((a) => !low.includes(a));
   if (missing.length === 0) {
     return;
   }
@@ -939,7 +947,7 @@ export async function newCharacterFace(project, characterId, instructions, updat
   // Le personnage principal garde toujours ses adjectifs imposés.
   if (isLead) {
     const low = newVisual.toLowerCase();
-    const missing = LEAD_ADJECTIVES.filter((a) => !low.includes(a));
+    const missing = leadAdjectives(c.gender).filter((a) => !low.includes(a));
     if (missing.length > 0) {
       newVisual = `${missing.join(', ')}, ${newVisual}`;
     }
