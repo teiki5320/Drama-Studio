@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { ROOT } from './config.js';
 import { audioDurationSec } from './tts.js';
+
+const require = createRequire(import.meta.url);
 
 // « Ma marque » : sticker (logo) et outro (vidéo/image de fin) de l'auteur,
 // communs à tous les dramas. Fichiers stockés dans <racine>/studio/.
@@ -50,21 +53,46 @@ export function removeSticker() {
   return persist(s);
 }
 
-// ffmpeg embarqué par Remotion (compositor-<plateforme>), présent après npm install.
+// Cherche un ffmpeg qui FONCTIONNE vraiment : chaque candidat est testé avec
+// `-version` avant d'être retenu — un binaire présent mais cassé (librairies
+// dylib manquantes, vu sur le ffmpeg embarqué par Remotion) est écarté.
+// Ordre : ffmpeg-static (binaire autonome, sans librairies externes, installé
+// par npm install), puis celui de Remotion, puis les installations classiques.
+let cachedFfmpeg;
 export function findFfmpeg() {
+  if (cachedFfmpeg !== undefined) {
+    return cachedFfmpeg;
+  }
+  const candidates = [];
+  try {
+    candidates.push(require('ffmpeg-static'));
+  } catch {
+    // paquet absent (vieux node_modules) — candidats suivants
+  }
   const dir = path.join(ROOT, 'node_modules', '@remotion');
   try {
     for (const entry of fs.readdirSync(dir)) {
       if (entry.startsWith('compositor-')) {
-        const bin = path.join(dir, entry, 'ffmpeg');
-        if (fs.existsSync(bin)) {
-          return bin;
-        }
+        candidates.push(path.join(dir, entry, 'ffmpeg'));
       }
     }
   } catch {
     // node_modules absent — repli plus bas
   }
+  candidates.push('/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg', 'ffmpeg');
+  for (const bin of candidates) {
+    if (!bin || (bin.includes(path.sep) && !fs.existsSync(bin))) {
+      continue;
+    }
+    try {
+      execFileSync(bin, ['-version'], { stdio: 'pipe', timeout: 10000 });
+      cachedFfmpeg = bin;
+      return bin;
+    } catch {
+      // binaire introuvable ou cassé : candidat suivant
+    }
+  }
+  cachedFfmpeg = null;
   return null;
 }
 
