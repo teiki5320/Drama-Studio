@@ -12,6 +12,7 @@
     "start": "npm run build && node server/index.js"
   },
   "dependencies": {
+    "@fal-ai/client": "^1.10.1",
     "@remotion/bundler": "^4.0.290",
     "@remotion/player": "^4.0.290",
     "@remotion/renderer": "^4.0.290",

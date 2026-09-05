@@ -148,6 +148,95 @@ function BrandCard({ studio, onChange }) {
 // « Voix françaises » : découverte des meilleures voix NATIVEMENT françaises de
 // la bibliothèque ElevenLabs — pré-écoute gratuite, adoption en un clic. Les
 // voix adoptées rejoignent le catalogue (casting Claude + menus de voix).
+// Test synchro : un SEUL mini-clip (portrait + vidéo 5 s + voix + lèvres)
+// pour vérifier toute la chaîne sans produire un épisode. Les fichiers de
+// test sont réutilisés : une relance ne repaye que la synchro fal.ai.
+function SyncTestCard() {
+  const [status, setStatus] = useState(null);
+  const [job, setJob] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const refresh = () => api.lipsyncTest().then(setStatus).catch(() => {});
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const run = async (fresh) => {
+    if (
+      fresh &&
+      !confirm('Tout refaire de zéro ? Le portrait et le clip de test seront regénérés (~40 crédits OpenArt).')
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { jobId } = await api.runLipsyncTest(fresh);
+      await followJob(jobId, setJob);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setJob(null);
+      setBusy(false);
+      refresh();
+    }
+  };
+
+  const step = (okStep, label) => (
+    <span className={okStep ? 'synctest-ok' : 'synctest-todo'}>
+      {okStep ? '✅' : '◻️'} {label}
+    </span>
+  );
+
+  return (
+    <details className="brand-card">
+      <summary>
+        🧪 Test synchro {status?.lastSuccess ? '✅' : ''}
+        <span className="brand-hint">
+          — vérifie image → clip → voix → lèvres sur UN mini-clip, sans produire d'épisode
+        </span>
+      </summary>
+      <p className="section-label">
+        Premier lancement : ~40 crédits OpenArt (portrait + clip 5 s) et ~120 crédits ElevenLabs.
+        Les relances réutilisent ces fichiers et ne testent que la synchro fal.ai.
+      </p>
+      {status && (
+        <p className="synctest-steps">
+          {step(status.face, 'Portrait')} {step(status.clip, 'Clip vidéo')} {step(status.voice, 'Voix')}{' '}
+          {step(status.result, 'Lèvres synchronisées')}
+        </p>
+      )}
+      {busy ? (
+        <p className="section-label">
+          <span className="spinner small" /> {job?.step || 'Démarrage…'}
+        </p>
+      ) : (
+        <div className="create-actions">
+          <button className="btn-primary" onClick={() => run(false)}>
+            ▶️ Lancer le test
+          </button>
+          {status && (status.face || status.clip) && (
+            <button className="btn-ghost" onClick={() => run(true)}>
+              🔄 Tout refaire de zéro
+            </button>
+          )}
+        </div>
+      )}
+      {error && <p className="error">{error}</p>}
+      {status?.resultUrl && (
+        <div className="synctest-result">
+          <video src={status.resultUrl} controls playsInline />
+          <p className="section-label">
+            👄 Regarde et écoute : si les lèvres suivent la voix, toute la chaîne fonctionne — tu
+            peux lancer tes épisodes tranquille.
+          </p>
+        </div>
+      )}
+    </details>
+  );
+}
+
 function FrenchVoicesCard({ voices, onChange }) {
   const [library, setLibrary] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -890,6 +979,8 @@ export function App() {
       <BrandCard studio={studio} onChange={refreshStudio} />
 
       <FrenchVoicesCard voices={voicesCatalog} onChange={refreshVoices} />
+
+      <SyncTestCard />
 
       {projects.filter((p) => homeMode(p) === mode).length > 0 && (
         <section className="library">

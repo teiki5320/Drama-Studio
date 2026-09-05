@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import { fal } from '@fal-ai/client';
 import { findFfmpeg } from './studio.js';
 import { assetsDir } from './projects.js';
 import { LINE_START_DELAY, LINE_GAP } from '../src/remotion/timing.js';
@@ -69,84 +70,104 @@ export async function buildSceneVoiceTrack(project, scene, outPath) {
   return outPath;
 }
 
-function fileToDataUri(file, mime) {
-  return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+const MIME = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/mp4',
+  wav: 'audio/wav',
+  aiff: 'audio/aiff',
+  aif: 'audio/aiff',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+};
+
+function mimeFor(file) {
+  return MIME[path.extname(file).slice(1).toLowerCase()] || 'application/octet-stream';
 }
 
-// Appel fal.ai en mode file d'attente (les synchros prennent plusieurs minutes).
-async function falQueue(model, input, update) {
+// Traduit les erreurs du client fal.ai en messages compréhensibles.
+function falError(e) {
+  const status = e?.status;
+  let detail = '';
+  try {
+    detail = JSON.stringify(e?.body?.detail ?? e?.body ?? '').slice(0, 200);
+  } catch {
+    detail = '';
+  }
+  if (status === 401 || status === 403) {
+    return new Error('fal.ai : clé invalide ou non autorisée (vérifie FAL_KEY dans .env).');
+  }
+  if (status === 402 || /balance|credit|exhausted/i.test(detail)) {
+    return new Error('fal.ai : solde insuffisant — recharge ton compte sur fal.ai.');
+  }
+  if (status === 422) {
+    return new Error(`fal.ai a refusé la demande (422) : ${detail || 'entrée invalide'}`);
+  }
+  return new Error(`fal.ai : ${e?.message || 'erreur inconnue'}${detail ? ` — ${detail}` : ''}`);
+}
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
+// Synchronise le clip d'une scène avec sa piste voix. Les fichiers sont
+// d'abord téléversés sur le stockage fal.ai (les data-URI géants passaient
+// mal : HTTP 422), puis le modèle tourne en file d'attente. Retourne le
+// chemin du clip synchronisé (écrit dans outPath).
+export async function lipsyncVideo({ videoPath, audioPath, outPath, update }) {
   const key = process.env.FAL_KEY;
   if (!key) {
     throw new Error(
-      'La Version Synchro nécessite une clé fal.ai : ajoute FAL_KEY=... dans le fichier .env (https://fal.ai/dashboard/keys).',
+      'La synchro labiale nécessite une clé fal.ai : ajoute FAL_KEY=... dans le fichier .env (https://fal.ai/dashboard/keys).',
     );
   }
-  const headers = { Authorization: `Key ${key}`, 'Content-Type': 'application/json' };
-  const submit = await fetch(`https://queue.fal.run/${model}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(120000),
-  });
-  if (!submit.ok) {
-    const t = await submit.text().catch(() => '');
-    if (submit.status === 401 || submit.status === 403) {
-      throw new Error('fal.ai : clé invalide ou non autorisée (vérifie FAL_KEY dans .env).');
-    }
-    if (submit.status === 402 || /balance|credit/i.test(t)) {
-      throw new Error('fal.ai : solde insuffisant — recharge ton compte sur fal.ai.');
-    }
-    throw new Error(`fal.ai ${submit.status} : ${t.slice(0, 200)}`);
-  }
-  const job = await submit.json();
-  const statusUrl = job.status_url || `https://queue.fal.run/${model}/requests/${job.request_id}/status`;
-  const responseUrl = job.response_url || `https://queue.fal.run/${model}/requests/${job.request_id}`;
-
-  const start = Date.now();
-  for (;;) {
-    if (Date.now() - start > LIPSYNC_TIMEOUT_MS) {
-      throw new Error('fal.ai : synchronisation trop longue (délai dépassé).');
-    }
-    await new Promise((r) => setTimeout(r, 4000));
-    const res = await fetch(statusUrl, { headers, signal: AbortSignal.timeout(30000) });
-    const status = await res.json().catch(() => ({}));
-    if (status.status === 'COMPLETED') {
-      break;
-    }
-    if (status.status === 'FAILED' || status.status === 'ERROR') {
-      throw new Error('fal.ai : la synchronisation a échoué côté serveur.');
-    }
-    if (update && status.status === 'IN_PROGRESS') {
-      update('Synchronisation des lèvres en cours…');
-    }
-  }
-  const out = await fetch(responseUrl, { headers, signal: AbortSignal.timeout(60000) });
-  if (!out.ok) {
-    throw new Error(`fal.ai : résultat illisible (HTTP ${out.status}).`);
-  }
-  return out.json();
-}
-
-// Synchronise le clip d'une scène avec sa piste voix. Retourne le chemin du
-// clip synchronisé (écrit dans outPath).
-export async function lipsyncVideo({ videoPath, audioPath, outPath, update }) {
   const model = process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync';
+  fal.config({ credentials: key });
   update('Envoi du clip et de la voix à fal.ai…');
-  const result = await falQueue(
-    model,
-    {
-      video_url: fileToDataUri(videoPath, 'video/mp4'),
-      audio_url: fileToDataUri(audioPath, 'audio/mpeg'),
-      sync_mode: 'cut_off',
-    },
-    update,
-  );
+  let videoUrl;
+  let audioUrl;
+  try {
+    [videoUrl, audioUrl] = await Promise.all([
+      fal.storage.upload(new Blob([fs.readFileSync(videoPath)], { type: mimeFor(videoPath) })),
+      fal.storage.upload(new Blob([fs.readFileSync(audioPath)], { type: mimeFor(audioPath) })),
+    ]);
+  } catch (e) {
+    throw falError(e);
+  }
+  update('Synchronisation des lèvres en cours…');
+  let result;
+  try {
+    result = await withTimeout(
+      fal.subscribe(model, {
+        input: { video_url: videoUrl, audio_url: audioUrl, sync_mode: 'cut_off' },
+        onQueueUpdate: (s) => {
+          if (s.status === 'IN_PROGRESS') {
+            update('Synchronisation des lèvres en cours…');
+          }
+        },
+      }),
+      LIPSYNC_TIMEOUT_MS,
+      'fal.ai : synchronisation trop longue (délai dépassé).',
+    );
+  } catch (e) {
+    if (/délai dépassé/.test(e?.message || '')) {
+      throw e;
+    }
+    throw falError(e);
+  }
+  const data = result?.data || {};
   const url =
-    (result.video && result.video.url) ||
-    result.video_url ||
-    (typeof result.url === 'string' ? result.url : null);
+    (data.video && data.video.url) ||
+    data.video_url ||
+    (typeof data.url === 'string' ? data.url : null);
   if (!url) {
-    throw new Error(`fal.ai : pas de vidéo dans la réponse (${JSON.stringify(result).slice(0, 150)}).`);
+    throw new Error(`fal.ai : pas de vidéo dans la réponse (${JSON.stringify(data).slice(0, 150)}).`);
   }
   update('Téléchargement du clip synchronisé…');
   const dl = await fetch(url, { signal: AbortSignal.timeout(300000) });

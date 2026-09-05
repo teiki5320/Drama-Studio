@@ -55,6 +55,7 @@ import { searchFrenchLibraryVoices, adoptLibraryVoice } from './elevenlib.js';
 import { openartCredits } from './openart.js';
 import { claudeBin } from './claudebin.js';
 import { exportAllProjects, EXPORT_ROOT, exportRootFor, projectExportDir } from './exporter.js';
+import { runLipsyncTest, lipsyncTestStatus } from './synctest.js';
 import {
   STUDIO_DIR,
   loadStudio,
@@ -178,6 +179,18 @@ app.get('/studio/:file', (req, res) => {
     return;
   }
   res.sendFile(target);
+});
+
+// ---------- Test synchro : un mini-clip de bout en bout ----------
+app.get('/api/lipsync-test', (req, res) => {
+  res.json(lipsyncTestStatus());
+});
+
+app.post('/api/lipsync-test', (req, res) => {
+  const job = startJob('Test synchro labiale', (update) =>
+    runLipsyncTest({ fresh: Boolean(req.body && req.body.fresh) }, update),
+  );
+  res.json({ jobId: job.id });
 });
 
 // Toutes les productions en cours (panneau d'avancement de l'accueil).
