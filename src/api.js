@@ -122,6 +122,9 @@ export const api = {
     request('/api/studio/outro', { method: 'POST', body: JSON.stringify({ data: dataUrl }) }),
   deleteOutro: () => request('/api/studio/outro', { method: 'DELETE' }),
   getJob: (id) => request(`/api/jobs/${id}`),
+  lipsyncTest: () => request('/api/lipsync-test'),
+  runLipsyncTest: (fresh) =>
+    request('/api/lipsync-test', { method: 'POST', body: JSON.stringify({ fresh: Boolean(fresh) }) }),
 };
 
 // Suit un job jusqu'à la fin ; onTick reçoit l'état à chaque itération.
