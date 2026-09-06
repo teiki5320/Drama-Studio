@@ -772,7 +772,7 @@ export function ProjectView({ projectId, onBack }) {
           >
             ⏱️ Durée clips
             <select
-              value={project.videoSeconds || 'eco'}
+              value={project.videoSeconds || (project.mode === 'long' ? 'auto' : 'eco')}
               disabled={busy}
               onChange={(e) =>
                 api
@@ -1152,7 +1152,8 @@ export function ProjectView({ projectId, onBack }) {
   // Devis avant production — estimations moyennes (image ~8, clip éco ~30,
   // clip adapté ~55 crédits OpenArt ; ~850 caractères ElevenLabs par épisode).
   const quote = (nEpisodes) => {
-    const vidCost = (project.videoSeconds || 'eco') === 'eco' ? 30 : 55;
+    const effVideoSeconds = project.videoSeconds || (project.mode === 'long' ? 'auto' : 'eco');
+    const vidCost = effVideoSeconds === 'eco' ? 30 : 55;
     let imgs = 9;
     let chars = 850;
     if (project.mode === 'long') {

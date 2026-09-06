@@ -9,7 +9,13 @@ import {
 } from '../shared/catalog.js';
 import { VIDEO_SCENES } from './config.js';
 import { openartGenerateVideo } from './openart.js';
-import { buildSceneVoiceTrack, lipsyncVideo } from './lipsync.js';
+import {
+  buildSceneVoiceTrack,
+  lipsyncVideo,
+  talkingVideo,
+  lipsyncModel,
+  isTalkingModel,
+} from './lipsync.js';
 import { renderEpisode } from './render.js';
 import {
   askClaudeForJson,
@@ -259,20 +265,25 @@ async function generateEpisodeAssets(project, episode, update) {
       if (scene.video || scene.videoDisabled || !scene.image) {
         continue;
       }
-      update(
-        `Épisode ${episode.number} — vidéo ${k + 1}/${wanted.length} (scène ${wanted[k] + 1}, plusieurs minutes)…`,
-        k / wanted.length,
-      );
-      try {
-        await generateSceneVideo(project, episode, scene, () => {});
-      } catch (e) {
-        console.error(`Vidéo scène ${scene.id} :`, e.message);
-        scene.videoError = e.message;
-        saveProject(project);
+      // Modèle « avatar » (OmniHuman) : les scènes parlées sont générées
+      // directement image + voix par la synchro — pas de clip OpenArt à payer.
+      const talking = wantsLipsync(project) && lipsyncSpeaker(scene) && isTalkingModel();
+      if (!talking) {
+        update(
+          `Épisode ${episode.number} — vidéo ${k + 1}/${wanted.length} (scène ${wanted[k] + 1}, plusieurs minutes)…`,
+          k / wanted.length,
+        );
+        try {
+          await generateSceneVideo(project, episode, scene, () => {});
+        } catch (e) {
+          console.error(`Vidéo scène ${scene.id} :`, e.message);
+          scene.videoError = e.message;
+          saveProject(project);
+        }
       }
-      // Lèvres animées sur la voix, dans la foulée du clip — seulement quand
-      // un personnage parle (narrateur seul = bouches fermées, rien à caler).
-      if (wantsLipsync(project) && lipsyncSpeaker(scene) && scene.video && !scene.lipsynced) {
+      // Lèvres animées sur la voix, dans la foulée — seulement quand un
+      // personnage parle (narrateur seul = bouches fermées, rien à caler).
+      if (wantsLipsync(project) && lipsyncSpeaker(scene) && (scene.video || talking) && !scene.lipsynced) {
         update(
           `Épisode ${episode.number} — synchro labiale ${k + 1}/${wanted.length} (scène ${wanted[k] + 1})…`,
           k / wanted.length,
@@ -314,12 +325,12 @@ export async function generateSceneVideo(project, episode, scene, update) {
   }
   delete scene.videoDisabled;
   update('Génération du clip vidéo par OpenArt (plusieurs minutes)…');
-  // Mode éco (défaut) : toujours la durée minimale facturée (5 s) — le clip
-  // gèle ensuite sur sa dernière image, et ça divise le coût par deux.
+  // Mode éco : durée minimale facturée (5 s), le clip gèle ensuite sur sa
+  // dernière image. Format long : « Adaptée » par défaut — le clip couvre la
+  // scène (5-10 s), l'image ne se fige plus pendant que la voix continue.
+  const effSeconds = project.videoSeconds || (project.mode === 'long' ? 'auto' : 'eco');
   const durationSec =
-    project.videoSeconds === 'auto'
-      ? Math.max(5, Math.min(10, Math.round(scene.durationSec || 6)))
-      : 5;
+    effSeconds === 'auto' ? Math.max(5, Math.min(10, Math.round(scene.durationSec || 6))) : 5;
   const { buffer } = await openartGenerateVideo({
     prompt: videoMotionPrompt(scene),
     imageUrl: scene.imageUrl || null,
@@ -354,8 +365,12 @@ export async function lipsyncSceneVideo(project, episode, scene, update) {
         'ou plusieurs interlocuteurs (le lip-sync déformerait les visages).',
     );
   }
-  if (!scene.video) {
+  const talking = isTalkingModel();
+  if (!talking && !scene.video) {
     throw new Error("Génère d'abord le clip vidéo de la scène.");
+  }
+  if (talking && !scene.image) {
+    throw new Error("Génère d'abord l'image de la scène.");
   }
   const dir = assetsDir(project.id);
   update('Préparation de la piste voix de la scène…');
@@ -363,12 +378,23 @@ export async function lipsyncSceneVideo(project, episode, scene, update) {
   await buildSceneVoiceTrack(project, scene, track);
   scene.videoVersion = (scene.videoVersion || 0) + 1;
   const out = `e${episode.number}_${scene.id}_sync${scene.videoVersion}.mp4`;
-  await lipsyncVideo({
-    videoPath: path.join(dir, scene.video),
-    audioPath: track,
-    outPath: path.join(dir, out),
-    update,
-  });
+  if (talking) {
+    // Modèle « avatar » : la vidéo parlante est générée depuis l'image de la
+    // scène + la voix (visage entier cohérent, durée = durée des paroles).
+    await talkingVideo({
+      imagePath: path.join(dir, scene.image),
+      audioPath: track,
+      outPath: path.join(dir, out),
+      update,
+    });
+  } else {
+    await lipsyncVideo({
+      videoPath: path.join(dir, scene.video),
+      audioPath: track,
+      outPath: path.join(dir, out),
+      update,
+    });
+  }
   fs.rmSync(track, { force: true });
   scene.video = out;
   scene.lipsynced = true;
@@ -830,13 +856,17 @@ export async function retryFailedAssets(project, episode, update) {
     }
   }
 
-  // 3. Clips vidéo prévus mais absents, ou en erreur
+  // 3. Clips vidéo prévus mais absents, ou en erreur (les scènes parlées en
+  // mode « avatar » n'ont pas de clip OpenArt : leur vidéo vient de l'étape 4)
   if (provider === 'openart' && VIDEO_SCENES) {
     const wanted = plannedVideoIndexes(project, scenes.length);
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       const expected = wanted.includes(i) || Boolean(scene.videoError);
       if (!expected || scene.videoDisabled || !scene.image) {
+        continue;
+      }
+      if (wantsLipsync(project) && lipsyncSpeaker(scene) && isTalkingModel()) {
         continue;
       }
       if (scene.video && !scene.videoError) {
@@ -858,7 +888,8 @@ export async function retryFailedAssets(project, episode, update) {
   if (wantsLipsync(project)) {
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
-      if (!scene.video || scene.videoDisabled || !lipsyncSpeaker(scene) || scene.lipsynced) {
+      const ready = isTalkingModel() ? Boolean(scene.image) : Boolean(scene.video);
+      if (!ready || scene.videoDisabled || !lipsyncSpeaker(scene) || scene.lipsynced) {
         continue;
       }
       update(`Synchro labiale de la scène ${i + 1}…`);
