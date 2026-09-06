@@ -123,8 +123,11 @@ export const api = {
   deleteOutro: () => request('/api/studio/outro', { method: 'DELETE' }),
   getJob: (id) => request(`/api/jobs/${id}`),
   lipsyncTest: () => request('/api/lipsync-test'),
-  runLipsyncTest: (fresh) =>
-    request('/api/lipsync-test', { method: 'POST', body: JSON.stringify({ fresh: Boolean(fresh) }) }),
+  runLipsyncTest: (fresh, model) =>
+    request('/api/lipsync-test', {
+      method: 'POST',
+      body: JSON.stringify({ fresh: Boolean(fresh), model: model || undefined }),
+    }),
 };
 
 // Suit un job jusqu'à la fin ; onTick reçoit l'état à chaque itération.

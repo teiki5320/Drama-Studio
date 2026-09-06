@@ -9,7 +9,7 @@ import {
   plannedVideoCount,
   plannedVideoIndexes,
   wantsLipsync,
-  sceneHasDialogue,
+  lipsyncSpeaker,
   DEFAULT_VIDEO_SCENES,
   MAX_VIDEO_SCENES,
   tiktokCaption,
@@ -485,7 +485,7 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
         >
           🎬 {scene.video ? 'Régénérer la vidéo' : 'Générer la vidéo'}
         </button>
-        {scene.video && wantsLipsync(project) && sceneHasDialogue(scene) && (
+        {scene.video && wantsLipsync(project) && lipsyncSpeaker(scene) && (
           <button
             className={`btn-small ${scene.lipsynced ? '' : 'primary'}`}
             disabled={busy}
@@ -510,7 +510,7 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
       {scene.videoError && <p className="error small">Vidéo : {scene.videoError}</p>}
       {scene.lipsyncError && <p className="error small">Synchro : {scene.lipsyncError}</p>}
       {wantsLipsync(project) &&
-        sceneHasDialogue(scene) &&
+        lipsyncSpeaker(scene) &&
         scene.video &&
         !scene.lipsynced &&
         !scene.lipsyncError && (
@@ -849,7 +849,7 @@ export function ProjectView({ projectId, onBack }) {
     episode && wantsLipsync(project)
       ? episode.scenes
           .map((s, i) =>
-            s.video && !s.videoDisabled && sceneHasDialogue(s) && (!s.lipsynced || s.lipsyncError)
+            s.video && !s.videoDisabled && lipsyncSpeaker(s) && (!s.lipsynced || s.lipsyncError)
               ? i + 1
               : null,
           )

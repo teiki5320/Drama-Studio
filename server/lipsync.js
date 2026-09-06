@@ -120,14 +120,19 @@ function withTimeout(promise, ms, message) {
 // d'abord téléversés sur le stockage fal.ai (les data-URI géants passaient
 // mal : HTTP 422), puis le modèle tourne en file d'attente. Retourne le
 // chemin du clip synchronisé (écrit dans outPath).
-export async function lipsyncVideo({ videoPath, audioPath, outPath, update }) {
+export async function lipsyncVideo({ videoPath, audioPath, outPath, update, model: modelOverride }) {
   const key = process.env.FAL_KEY;
   if (!key) {
     throw new Error(
       'La synchro labiale nécessite une clé fal.ai : ajoute FAL_KEY=... dans le fichier .env (https://fal.ai/dashboard/keys).',
     );
   }
-  const model = process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync';
+  const model = modelOverride || process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync';
+  // « bounce » : si la voix dure plus longtemps que le clip (5 s en mode
+  // Éco), le clip se prolonge en aller-retour fluide au lieu d'être COUPÉ
+  // à 5 s (l'ancien « cut_off » figeait l'image bouche ouverte en pleine
+  // phrase). Réglable via FAL_LIPSYNC_SYNC_MODE (cut_off, loop, bounce…).
+  const syncMode = process.env.FAL_LIPSYNC_SYNC_MODE || 'bounce';
   fal.config({ credentials: key });
   update('Envoi du clip et de la voix à fal.ai…');
   let videoUrl;
@@ -145,7 +150,7 @@ export async function lipsyncVideo({ videoPath, audioPath, outPath, update }) {
   try {
     result = await withTimeout(
       fal.subscribe(model, {
-        input: { video_url: videoUrl, audio_url: audioUrl, sync_mode: 'cut_off' },
+        input: { video_url: videoUrl, audio_url: audioUrl, sync_mode: syncMode },
         onQueueUpdate: (s) => {
           if (s.status === 'IN_PROGRESS') {
             update('Synchronisation des lèvres en cours…');
