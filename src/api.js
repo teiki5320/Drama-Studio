@@ -123,6 +123,7 @@ export const api = {
   deleteOutro: () => request('/api/studio/outro', { method: 'DELETE' }),
   getJob: (id) => request(`/api/jobs/${id}`),
   lipsyncTest: () => request('/api/lipsync-test'),
+  clearLipsyncTest: () => request('/api/lipsync-test', { method: 'DELETE' }),
   runLipsyncTest: (fresh, model) =>
     request('/api/lipsync-test', {
       method: 'POST',

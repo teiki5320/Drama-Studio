@@ -55,7 +55,7 @@ import { searchFrenchLibraryVoices, adoptLibraryVoice } from './elevenlib.js';
 import { openartCredits } from './openart.js';
 import { claudeBin } from './claudebin.js';
 import { exportAllProjects, EXPORT_ROOT, exportRootFor, projectExportDir } from './exporter.js';
-import { runLipsyncTest, lipsyncTestStatus } from './synctest.js';
+import { runLipsyncTest, lipsyncTestStatus, clearLipsyncTestResult } from './synctest.js';
 import {
   STUDIO_DIR,
   loadStudio,
@@ -184,6 +184,10 @@ app.get('/studio/:file', (req, res) => {
 // ---------- Test synchro : un mini-clip de bout en bout ----------
 app.get('/api/lipsync-test', (req, res) => {
   res.json(lipsyncTestStatus());
+});
+
+app.delete('/api/lipsync-test', (req, res) => {
+  res.json(clearLipsyncTestResult());
 });
 
 app.post('/api/lipsync-test', (req, res) => {
