@@ -156,6 +156,7 @@ const LIPSYNC_MODELS = [
   { id: '', label: 'sync-lipsync v2 (défaut)' },
   { id: 'fal-ai/sync-lipsync/v2/pro', label: 'sync v2 PRO (gros plans, +cher)' },
   { id: 'fal-ai/bytedance/omnihuman/v1.5', label: 'OmniHuman ★ génération directe (0,16 $/s)' },
+  { id: 'openart', label: 'OpenArt lip-sync ★ (crédits OpenArt)' },
   { id: 'veed/lipsync', label: 'VEED lipsync' },
 ];
 

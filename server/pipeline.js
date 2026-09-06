@@ -12,8 +12,7 @@ import { openartGenerateVideo } from './openart.js';
 import {
   buildSceneVoiceTrack,
   lipsyncVideo,
-  talkingVideo,
-  lipsyncModel,
+  makeTalkingClip,
   isTalkingModel,
 } from './lipsync.js';
 import { renderEpisode } from './render.js';
@@ -381,8 +380,9 @@ export async function lipsyncSceneVideo(project, episode, scene, update) {
   if (talking) {
     // Modèle « avatar » : la vidéo parlante est générée depuis l'image de la
     // scène + la voix (visage entier cohérent, durée = durée des paroles).
-    await talkingVideo({
+    await makeTalkingClip({
       imagePath: path.join(dir, scene.image),
+      imageUrl: scene.imageUrl || null,
       audioPath: track,
       outPath: path.join(dir, out),
       update,
