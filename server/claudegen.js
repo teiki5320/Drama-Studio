@@ -198,7 +198,11 @@ const seriesSchema = (format) => `{
   }
 }`;
 
-const seriesRules = (format) => `Contraintes STRICTES :
+const seriesRules = (format) => `Contraintes STRICTES :${
+  format.long
+    ? `\n- UNE RÉPLIQUE PAR SCÈNE (Format long, non négociable) : chaque scène contient AU PLUS UNE réplique de personnage (≤ 18 mots) — le narrateur peut ajouter UNE phrase courte. La voix d'une scène ne dépasse jamais ~8 secondes : les paroles doivent TENIR dans le clip vidéo de la scène. Un échange = plusieurs scènes courtes qui s'enchaînent (champ-contrechamp).`
+    : ''
+}
 - CONTINUITÉ ET COHÉRENCE (l'écriture d'abord) : chaque épisode est un mini-récit complet — UNE question dramatique claire posée au début, une progression sans ellipse inexpliquée (chaque scène découle de la précédente), une réponse avant le cliffhanger. Un spectateur qui découvre l'épisode doit comprendre l'enjeu dans les 10 premières secondes.
 - COHÉRENCE VISUELLE : des scènes consécutives dans le même lieu recopient MOT POUR MOT la même description du décor dans leurs imagePrompt ; le moment de la journée reste constant sauf transition annoncée par le narrateur ; la tenue d'un personnage ne change jamais au sein d'un même épisode.
 - GRAMMAIRE DES PLANS (indispensable — les lèvres des personnages sont animées par IA sur leur voix, et ça ne marche que sur UN visage en gros plan) : une scène où un personnage parle = UN SEUL personnage qui parle, cadré en GROS PLAN (poitrine ou visage), face caméra ou trois quarts, bouche bien visible, "characters" réduit à lui seul. Son interlocuteur répond dans la SCÈNE SUIVANTE — champ-contrechamp, comme dans les vraies séries. Le narrateur peut commenter n'importe quel plan. Les plans larges (décor, foule, action de groupe) sont réservés aux scènes SANS réplique de personnage.
@@ -512,7 +516,11 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
   "cliffhanger": "phrase de suspense finale"
 }
 
-Contraintes STRICTES :
+Contraintes STRICTES :${
+    format.long
+      ? `\n- UNE RÉPLIQUE PAR SCÈNE (non négociable) : chaque scène contient AU PLUS UNE réplique de personnage (≤ 18 mots) — le narrateur peut ajouter UNE phrase courte. La voix d'une scène ne dépasse jamais ~8 secondes : les paroles doivent TENIR dans le clip vidéo. Un échange = plusieurs scènes courtes en champ-contrechamp.`
+      : ''
+  }
 - CLARTÉ AVANT TOUT : tout doit se comprendre du premier coup. Phrases courtes et simples, une seule idée par scène, les personnages s'appellent par leur prénom. Le narrateur OUVRE OBLIGATOIREMENT l'épisode par un rappel « Précédemment » d'une phrase qui nomme les personnages et resitue l'enjeu, puis 3 interventions max.
 - CONTINUITÉ : aucune ellipse inexpliquée — chaque scène découle de la précédente, et l'épisode répond à sa question dramatique avant de poser le cliffhanger suivant.
 - COHÉRENCE VISUELLE : des scènes consécutives dans le même lieu recopient MOT POUR MOT la même description du décor dans leurs imagePrompt ; moment de la journée constant sauf transition annoncée ; la tenue d'un personnage ne change jamais au sein de l'épisode.

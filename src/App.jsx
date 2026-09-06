@@ -153,9 +153,10 @@ function BrandCard({ studio, onChange }) {
 // test sont réutilisés : une relance ne repaye que la synchro fal.ai.
 // Moteurs de synchro fal.ai comparables depuis la carte de test.
 const LIPSYNC_MODELS = [
-  { id: '', label: 'sync-lipsync (défaut)' },
+  { id: '', label: 'sync-lipsync v2 (défaut)' },
+  { id: 'fal-ai/sync-lipsync/v2/pro', label: 'sync v2 PRO (gros plans, +cher)' },
+  { id: 'fal-ai/bytedance/omnihuman/v1.5', label: 'OmniHuman ★ génération directe (0,16 $/s)' },
   { id: 'veed/lipsync', label: 'VEED lipsync' },
-  { id: 'fal-ai/latentsync', label: 'LatentSync' },
 ];
 
 function SyncTestCard() {

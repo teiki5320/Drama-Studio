@@ -4,7 +4,7 @@ import { STUDIO_DIR } from './studio.js';
 import { generateImage, currentProvider } from './images.js';
 import { openartGenerateVideo } from './openart.js';
 import { synthesize } from './tts.js';
-import { lipsyncVideo } from './lipsync.js';
+import { lipsyncVideo, talkingVideo, isTalkingModel, lipsyncModel } from './lipsync.js';
 
 // « Test synchro » : un SEUL mini-clip de bout en bout — portrait, clip vidéo,
 // voix, lèvres synchronisées — pour vérifier que toute la chaîne fonctionne
@@ -90,8 +90,11 @@ export async function runLipsyncTest({ fresh = false, model = '' } = {}, update)
     saveMeta(meta);
   }
 
-  // 2. Clip vidéo (image-to-video OpenArt, 5 s)
-  if (!fs.existsSync(CLIP)) {
+  // Modèle « avatar » (OmniHuman) : image + voix suffisent — pas de clip.
+  const talking = isTalkingModel(model || undefined);
+
+  // 2. Clip vidéo (image-to-video OpenArt, 5 s) — inutile en mode avatar
+  if (!talking && !fs.existsSync(CLIP)) {
     update('2/4 — Clip vidéo de test (plusieurs minutes)…', 0.25);
     const { buffer } = await openartGenerateVideo({
       prompt: MOTION_PROMPT,
@@ -118,15 +121,25 @@ export async function runLipsyncTest({ fresh = false, model = '' } = {}, update)
   // 4. Synchro labiale (toujours relancée : c'est elle qu'on teste)
   update('4/4 — Synchronisation des lèvres (fal.ai)…', 0.7);
   fs.rmSync(RESULT, { force: true });
-  await lipsyncVideo({
-    videoPath: CLIP,
-    audioPath: voicePath(meta),
-    outPath: RESULT,
-    update: (step) => update(`4/4 — ${step}`, 0.85),
-    model: model || undefined,
-  });
+  if (talking) {
+    await talkingVideo({
+      imagePath: FACE,
+      audioPath: voicePath(meta),
+      outPath: RESULT,
+      update: (step) => update(`4/4 — ${step}`, 0.85),
+      model: model || undefined,
+    });
+  } else {
+    await lipsyncVideo({
+      videoPath: CLIP,
+      audioPath: voicePath(meta),
+      outPath: RESULT,
+      update: (step) => update(`4/4 — ${step}`, 0.85),
+      model: model || undefined,
+    });
+  }
   meta.lastSuccess = new Date().toISOString();
-  meta.lastModel = model || process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync';
+  meta.lastModel = model || lipsyncModel();
   saveMeta(meta);
   return lipsyncTestStatus();
 }

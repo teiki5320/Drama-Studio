@@ -79,7 +79,26 @@ const MIME = {
   aif: 'audio/aiff',
   mp4: 'video/mp4',
   mov: 'video/quicktime',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
 };
+
+// Moteur de synchro par défaut : sync-lipsync v2 (3 $/min) — nettement plus
+// propre que l'ancienne génération (bas de visage « détaché »). Override via
+// FAL_LIPSYNC_MODEL (ex. fal-ai/sync-lipsync/v2/pro, ou un modèle « avatar »
+// comme fal-ai/bytedance/omnihuman/v1.5).
+export function lipsyncModel() {
+  return process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync/v2';
+}
+
+// Les modèles « avatar » (OmniHuman…) ne retouchent pas un clip : ils
+// GÉNÈRENT la vidéo parlante depuis l'image + la voix — visage entier
+// cohérent, durée de la vidéo = durée de la voix (0,16 $/s).
+export function isTalkingModel(model = lipsyncModel()) {
+  return /omnihuman/i.test(model || '');
+}
 
 function mimeFor(file) {
   return MIME[path.extname(file).slice(1).toLowerCase()] || 'application/octet-stream';
@@ -127,7 +146,7 @@ export async function lipsyncVideo({ videoPath, audioPath, outPath, update, mode
       'La synchro labiale nécessite une clé fal.ai : ajoute FAL_KEY=... dans le fichier .env (https://fal.ai/dashboard/keys).',
     );
   }
-  const model = modelOverride || process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync';
+  const model = modelOverride || lipsyncModel();
   // « bounce » : si la voix dure plus longtemps que le clip (5 s en mode
   // Éco), le clip se prolonge en aller-retour fluide au lieu d'être COUPÉ
   // à 5 s (l'ancien « cut_off » figeait l'image bouche ouverte en pleine
@@ -166,7 +185,11 @@ export async function lipsyncVideo({ videoPath, audioPath, outPath, update, mode
     }
     throw falError(e);
   }
-  const data = result?.data || {};
+  await downloadResultVideo(result?.data || {}, outPath, update);
+  return outPath;
+}
+
+async function downloadResultVideo(data, outPath, update) {
   const url =
     (data.video && data.video.url) ||
     data.video_url ||
@@ -174,15 +197,69 @@ export async function lipsyncVideo({ videoPath, audioPath, outPath, update, mode
   if (!url) {
     throw new Error(`fal.ai : pas de vidéo dans la réponse (${JSON.stringify(data).slice(0, 150)}).`);
   }
-  update('Téléchargement du clip synchronisé…');
+  update('Téléchargement du clip…');
   const dl = await fetch(url, { signal: AbortSignal.timeout(300000) });
   if (!dl.ok) {
     throw new Error(`fal.ai : téléchargement du clip impossible (HTTP ${dl.status}).`);
   }
   const buf = Buffer.from(await dl.arrayBuffer());
   if (buf.length < 20000) {
-    throw new Error('fal.ai : clip synchronisé invalide (fichier trop petit).');
+    throw new Error('fal.ai : clip invalide (fichier trop petit).');
   }
   fs.writeFileSync(outPath, buf);
+}
+
+// Génération DIRECTE d'un plan parlant (modèles « avatar » type OmniHuman) :
+// l'image de la scène + la piste voix suffisent — pas de clip OpenArt, pas
+// de retouche de bouche. Le visage entier joue la réplique et la vidéo dure
+// exactement le temps des paroles.
+export async function talkingVideo({ imagePath, audioPath, outPath, update, model }) {
+  const key = process.env.FAL_KEY;
+  if (!key) {
+    throw new Error(
+      'La synchro labiale nécessite une clé fal.ai : ajoute FAL_KEY=... dans le fichier .env (https://fal.ai/dashboard/keys).',
+    );
+  }
+  const m = model || lipsyncModel();
+  fal.config({ credentials: key });
+  update("Envoi de l'image et de la voix à fal.ai…");
+  let imageUrl;
+  let audioUrl;
+  try {
+    [imageUrl, audioUrl] = await Promise.all([
+      fal.storage.upload(new Blob([fs.readFileSync(imagePath)], { type: mimeFor(imagePath) })),
+      fal.storage.upload(new Blob([fs.readFileSync(audioPath)], { type: mimeFor(audioPath) })),
+    ]);
+  } catch (e) {
+    throw falError(e);
+  }
+  update('Génération du plan parlant (plusieurs minutes)…');
+  let result;
+  try {
+    result = await withTimeout(
+      fal.subscribe(m, {
+        input: {
+          image_url: imageUrl,
+          audio_url: audioUrl,
+          prompt:
+            'The person speaks the audio naturally with subtle believable gestures and expressions, ' +
+            'facing camera. Keep the face, clothing, framing and background exactly as in the image.',
+        },
+        onQueueUpdate: (s) => {
+          if (s.status === 'IN_PROGRESS') {
+            update('Génération du plan parlant (plusieurs minutes)…');
+          }
+        },
+      }),
+      LIPSYNC_TIMEOUT_MS,
+      'fal.ai : génération trop longue (délai dépassé).',
+    );
+  } catch (e) {
+    if (/délai dépassé/.test(e?.message || '')) {
+      throw e;
+    }
+    throw falError(e);
+  }
+  await downloadResultVideo(result?.data || {}, outPath, update);
   return outPath;
 }
