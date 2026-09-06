@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { fal } from '@fal-ai/client';
+import { openartTalkingVideo } from './openart.js';
 import { findFfmpeg } from './studio.js';
 import { assetsDir } from './projects.js';
 import { LINE_START_DELAY, LINE_GAP } from '../src/remotion/timing.js';
@@ -93,11 +94,12 @@ export function lipsyncModel() {
   return process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync/v2';
 }
 
-// Les modèles « avatar » (OmniHuman…) ne retouchent pas un clip : ils
-// GÉNÈRENT la vidéo parlante depuis l'image + la voix — visage entier
-// cohérent, durée de la vidéo = durée de la voix (0,16 $/s).
+// Les modèles « avatar » ne retouchent pas un clip : ils GÉNÈRENT la vidéo
+// parlante depuis l'image + la voix — visage entier cohérent, durée de la
+// vidéo = durée de la voix. Deux familles : OmniHuman via fal (0,16 $/s) et
+// « openart » (l'outil lip sync du MCP OpenArt, payé en crédits OpenArt).
 export function isTalkingModel(model = lipsyncModel()) {
-  return /omnihuman/i.test(model || '');
+  return /omnihuman|^openart$/i.test(model || '');
 }
 
 function mimeFor(file) {
@@ -207,6 +209,41 @@ async function downloadResultVideo(data, outPath, update) {
     throw new Error('fal.ai : clip invalide (fichier trop petit).');
   }
   fs.writeFileSync(outPath, buf);
+}
+
+// Héberge un fichier local sur le stockage fal.ai (URL publique) — sert de
+// relais pour donner l'audio (et l'image si besoin) au MCP OpenArt.
+async function uploadPublicFile(filePath) {
+  const key = process.env.FAL_KEY;
+  if (!key) {
+    throw new Error(
+      "Le lip-sync OpenArt a besoin d'héberger la voix : ajoute FAL_KEY=... dans .env (le stockage fal.ai sert de relais, sans frais notables).",
+    );
+  }
+  fal.config({ credentials: key });
+  try {
+    return await fal.storage.upload(
+      new Blob([fs.readFileSync(filePath)], { type: mimeFor(filePath) }),
+    );
+  } catch (e) {
+    throw falError(e);
+  }
+}
+
+// Point d'entrée unique des plans parlants : aiguille vers le MCP OpenArt
+// (model === 'openart', crédits OpenArt) ou vers fal (OmniHuman…).
+export async function makeTalkingClip({ imagePath, imageUrl, audioPath, outPath, update, model }) {
+  const m = model || lipsyncModel();
+  if (/^openart$/i.test(m)) {
+    update("Envoi de la voix au relais d'hébergement…");
+    const audioUrl = await uploadPublicFile(audioPath);
+    const imgUrl = imageUrl || (await uploadPublicFile(imagePath));
+    update('Lip-sync OpenArt (plusieurs minutes)…');
+    const { buffer } = await openartTalkingVideo({ imageUrl: imgUrl, audioUrl });
+    fs.writeFileSync(outPath, buffer);
+    return outPath;
+  }
+  return talkingVideo({ imagePath, audioPath, outPath, update, model: m });
 }
 
 // Génération DIRECTE d'un plan parlant (modèles « avatar » type OmniHuman) :

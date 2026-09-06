@@ -208,6 +208,68 @@ function buildVideoInstruction({ prompt, imageUrl, referenceUrls, durationSec })
 Attends la fin de la génération — cela peut prendre plusieurs minutes, patiente et vérifie le statut si nécessaire. Puis réponds UNIQUEMENT avec l'URL directe du fichier vidéo généré (.mp4, une seule ligne, aucune autre phrase). Si la génération échoue, réponds "ERREUR: " suivi de la cause exacte.`;
 }
 
+// Lip-sync via OpenArt : anime une image pour qu'elle PARLE un audio donné
+// (outil talking character / lip sync du MCP — OmniHuman, InfiniteTalk,
+// Kling… payés en crédits OpenArt). Retourne { buffer, url }.
+function buildLipsyncInstruction({ imageUrl, audioUrl }) {
+  return `Tu as accès aux outils MCP OpenArt. Fais PARLER un personnage via l'outil de LIP SYNC / talking character / talking avatar d'OpenArt :
+- Image source (à animer — visage, cadrage et décor doivent rester IDENTIQUES) : ${imageUrl}
+- Fichier audio de la voix (le personnage articule EXACTEMENT cet audio) : ${audioUrl}
+- Format : vertical 9:16. La vidéo dure la durée de l'audio.
+- Modèle : choisis un modèle de lip sync ÉCONOMIQUE et réaliste (OmniHuman, InfiniteTalk, Kling lip sync ou équivalent) — vérifie le coût avant de lancer, en cas de doute prends le MOINS CHER. Versions Pro / Premium interdites.
+Attends la fin de la génération — cela peut prendre plusieurs minutes, patiente et vérifie le statut si nécessaire. Puis réponds UNIQUEMENT avec l'URL directe du fichier vidéo généré (.mp4, une seule ligne, aucune autre phrase). Si ce MCP n'a AUCUN outil de lip sync, ou si la génération échoue, réponds "ERREUR: " suivi de la cause exacte.`;
+}
+
+export async function openartTalkingVideo({ imageUrl, audioUrl }) {
+  const mcpName = await detectMcpName();
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await runClaude(
+        buildLipsyncInstruction({ imageUrl, audioUrl }),
+        mcpName,
+        VIDEO_TIMEOUT_MS,
+      );
+      if (/^ERREUR\s*:/i.test(text)) {
+        const cause = text.replace(/^ERREUR\s*:/i, '').trim();
+        if (/credit|crédit/i.test(cause)) {
+          throw new Error(`OpenArt : crédits insuffisants — ${cause}`);
+        }
+        if (/auth|connect|login|token/i.test(cause)) {
+          throw new Error(
+            `OpenArt : problème d'authentification MCP — relance \`claude\`, tape /mcp, et reconnecte "${mcpName}". (${cause})`,
+          );
+        }
+        throw new Error(`OpenArt lip-sync : ${cause}`);
+      }
+      const urls = [...text.matchAll(/https?:\/\/[^\s"'<>)\]]+/g)].map((m) => m[0]);
+      const candidates = urls.filter((u) => u !== imageUrl && u !== audioUrl);
+      if (candidates.length === 0) {
+        throw new Error(`OpenArt lip-sync : aucune URL de vidéo dans la réponse (« ${text.slice(0, 200)} »).`);
+      }
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        try {
+          const buffer = await downloadFile(candidates[i], {
+            minBytes: 50000,
+            timeoutMs: 300000,
+            label: 'la vidéo',
+          });
+          return { buffer, url: candidates[i] };
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('OpenArt lip-sync : aucune URL de vidéo téléchargeable.');
+    } catch (e) {
+      lastErr = e;
+      if (/crédit|authentification|AUCUN outil/.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+
 // Génère un clip vidéo (image-to-video de préférence). Retourne { buffer, url }.
 export async function openartGenerateVideo({
   prompt,

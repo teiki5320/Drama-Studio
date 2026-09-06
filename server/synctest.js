@@ -4,7 +4,7 @@ import { STUDIO_DIR } from './studio.js';
 import { generateImage, currentProvider } from './images.js';
 import { openartGenerateVideo } from './openart.js';
 import { synthesize } from './tts.js';
-import { lipsyncVideo, talkingVideo, isTalkingModel, lipsyncModel } from './lipsync.js';
+import { lipsyncVideo, makeTalkingClip, isTalkingModel, lipsyncModel } from './lipsync.js';
 
 // « Test synchro » : un SEUL mini-clip de bout en bout — portrait, clip vidéo,
 // voix, lèvres synchronisées — pour vérifier que toute la chaîne fonctionne
@@ -122,8 +122,9 @@ export async function runLipsyncTest({ fresh = false, model = '' } = {}, update)
   update('4/4 — Synchronisation des lèvres (fal.ai)…', 0.7);
   fs.rmSync(RESULT, { force: true });
   if (talking) {
-    await talkingVideo({
+    await makeTalkingClip({
       imagePath: FACE,
+      imageUrl: meta.imageUrl || null,
       audioPath: voicePath(meta),
       outPath: RESULT,
       update: (step) => update(`4/4 — ${step}`, 0.85),
