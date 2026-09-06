@@ -460,10 +460,10 @@ function ensureLeadAdjectives(project) {
   }
 }
 
-export async function createProject({ styles, theme, mode, episodeCount }, update) {
+export async function createProject({ styles, theme, mode, episodeCount, episodeSeconds }, update) {
   update('Écriture du scénario par Claude (1 à 3 minutes)…');
   const safeMode = ['synchro', 'long'].includes(mode) ? mode : 'normal';
-  const format = seriesFormat({ mode: safeMode, episodeCount });
+  const format = seriesFormat({ mode: safeMode, episodeCount, episodeSeconds });
   const data = await askClaudeForJson(
     buildSeriesPrompt(styles, theme, drawVariety(), usedNamesAndPlaces(), format),
   );
@@ -475,6 +475,8 @@ export async function createProject({ styles, theme, mode, episodeCount }, updat
     id,
     mode: safeMode,
     episodeCount: format.count,
+    // Durée d'un épisode (Format long : choisie à la création, 90 s défaut).
+    episodeSeconds: format.long ? format.seconds : undefined,
     // Format long : pas de réglage stocké → toutes les scènes en vidéo
     // (plannedVideoCount), lèvres synchronisées. Ajustable dans le drama.
     title: data.title || 'Drama sans titre',
@@ -525,6 +527,7 @@ export async function createCustomProject(answers, update) {
     id,
     mode: customMode,
     episodeCount: customFormat.count,
+    episodeSeconds: customFormat.long ? customFormat.seconds : undefined,
     title: answers.title || data.title || 'Drama sans titre',
     logline: data.logline || '',
     setting: answers.setting || data.setting || '',

@@ -385,7 +385,7 @@ function FrenchVoicesCard({ voices, onChange }) {
 
 // Formulaire guidé du mode « mon script » : pose toutes les questions dont la
 // suite a besoin (voix = genre/âge, visages constants = apparences, découpage…).
-function CustomCreate({ onSubmit, onCancel, busy, mode, seasonEpisodes, onSeasonChange }) {
+function CustomCreate({ onSubmit, onCancel, busy, mode, seasonEpisodes, onSeasonChange, epSeconds, onEpSecondsChange }) {
   const epCount = mode === 'long' ? seasonEpisodes : EPISODE_COUNT;
   const [script, setScript] = useState('');
   const [title, setTitle] = useState('');
@@ -415,7 +415,19 @@ function CustomCreate({ onSubmit, onCancel, busy, mode, seasonEpisodes, onSeason
           <select value={seasonEpisodes} onChange={(e) => onSeasonChange(Number(e.target.value))}>
             {[30, 40, 50, 60, 70, 80].map((n) => (
               <option key={n} value={n}>
-                {n} épisodes de 40 secondes
+                {n} épisodes
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {mode === 'long' && (
+        <div className="form-field">
+          <label>⏱️ Durée d'un épisode</label>
+          <select value={epSeconds} onChange={(e) => onEpSecondsChange(Number(e.target.value))}>
+            {EP_SECONDS_CHOICES.map((s) => (
+              <option key={s.v} value={s.v}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -565,6 +577,15 @@ function CreationProgress({ job, error, onBack }) {
 // accessibles dans la liste de la Version normale.
 const homeMode = (p) => (p.mode === 'synchro' ? 'normal' : p.mode || 'normal');
 
+// Durées d'épisode du Format long — 60 s conseillé (40 s : trop court pour
+// suivre l'histoire, retour d'expérience du premier drama).
+const EP_SECONDS_CHOICES = [
+  { v: 60, label: '60 secondes (conseillé)' },
+  { v: 90, label: '90 secondes' },
+  { v: 120, label: '2 minutes' },
+  { v: 40, label: '40 secondes (ultra court)' },
+];
+
 // Écran d'entrée : la Version normale (voix off + sous-titres), le Format
 // long façon DramaWave (tout vidéo, lèvres animées via fal.ai), les Chaînes.
 function ModeGate({ onPick }) {
@@ -587,9 +608,9 @@ function ModeGate({ onPick }) {
           <span className="mode-emoji">📺</span>
           <strong>Format long</strong>
           <span className="mode-desc">
-            Le format DramaWave : épisodes de 40 secondes, saisons de 30 à 80 épisodes,{' '}
-            <strong>tout en vidéo</strong> avec les lèvres animées sur les voix (fal.ai).
-            Épisodes rangés dans <strong>Dramas Long</strong>.
+            Le format DramaWave : épisodes de 1 à 2 minutes (durée au choix), saisons de 30 à 80
+            épisodes, <strong>tout en vidéo</strong> avec les lèvres animées sur les voix
+            (fal.ai). Épisodes rangés dans <strong>Dramas Long</strong>.
           </span>
         </button>
         <button className="mode-card" onClick={() => onPick('chaine')}>
@@ -708,6 +729,7 @@ export function App() {
   const [selected, setSelected] = useState([]);
   const [theme, setTheme] = useState('');
   const [seasonEpisodes, setSeasonEpisodes] = useState(40);
+  const [epSeconds, setEpSeconds] = useState(60);
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const [activeJobs, setActiveJobs] = useState([]);
@@ -777,10 +799,18 @@ export function App() {
   };
 
   const create = () =>
-    runCreation(() => api.createProject(selected, theme, mode, seasonEpisodes));
+    runCreation(() =>
+      api.createProject(selected, theme, mode, seasonEpisodes, mode === 'long' ? epSeconds : undefined),
+    );
   const createCustom = (answers) =>
     runCreation(
-      () => api.createCustomProject({ ...answers, mode, episodeCount: seasonEpisodes }),
+      () =>
+        api.createCustomProject({
+          ...answers,
+          mode,
+          episodeCount: seasonEpisodes,
+          episodeSeconds: mode === 'long' ? epSeconds : undefined,
+        }),
       'custom',
     );
 
@@ -827,6 +857,8 @@ export function App() {
           busy={false}
           mode={mode}
           seasonEpisodes={seasonEpisodes}
+          epSeconds={epSeconds}
+          onEpSecondsChange={setEpSeconds}
           onSeasonChange={setSeasonEpisodes}
           onSubmit={createCustom}
           onCancel={() => {
@@ -845,7 +877,7 @@ export function App() {
         <p className="tagline">Micro-dramas africains — 10 épisodes de 60 secondes, générés chez toi.</p>
         <p className="mode-line">
           {mode === 'long'
-            ? '📺 Format long (40 s, tout vidéo + lèvres animées)'
+            ? '📺 Format long (tout vidéo + lèvres animées)'
             : mode === 'chaine'
               ? '🎥 Chaînes (vidéos 1-2 min, narrateur)'
               : '🎬 Version normale'}
@@ -968,7 +1000,19 @@ export function App() {
                 </option>
               ))}
             </select>{' '}
-            de 40 secondes
+            de{' '}
+            <select
+              className="season-select"
+              value={epSeconds}
+              title="Durée d'un épisode — 60 s conseillé : assez long pour comprendre l'histoire, assez court pour donner envie de la suite"
+              onChange={(e) => setEpSeconds(Number(e.target.value))}
+            >
+              {EP_SECONDS_CHOICES.map((s) => (
+                <option key={s.v} value={s.v}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
           </p>
         )}
         <input

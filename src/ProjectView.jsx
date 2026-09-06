@@ -691,9 +691,9 @@ export function ProjectView({ projectId, onBack }) {
           {project.mode === 'long' && (
             <span
               className="scene-badge"
-              title={`Format long : ${project.episodeCount} épisodes de 40 secondes — tout vidéo, lèvres synchronisées`}
+              title={`Format long : ${project.episodeCount} épisodes de ${project.episodeSeconds || 60} secondes — tout vidéo, lèvres synchronisées`}
             >
-              📺 Long · {project.episodeCount} ép.
+              📺 Long · {project.episodeCount} ép. · {project.episodeSeconds || 60} s
             </span>
           )}
           {isChaine && (
@@ -1156,8 +1156,9 @@ export function ProjectView({ projectId, onBack }) {
     let imgs = 9;
     let chars = 850;
     if (project.mode === 'long') {
-      imgs = 6;
-      chars = 600;
+      const sec = project.episodeSeconds || 60;
+      imgs = Math.max(6, Math.round(sec / 8));
+      chars = Math.round(sec * 14);
     }
     if (isChaine) {
       const sec = project.targetSeconds || 90;
