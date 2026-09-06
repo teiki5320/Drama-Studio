@@ -132,14 +132,26 @@ export function leadAdjectives(gender) {
 }
 
 // Formats d'épisodes : classique (10 × 60 s) ou long (30 à 60 × 40 s).
-export function seriesFormat({ mode, episodeCount } = {}) {
+// Durées d'épisode possibles en Format long. Les 40 s de départ se sont
+// avérées trop courtes pour suivre l'histoire — 60 s par défaut (le choix
+// de l'auteur : assez long pour comprendre, assez court pour donner faim).
+export const LONG_EPISODE_SECONDS = [40, 60, 90, 120];
+const LONG_FORMATS = {
+  40: { words: 95, scenes: '5 à 7' },
+  60: { words: 140, scenes: '8 à 10' },
+  90: { words: 210, scenes: '10 à 12' },
+  120: { words: 280, scenes: '12' },
+};
+
+export function seriesFormat({ mode, episodeCount, episodeSeconds } = {}) {
   if (mode === 'long') {
+    const seconds = LONG_EPISODE_SECONDS.includes(episodeSeconds) ? episodeSeconds : 60;
     return {
       long: true,
       count: Number.isInteger(episodeCount) ? episodeCount : 40,
-      seconds: 40,
-      words: 95,
-      scenes: '5 à 7',
+      seconds,
+      words: LONG_FORMATS[seconds].words,
+      scenes: LONG_FORMATS[seconds].scenes,
     };
   }
   return {
@@ -152,7 +164,11 @@ export function seriesFormat({ mode, episodeCount } = {}) {
 }
 
 export function formatFor(project) {
-  return seriesFormat({ mode: project.mode, episodeCount: project.episodeCount });
+  return seriesFormat({
+    mode: project.mode,
+    episodeCount: project.episodeCount,
+    episodeSeconds: project.episodeSeconds,
+  });
 }
 
 const seriesSchema = (format) => `{
@@ -183,6 +199,8 @@ const seriesSchema = (format) => `{
 }`;
 
 const seriesRules = (format) => `Contraintes STRICTES :
+- CONTINUITÉ ET COHÉRENCE (l'écriture d'abord) : chaque épisode est un mini-récit complet — UNE question dramatique claire posée au début, une progression sans ellipse inexpliquée (chaque scène découle de la précédente), une réponse avant le cliffhanger. Un spectateur qui découvre l'épisode doit comprendre l'enjeu dans les 10 premières secondes.
+- COHÉRENCE VISUELLE : des scènes consécutives dans le même lieu recopient MOT POUR MOT la même description du décor dans leurs imagePrompt ; le moment de la journée reste constant sauf transition annoncée par le narrateur ; la tenue d'un personnage ne change jamais au sein d'un même épisode.
 - GRAMMAIRE DES PLANS (indispensable — les lèvres des personnages sont animées par IA sur leur voix, et ça ne marche que sur UN visage en gros plan) : une scène où un personnage parle = UN SEUL personnage qui parle, cadré en GROS PLAN (poitrine ou visage), face caméra ou trois quarts, bouche bien visible, "characters" réduit à lui seul. Son interlocuteur répond dans la SCÈNE SUIVANTE — champ-contrechamp, comme dans les vraies séries. Le narrateur peut commenter n'importe quel plan. Les plans larges (décor, foule, action de groupe) sont réservés aux scènes SANS réplique de personnage.
 - STAR DE L'ÉCRAN (style DramaWave/ReelShort) : le personnage principal (le PREMIER de la liste "characters", homme ou femme) doit crever l'écran comme la star d'une mini-série verticale à succès. Si c'est une HÉROÏNE : beauté renversante, longs cheveux magnifiques coiffés avec soin, maquillage glamour, silhouette élégante, tenue signature chic qui la met en valeur (robe élégante, bijoux) — sa description "visual" contient OBLIGATOIREMENT ces mots anglais : ${leadAdjectives('femme').join(', ')}. Si c'est un HÉROS : allure de lead de CEO-drama (costume ajusté ou tenue impeccable, physique athlétique) — sa description "visual" contient OBLIGATOIREMENT : ${leadAdjectives('homme').join(', ')}.
 - CLARTÉ AVANT TOUT : un spectateur qui découvre l'épisode sur son téléphone doit tout comprendre du premier coup. Phrases courtes et simples, aucun sous-entendu obscur, aucune ellipse confuse. Une scène = une seule idée claire qui fait avancer l'intrigue. Les personnages s'appellent par leur prénom dans les dialogues pour qu'on sache toujours qui parle à qui.
@@ -495,7 +513,9 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 }
 
 Contraintes STRICTES :
-- CLARTÉ AVANT TOUT : tout doit se comprendre du premier coup. Phrases courtes et simples, une seule idée par scène, les personnages s'appellent par leur prénom. Le narrateur ouvre l'épisode en rappelant la situation en une phrase simple, puis 3 interventions max.
+- CLARTÉ AVANT TOUT : tout doit se comprendre du premier coup. Phrases courtes et simples, une seule idée par scène, les personnages s'appellent par leur prénom. Le narrateur OUVRE OBLIGATOIREMENT l'épisode par un rappel « Précédemment » d'une phrase qui nomme les personnages et resitue l'enjeu, puis 3 interventions max.
+- CONTINUITÉ : aucune ellipse inexpliquée — chaque scène découle de la précédente, et l'épisode répond à sa question dramatique avant de poser le cliffhanger suivant.
+- COHÉRENCE VISUELLE : des scènes consécutives dans le même lieu recopient MOT POUR MOT la même description du décor dans leurs imagePrompt ; moment de la journée constant sauf transition annoncée ; la tenue d'un personnage ne change jamais au sein de l'épisode.
 - DRAMA MAXIMAL : au moins une confrontation intense en face à face et une révélation choc dans l'épisode. Émotions fortes et assumées, phrases qui claquent.
 - Total des répliques ≈ ${format.words} mots (≈ ${format.seconds} secondes de voix) ; répliques ≤ 18 mots, percutantes et naturelles à l'oral.
 - Cliffhanger final irrésistible (danger imminent, secret sur le point d'éclater, retournement).

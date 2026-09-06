@@ -232,7 +232,7 @@ function safeEpisodeCount(mode, raw) {
 }
 
 app.post('/api/projects', (req, res) => {
-  const { styles, theme, mode, episodeCount } = req.body || {};
+  const { styles, theme, mode, episodeCount, episodeSeconds } = req.body || {};
   if (!Array.isArray(styles) || styles.length < 1 || styles.length > 3) {
     res.status(400).json({ error: 'Choisis 1 à 3 styles.' });
     return;
@@ -245,6 +245,8 @@ app.post('/api/projects', (req, res) => {
         theme: (theme || '').slice(0, 500),
         mode: safeMode,
         episodeCount: safeEpisodeCount(safeMode, episodeCount),
+        // Validée par seriesFormat (40/60/90/120, défaut 90 en Format long).
+        episodeSeconds: Number(episodeSeconds) || undefined,
       },
       update,
     ),
@@ -274,6 +276,7 @@ app.post('/api/projects/custom', (req, res) => {
     mode: ['synchro', 'long'].includes(b.mode) ? b.mode : 'normal',
   };
   answers.episodeCount = safeEpisodeCount(answers.mode, b.episodeCount);
+  answers.episodeSeconds = Number(b.episodeSeconds) || undefined;
   const job = startJob('Création depuis ton script', (update) =>
     createCustomProject(answers, update),
   );
