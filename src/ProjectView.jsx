@@ -1173,7 +1173,7 @@ export function ProjectView({ projectId, onBack }) {
     const oaRest = credits?.openart?.credits;
     let msg = `Estimation : ~${fr(oa)} crédits OpenArt et ~${fr(el)} crédits ElevenLabs.`;
     if (vids > 0 && wantsLipsync(project)) {
-      msg += `\n+ la synchro labiale fal.ai des scènes parlées (facturée à l'usage sur ton compte fal.ai).`;
+      msg += `\n+ la synchro labiale des scènes parlées (crédits OpenArt avec le moteur par défaut, ou $ fal selon FAL_LIPSYNC_MODEL).`;
     }
     if (oaRest != null || elRest != null) {
       msg += `\nIl te reste :${oaRest != null ? ` ${fr(oaRest)} OpenArt` : ''}${
