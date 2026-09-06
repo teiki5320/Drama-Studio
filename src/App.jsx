@@ -250,10 +250,26 @@ function SyncTestCard() {
         <div className="synctest-result">
           <video src={status.resultUrl} controls playsInline />
           <p className="section-label">
-            👄 Regarde et écoute : si les lèvres suivent la voix, toute la chaîne fonctionne — tu
-            peux lancer tes épisodes tranquille.
-            {status.lastModel ? ` (moteur testé : ${status.lastModel})` : ''}
+            👄 Résultat du <strong>dernier test</strong> — moteur :{' '}
+            <strong>{status.lastModel || 'inconnu (test antérieur)'}</strong>
+            {status.lastSuccess
+              ? `, le ${new Date(status.lastSuccess).toLocaleString('fr-FR', {
+                  day: 'numeric',
+                  month: 'long',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}`
+              : ''}
+            . Si les lèvres suivent la voix, toute la chaîne fonctionne.
           </p>
+          <button
+            className="btn-small"
+            disabled={busy}
+            title="Efface uniquement ce résultat (le portrait, le clip et la voix restent en cache) — pratique avant de tester un autre moteur"
+            onClick={() => api.clearLipsyncTest().then(setStatus).catch((e) => alert(e.message))}
+          >
+            🗑️ Effacer ce résultat
+          </button>
         </div>
       )}
     </details>

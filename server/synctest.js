@@ -64,6 +64,17 @@ export function lipsyncTestStatus() {
   };
 }
 
+// Efface UNIQUEMENT le dernier résultat (clip synchronisé + trace du moteur) —
+// le portrait, le clip et la voix restent en cache pour le prochain essai.
+export function clearLipsyncTestResult() {
+  fs.rmSync(RESULT, { force: true });
+  const meta = loadMeta();
+  delete meta.lastSuccess;
+  delete meta.lastModel;
+  saveMeta(meta);
+  return lipsyncTestStatus();
+}
+
 export async function runLipsyncTest({ fresh = false, model = '' } = {}, update) {
   if (fresh) {
     const meta = loadMeta();
