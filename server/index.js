@@ -11,7 +11,7 @@ import {
   MAX_STYLES,
   MAX_VIDEO_SCENES,
   wantsLipsync,
-  sceneHasDialogue,
+  lipsyncSpeaker,
 } from '../shared/catalog.js';
 import {
   listProjects,
@@ -187,8 +187,13 @@ app.get('/api/lipsync-test', (req, res) => {
 });
 
 app.post('/api/lipsync-test', (req, res) => {
+  const model = typeof req.body?.model === 'string' ? req.body.model.trim() : '';
+  if (model && !/^[\w./-]{1,80}$/.test(model)) {
+    res.status(400).json({ error: 'Nom de modèle fal.ai invalide.' });
+    return;
+  }
   const job = startJob('Test synchro labiale', (update) =>
-    runLipsyncTest({ fresh: Boolean(req.body && req.body.fresh) }, update),
+    runLipsyncTest({ fresh: Boolean(req.body && req.body.fresh), model }, update),
   );
   res.json({ jobId: job.id });
 });
@@ -822,7 +827,7 @@ app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/video', (req, res) => {
   withScene(req, res, (p, ep, scene) => {
     const job = startJob('Clip vidéo de la scène', async (update) => {
       await generateSceneVideo(p, ep, scene, update);
-      if (wantsLipsync(p) && sceneHasDialogue(scene)) {
+      if (wantsLipsync(p) && lipsyncSpeaker(scene)) {
         await lipsyncSceneVideo(p, ep, scene, update);
       }
     }, { projectId: p.id });

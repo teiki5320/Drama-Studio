@@ -73,10 +73,15 @@ export function wantsLipsync(project) {
   return project?.mode === 'long' || project?.mode === 'synchro';
 }
 
-// Une scène racontée par le narrateur seul n'a pas de lèvres à synchroniser :
-// les bouches restent fermées dans le clip, la voix off joue par-dessus.
-export function sceneHasDialogue(scene) {
-  return (scene?.lines || []).some((l) => l.speaker && l.speaker !== 'narrator');
+// Une scène n'est synchronisable que si UN SEUL personnage y parle : le
+// modèle de lip-sync anime un visage sur une voix — plusieurs interlocuteurs
+// (ou un plan large de groupe) déforment les visages. Retourne l'id du
+// personnage qui parle, ou null (narrateur seul, ou plusieurs voix).
+export function lipsyncSpeaker(scene) {
+  const speakers = new Set(
+    (scene?.lines || []).map((l) => l.speaker).filter((s) => s && s !== 'narrator'),
+  );
+  return speakers.size === 1 ? [...speakers][0] : null;
 }
 
 // Scènes animées en clip vidéo (image-to-video), réparties uniformément :

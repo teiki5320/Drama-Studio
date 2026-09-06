@@ -5,7 +5,7 @@ import {
   EPISODE_COUNT,
   plannedVideoIndexes,
   wantsLipsync,
-  sceneHasDialogue,
+  lipsyncSpeaker,
 } from '../shared/catalog.js';
 import { VIDEO_SCENES } from './config.js';
 import { openartGenerateVideo } from './openart.js';
@@ -272,7 +272,7 @@ async function generateEpisodeAssets(project, episode, update) {
       }
       // Lèvres animées sur la voix, dans la foulée du clip — seulement quand
       // un personnage parle (narrateur seul = bouches fermées, rien à caler).
-      if (wantsLipsync(project) && sceneHasDialogue(scene) && scene.video && !scene.lipsynced) {
+      if (wantsLipsync(project) && lipsyncSpeaker(scene) && scene.video && !scene.lipsynced) {
         update(
           `Épisode ${episode.number} — synchro labiale ${k + 1}/${wanted.length} (scène ${wanted[k] + 1})…`,
           k / wanted.length,
@@ -348,9 +348,10 @@ export async function lipsyncSceneVideo(project, episode, scene, update) {
   if (!wantsLipsync(project)) {
     throw new Error('La synchro labiale est réservée aux dramas Format long.');
   }
-  if (!sceneHasDialogue(scene)) {
+  if (!lipsyncSpeaker(scene)) {
     throw new Error(
-      'Scène racontée par le narrateur seul — rien à synchroniser (les bouches restent fermées).',
+      'Synchro réservée aux scènes où UN SEUL personnage parle (gros plan) — ici : narrateur seul, ' +
+        'ou plusieurs interlocuteurs (le lip-sync déformerait les visages).',
     );
   }
   if (!scene.video) {
@@ -854,7 +855,7 @@ export async function retryFailedAssets(project, episode, update) {
   if (wantsLipsync(project)) {
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
-      if (!scene.video || scene.videoDisabled || !sceneHasDialogue(scene) || scene.lipsynced) {
+      if (!scene.video || scene.videoDisabled || !lipsyncSpeaker(scene) || scene.lipsynced) {
         continue;
       }
       update(`Synchro labiale de la scène ${i + 1}…`);

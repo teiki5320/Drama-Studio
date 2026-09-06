@@ -151,11 +151,19 @@ function BrandCard({ studio, onChange }) {
 // Test synchro : un SEUL mini-clip (portrait + vidéo 5 s + voix + lèvres)
 // pour vérifier toute la chaîne sans produire un épisode. Les fichiers de
 // test sont réutilisés : une relance ne repaye que la synchro fal.ai.
+// Moteurs de synchro fal.ai comparables depuis la carte de test.
+const LIPSYNC_MODELS = [
+  { id: '', label: 'sync-lipsync (défaut)' },
+  { id: 'veed/lipsync', label: 'VEED lipsync' },
+  { id: 'fal-ai/latentsync', label: 'LatentSync' },
+];
+
 function SyncTestCard() {
   const [status, setStatus] = useState(null);
   const [job, setJob] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [model, setModel] = useState('');
 
   const refresh = () => api.lipsyncTest().then(setStatus).catch(() => {});
   useEffect(() => {
@@ -172,7 +180,7 @@ function SyncTestCard() {
     setBusy(true);
     setError(null);
     try {
-      const { jobId } = await api.runLipsyncTest(fresh);
+      const { jobId } = await api.runLipsyncTest(fresh, model);
       await followJob(jobId, setJob);
     } catch (e) {
       setError(e.message);
@@ -216,6 +224,18 @@ function SyncTestCard() {
           <button className="btn-primary" onClick={() => run(false)}>
             ▶️ Lancer le test
           </button>
+          <select
+            className="season-select"
+            value={model}
+            title="Moteur de synchro à tester — compare-les ici avant de choisir celui des épisodes"
+            onChange={(e) => setModel(e.target.value)}
+          >
+            {LIPSYNC_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
           {status && (status.face || status.clip) && (
             <button className="btn-ghost" onClick={() => run(true)}>
               🔄 Tout refaire de zéro
@@ -230,6 +250,7 @@ function SyncTestCard() {
           <p className="section-label">
             👄 Regarde et écoute : si les lèvres suivent la voix, toute la chaîne fonctionne — tu
             peux lancer tes épisodes tranquille.
+            {status.lastModel ? ` (moteur testé : ${status.lastModel})` : ''}
           </p>
         </div>
       )}

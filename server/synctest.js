@@ -60,10 +60,11 @@ export function lipsyncTestStatus() {
     result,
     resultUrl: result ? `/studio/synctest_result.mp4?t=${fs.statSync(RESULT).mtimeMs}` : null,
     lastSuccess: meta.lastSuccess || null,
+    lastModel: meta.lastModel || null,
   };
 }
 
-export async function runLipsyncTest({ fresh = false } = {}, update) {
+export async function runLipsyncTest({ fresh = false, model = '' } = {}, update) {
   if (fresh) {
     const meta = loadMeta();
     const vp = voicePath(meta);
@@ -122,8 +123,10 @@ export async function runLipsyncTest({ fresh = false } = {}, update) {
     audioPath: voicePath(meta),
     outPath: RESULT,
     update: (step) => update(`4/4 — ${step}`, 0.85),
+    model: model || undefined,
   });
   meta.lastSuccess = new Date().toISOString();
+  meta.lastModel = model || process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync';
   saveMeta(meta);
   return lipsyncTestStatus();
 }

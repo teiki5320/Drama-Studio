@@ -113,9 +113,9 @@ const DRAMA_IMAGE_SUFFIX =
   'dramatic close framing, shallow depth of field, african drama series, 9:16 vertical';
 
 const sceneSchema = (suffix) => `{
-  "lines": [1 à 2 répliques : {"speaker": "narrator" OU l'id d'un personnage, "text": "réplique courte et percutante en français, 18 mots maximum"}],
+  "lines": [1 à 2 répliques : {"speaker": "narrator" OU l'id d'un personnage, "text": "réplique courte et percutante en français, 18 mots maximum"} — JAMAIS deux personnages différents qui parlent dans la même scène],
   "characters": [ids des personnages VISIBLES à l'image dans cette scène, [] si aucun],
-  "imagePrompt": "EN ANGLAIS : le plan cinématographique précis (lieu, action, émotion, cadrage) en répétant mot pour mot la description visuelle 'visual' de chaque personnage présent, terminé par : ${suffix}"
+  "imagePrompt": "EN ANGLAIS : le plan cinématographique précis (lieu, action, émotion, cadrage — si un personnage parle dans la scène : GROS PLAN serré sur LUI SEUL, poitrine ou visage, face caméra ou trois quarts, bouche bien visible) en répétant mot pour mot la description visuelle 'visual' de chaque personnage présent, terminé par : ${suffix}"
 }`;
 
 const SCENE_SCHEMA = sceneSchema(DRAMA_IMAGE_SUFFIX);
@@ -183,6 +183,7 @@ const seriesSchema = (format) => `{
 }`;
 
 const seriesRules = (format) => `Contraintes STRICTES :
+- GRAMMAIRE DES PLANS (indispensable — les lèvres des personnages sont animées par IA sur leur voix, et ça ne marche que sur UN visage en gros plan) : une scène où un personnage parle = UN SEUL personnage qui parle, cadré en GROS PLAN (poitrine ou visage), face caméra ou trois quarts, bouche bien visible, "characters" réduit à lui seul. Son interlocuteur répond dans la SCÈNE SUIVANTE — champ-contrechamp, comme dans les vraies séries. Le narrateur peut commenter n'importe quel plan. Les plans larges (décor, foule, action de groupe) sont réservés aux scènes SANS réplique de personnage.
 - STAR DE L'ÉCRAN (style DramaWave/ReelShort) : le personnage principal (le PREMIER de la liste "characters", homme ou femme) doit crever l'écran comme la star d'une mini-série verticale à succès. Si c'est une HÉROÏNE : beauté renversante, longs cheveux magnifiques coiffés avec soin, maquillage glamour, silhouette élégante, tenue signature chic qui la met en valeur (robe élégante, bijoux) — sa description "visual" contient OBLIGATOIREMENT ces mots anglais : ${leadAdjectives('femme').join(', ')}. Si c'est un HÉROS : allure de lead de CEO-drama (costume ajusté ou tenue impeccable, physique athlétique) — sa description "visual" contient OBLIGATOIREMENT : ${leadAdjectives('homme').join(', ')}.
 - CLARTÉ AVANT TOUT : un spectateur qui découvre l'épisode sur son téléphone doit tout comprendre du premier coup. Phrases courtes et simples, aucun sous-entendu obscur, aucune ellipse confuse. Une scène = une seule idée claire qui fait avancer l'intrigue. Les personnages s'appellent par leur prénom dans les dialogues pour qu'on sache toujours qui parle à qui.
 - Le narrateur ("narrator") OUVRE l'épisode en posant la situation en une phrase simple (« Awa vient d'enterrer son père. Ce matin, le notaire lit le testament. »), puis n'intervient que pour clarifier une transition (3 fois max par épisode).
