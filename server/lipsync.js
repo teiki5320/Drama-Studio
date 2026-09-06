@@ -86,12 +86,13 @@ const MIME = {
   webp: 'image/webp',
 };
 
-// Moteur de synchro par défaut : sync-lipsync v2 (3 $/min) — nettement plus
-// propre que l'ancienne génération (bas de visage « détaché »). Override via
-// FAL_LIPSYNC_MODEL (ex. fal-ai/sync-lipsync/v2/pro, ou un modèle « avatar »
-// comme fal-ai/bytedance/omnihuman/v1.5).
+// Moteur de synchro par défaut : « openart » — l'outil lip sync du MCP
+// OpenArt (OmniHuman/InfiniteTalk/Kling…), payé en crédits OpenArt : aucune
+// facturation fal. Override via FAL_LIPSYNC_MODEL (fal-ai/sync-lipsync/v2,
+// …/v2/pro, fal-ai/bytedance/omnihuman/v1.5, veed/lipsync — facturés en $
+// sur fal).
 export function lipsyncModel() {
-  return process.env.FAL_LIPSYNC_MODEL || 'fal-ai/sync-lipsync/v2';
+  return process.env.FAL_LIPSYNC_MODEL || 'openart';
 }
 
 // Les modèles « avatar » ne retouchent pas un clip : ils GÉNÈRENT la vidéo
