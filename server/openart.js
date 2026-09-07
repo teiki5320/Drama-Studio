@@ -99,7 +99,16 @@ function runClaude(instruction, mcpName, timeoutMs = TIMEOUT_MS) {
 }
 
 async function downloadFile(url, { minBytes = 5000, timeoutMs = 120000, label = "l'image" } = {}) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  let res;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  } catch (e) {
+    throw new Error(
+      `Téléchargement de ${label} OpenArt : ${
+        /abort/i.test(String(e)) ? `délai dépassé (${Math.round(timeoutMs / 1000)} s)` : e.message
+      }`,
+    );
+  }
   if (!res.ok) {
     throw new Error(`Téléchargement de ${label} OpenArt : HTTP ${res.status}`);
   }
@@ -251,7 +260,7 @@ export async function openartTalkingVideo({ imageUrl, audioUrl }) {
         try {
           const buffer = await downloadFile(candidates[i], {
             minBytes: 50000,
-            timeoutMs: 300000,
+            timeoutMs: 480000,
             label: 'la vidéo',
           });
           return { buffer, url: candidates[i] };

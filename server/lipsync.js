@@ -201,7 +201,14 @@ async function downloadResultVideo(data, outPath, update) {
     throw new Error(`fal.ai : pas de vidéo dans la réponse (${JSON.stringify(data).slice(0, 150)}).`);
   }
   update('Téléchargement du clip…');
-  const dl = await fetch(url, { signal: AbortSignal.timeout(300000) });
+  let dl;
+  try {
+    dl = await fetch(url, { signal: AbortSignal.timeout(300000) });
+  } catch (e) {
+    throw new Error(
+      `fal.ai : téléchargement du clip ${/abort/i.test(String(e)) ? 'trop long (délai dépassé, 300 s)' : `impossible (${e.message})`}.`,
+    );
+  }
   if (!dl.ok) {
     throw new Error(`fal.ai : téléchargement du clip impossible (HTTP ${dl.status}).`);
   }
