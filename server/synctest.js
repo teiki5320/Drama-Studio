@@ -75,6 +75,16 @@ export function clearLipsyncTestResult() {
   return lipsyncTestStatus();
 }
 
+// Traduit les messages réseau bruts et signe l'erreur du nom de l'étape —
+// pour savoir EXACTEMENT où la chaîne casse.
+function stepError(label, e) {
+  const msg = String(e?.message || e).replace(
+    /The operation was aborted due to timeout/gi,
+    'délai réseau dépassé (opération interrompue)',
+  );
+  return new Error(`${label} : ${msg}`);
+}
+
 export async function runLipsyncTest({ fresh = false, model = '' } = {}, update) {
   if (fresh) {
     const meta = loadMeta();
@@ -93,11 +103,15 @@ export async function runLipsyncTest({ fresh = false, model = '' } = {}, update)
       );
     }
     update('1/4 — Portrait du personnage de test…', 0.05);
-    const { ok, url } = await generateImage(PORTRAIT_PROMPT, FACE, {});
-    if (!ok) {
-      throw new Error("Étape 1 (portrait) : l'image n'a pas pu être générée.");
+    try {
+      const { ok, url } = await generateImage(PORTRAIT_PROMPT, FACE, {});
+      if (!ok) {
+        throw new Error("l'image n'a pas pu être générée");
+      }
+      meta.imageUrl = url || null;
+    } catch (e) {
+      throw stepError('Étape 1 (portrait)', e);
     }
-    meta.imageUrl = url || null;
     saveMeta(meta);
   }
 
@@ -107,31 +121,40 @@ export async function runLipsyncTest({ fresh = false, model = '' } = {}, update)
   // 2. Clip vidéo (image-to-video OpenArt, 5 s) — inutile en mode avatar
   if (!talking && !fs.existsSync(CLIP)) {
     update('2/4 — Clip vidéo de test (plusieurs minutes)…', 0.25);
-    const { buffer } = await openartGenerateVideo({
-      prompt: MOTION_PROMPT,
-      imageUrl: meta.imageUrl,
-      referenceUrls: [],
-      durationSec: 5,
-    });
-    fs.writeFileSync(CLIP, buffer);
+    try {
+      const { buffer } = await openartGenerateVideo({
+        prompt: MOTION_PROMPT,
+        imageUrl: meta.imageUrl,
+        referenceUrls: [],
+        durationSec: 5,
+      });
+      fs.writeFileSync(CLIP, buffer);
+    } catch (e) {
+      throw stepError('Étape 2 (clip vidéo)', e);
+    }
   }
 
   // 3. Voix de test
   const vp = voicePath(meta);
   if (!vp || !fs.existsSync(vp)) {
     update('3/4 — Voix de test…', 0.55);
-    const r = await synthesize({
-      text: TEST_LINE,
-      elevenVoice: 'onwK4e9ZLuTAKqWW03F9', // Daniel — grave et posé
-      outBase: VOICE_BASE,
-    });
-    meta.voiceFile = path.basename(r.file);
+    try {
+      const r = await synthesize({
+        text: TEST_LINE,
+        elevenVoice: 'onwK4e9ZLuTAKqWW03F9', // Daniel — grave et posé
+        outBase: VOICE_BASE,
+      });
+      meta.voiceFile = path.basename(r.file);
+    } catch (e) {
+      throw stepError('Étape 3 (voix)', e);
+    }
     saveMeta(meta);
   }
 
   // 4. Synchro labiale (toujours relancée : c'est elle qu'on teste)
-  update('4/4 — Synchronisation des lèvres (fal.ai)…', 0.7);
+  update('4/4 — Synchronisation des lèvres…', 0.7);
   fs.rmSync(RESULT, { force: true });
+  try {
   if (talking) {
     await makeTalkingClip({
       imagePath: FACE,
@@ -149,6 +172,9 @@ export async function runLipsyncTest({ fresh = false, model = '' } = {}, update)
       update: (step) => update(`4/4 — ${step}`, 0.85),
       model: model || undefined,
     });
+  }
+  } catch (e) {
+    throw stepError(`Étape 4 (synchro — ${model || lipsyncModel()})`, e);
   }
   meta.lastSuccess = new Date().toISOString();
   meta.lastModel = model || lipsyncModel();
