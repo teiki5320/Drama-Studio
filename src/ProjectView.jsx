@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Player } from '@remotion/player';
 import { Episode } from './remotion/Episode.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
-import { api, followJob, fileToDataUrl } from './api.js';
+import { api, followJob, fileToDataUrl, copyText } from './api.js';
 import {
   EPISODE_COUNT,
   VOICES,
@@ -325,6 +325,192 @@ function VoiceChip({ project, projectId, c, busy, runJob, onRefresh, voices = VO
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+// ---------- Kit OpenArt Director ----------
+// L'alternative recommandée à la chaîne image → clip → synchro : OpenArt
+// Director (openart.ai → Director) tourne l'épisode ENTIER en une passe.
+// Le kit = la planche des visages (assemblée ici, dans le navigateur, à
+// partir des portraits) + le texte exact à coller dans le chat de Director.
+function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
+  const [open, setOpen] = useState(false);
+  const [kit, setKit] = useState(null);
+  const [sheetUrl, setSheetUrl] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    setKit(null);
+    setSheetUrl(null);
+    setCopied(false);
+  }, [projectId, episode.number]);
+
+  useEffect(() => {
+    if (open && !kit) {
+      api
+        .directorKit(projectId, episode.number)
+        .then(setKit)
+        .catch((e) => alert(`Kit Director : ${e.message}`));
+    }
+  }, [open, kit, projectId, episode.number]);
+
+  // Planche des visages : portraits côte à côte + nom sous chacun.
+  useEffect(() => {
+    if (!kit) {
+      return undefined;
+    }
+    const cast = kit.cast.filter((c) => c.portrait);
+    if (cast.length === 0) {
+      return undefined;
+    }
+    let cancelled = false;
+    Promise.all(
+      cast.map(
+        (c) =>
+          new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ c, img });
+            img.onerror = () => resolve(null);
+            img.src = `/files/${projectId}/${c.portrait}?v=${c.portraitVersion}`;
+          }),
+      ),
+    ).then((loaded) => {
+      const items = loaded.filter(Boolean);
+      if (cancelled || items.length === 0) {
+        return;
+      }
+      const H = 560;
+      const LABEL = 56;
+      const widths = items.map(({ img }) => Math.max(1, Math.round((img.width / img.height) * H)));
+      const canvas = document.createElement('canvas');
+      canvas.width = widths.reduce((a, b) => a + b, 0);
+      canvas.height = H + LABEL;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      let x = 0;
+      items.forEach(({ c, img }, i) => {
+        ctx.drawImage(img, x, 0, widths[i], H);
+        ctx.fillStyle = '#111111';
+        ctx.font = 'bold 26px -apple-system, Helvetica, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${i + 1}. ${c.name}`, x + widths[i] / 2, H + 38, widths[i] - 12);
+        x += widths[i];
+      });
+      setSheetUrl(canvas.toDataURL('image/jpeg', 0.92));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [kit, projectId]);
+
+  const copy = () =>
+    copyText(kit.text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+
+  const importVideo = async (file) => {
+    setImporting(true);
+    try {
+      await api.importEpisodeVideo(projectId, episode.number, file);
+      await onRefresh();
+      alert(
+        `🎉 Épisode ${episode.number} importé ! Il est rangé avec les autres MP4 (dossier Dramas + téléchargements).`,
+      );
+    } catch (e) {
+      alert(`Import impossible : ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="downloads-box director-kit">
+      <div className="downloads-title">🎬 Tourner cet épisode dans OpenArt Director</div>
+      <p className="downloads-hint">
+        La méthode recommandée : Director tourne l'épisode <strong>entier</strong> en une passe
+        (voix françaises + lèvres synchronisées nativement, ~60 crédits OpenArt/seconde en 480p).
+        Le kit ci-dessous contient la planche des visages et le texte exact à coller dans son
+        chat.
+      </p>
+      {!open ? (
+        <button className="btn-small primary" onClick={() => setOpen(true)}>
+          📦 Ouvrir le kit de l'épisode {episode.number}
+        </button>
+      ) : !kit ? (
+        <p className="downloads-hint">Chargement du kit…</p>
+      ) : (
+        <>
+          {kit.missing.length > 0 && (
+            <p className="downloads-hint">
+              ⚠️ Portraits manquants pour la planche : {kit.missing.join(', ')} — clique « ✅
+              Valider les personnages » ou « 🎨 Générer les portraits manquants » d'abord.
+            </p>
+          )}
+          {sheetUrl && (
+            <>
+              <img
+                src={sheetUrl}
+                alt="Planche des visages"
+                style={{ maxWidth: '100%', borderRadius: 8 }}
+              />
+              <p>
+                <a
+                  className="btn-small"
+                  href={sheetUrl}
+                  download={`planche-visages-${(project.title || 'serie').replace(/[^\w àâéèêëîïôöùûüç-]+/gi, ' ').trim()}.jpg`}
+                >
+                  ⬇️ 1. Télécharger la planche des visages
+                </a>{' '}
+                <button className="btn-small" onClick={copy}>
+                  {copied ? '✅ Copié !' : '📋 2. Copier le texte à coller'}
+                </button>
+              </p>
+            </>
+          )}
+          <textarea
+            readOnly
+            value={kit.text}
+            rows={10}
+            style={{ width: '100%', fontSize: 12 }}
+            onFocus={(e) => e.target.select()}
+          />
+          <ol className="downloads-hint" style={{ lineHeight: 1.8, paddingLeft: 20 }}>
+            <li>
+              Sur <strong>openart.ai</strong>, ouvre <strong>Director</strong> (menu de gauche).
+            </li>
+            <li>Joins la planche des visages avec le bouton « + » du chat.</li>
+            <li>
+              Colle le texte du kit et envoie — Director te guide (valide le casting, puis les
+              plans). Un plan raté ? Demande-lui de regénérer <strong>juste ce plan</strong>.
+            </li>
+            <li>
+              Coût indicatif en 480p : ~{Number(kit.seconds * 60).toLocaleString('fr-FR')} crédits
+              pour {kit.seconds} s (~60 crédits/seconde).
+            </li>
+            <li>Exporte le MP4 final, puis importe-le ici 👇 : il rejoint tes épisodes prêts.</li>
+          </ol>
+          <label className={`btn-small ${importing || busy ? 'disabled' : ''}`}>
+            {importing ? '⏳ Import en cours…' : `📥 Importer le MP4 de l'épisode ${episode.number}`}
+            <input
+              type="file"
+              accept="video/mp4,video/quicktime"
+              style={{ display: 'none' }}
+              disabled={importing || busy}
+              onChange={(e) => {
+                const f = e.target.files && e.target.files[0];
+                e.target.value = '';
+                if (f) {
+                  importVideo(f);
+                }
+              }}
+            />
+          </label>
+        </>
+      )}
     </div>
   );
 }
@@ -1505,6 +1691,15 @@ export function ProjectView({ projectId, onBack }) {
               {isChaine ? 'Vidéo' : 'Épisode'} {episode.number} — {episode.title}
             </h2>
             {episode.cliffhanger && <p className="cliffhanger">Cliffhanger : « {episode.cliffhanger} »</p>}
+            {!isChaine && (
+              <DirectorKitCard
+                project={project}
+                projectId={projectId}
+                episode={episode}
+                busy={busy}
+                onRefresh={refresh}
+              />
+            )}
             {episode.scenes.map((scene, i) => (
               <SceneCard
                 key={scene.id}
@@ -1524,17 +1719,36 @@ export function ProjectView({ projectId, onBack }) {
         <div className="centered">
           <p>Cet épisode n'a pas encore été produit.</p>
           {!isChaine && stage === 'production' && epNumber >= 1 && epNumber <= totalEpisodes && (
-            <button
-              className="btn-primary"
-              disabled={busy}
-              onClick={() => {
-                if (confirm(`Produire l'épisode ${epNumber} ?\n\n${quote(1)}`)) {
-                  produce(epNumber);
-                }
-              }}
-            >
-              ▶️ Produire l'épisode {epNumber}
-            </button>
+            <>
+              <button
+                className="btn-primary"
+                disabled={busy}
+                title="Écrit UNIQUEMENT le scénario (1 appel Claude, aucune image ni voix) : tu obtiens le kit à coller dans OpenArt Director, qui tournera l'épisode entier"
+                onClick={() => {
+                  if (
+                    confirm(
+                      `Préparer le Kit Director de l'épisode ${epNumber} ?\n\nClaude écrit seulement le scénario (+ les portraits manquants s'il y en a) — aucune image de scène, aucun clip, aucune voix. C'est OpenArt Director qui tournera l'épisode.`,
+                    )
+                  ) {
+                    runJob(() => api.prepareDirectorKit(projectId, epNumber));
+                  }
+                }}
+              >
+                🎬 Préparer le Kit Director (scénario seul)
+              </button>
+              <button
+                className="btn-ghost"
+                disabled={busy}
+                title="L'ancienne méthode : Drama Studio génère lui-même images, clips, voix et synchro"
+                onClick={() => {
+                  if (confirm(`Produire l'épisode ${epNumber} ?\n\n${quote(1)}`)) {
+                    produce(epNumber);
+                  }
+                }}
+              >
+                ▶️ Produire l'épisode {epNumber} (méthode classique)
+              </button>
+            </>
           )}
         </div>
       )}

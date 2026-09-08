@@ -32,6 +32,7 @@ import {
   suggestTopics,
   produceEpisode,
   produceSeason,
+  ensureEpisodeScript,
   regenerateScript,
   ensureCharacterPortraits,
   regenerateAllImages,
@@ -54,8 +55,21 @@ import { ttsInfo, elevenBalance, isCatalogVoice, allVoices, removeCustomVoice } 
 import { searchFrenchLibraryVoices, adoptLibraryVoice } from './elevenlib.js';
 import { openartCredits } from './openart.js';
 import { claudeBin } from './claudebin.js';
-import { exportAllProjects, EXPORT_ROOT, exportRootFor, projectExportDir } from './exporter.js';
-import { runLipsyncTest, lipsyncTestStatus, clearLipsyncTestResult } from './synctest.js';
+import {
+  exportAllProjects,
+  exportEpisode,
+  EXPORT_ROOT,
+  exportRootFor,
+  projectExportDir,
+} from './exporter.js';
+import {
+  runLipsyncTest,
+  lipsyncTestStatus,
+  clearLipsyncTestResult,
+  directorTestKit,
+  prepareDirectorTest,
+} from './synctest.js';
+import { buildDirectorKit } from './director.js';
 import {
   STUDIO_DIR,
   loadStudio,
@@ -199,6 +213,16 @@ app.post('/api/lipsync-test', (req, res) => {
   const job = startJob('Test synchro labiale', (update) =>
     runLipsyncTest({ fresh: Boolean(req.body && req.body.fresh), model }, update),
   );
+  res.json({ jobId: job.id });
+});
+
+// ---------- Test OpenArt Director : portrait + consigne à coller ----------
+app.get('/api/lipsync-test/director', (req, res) => {
+  res.json(directorTestKit());
+});
+
+app.post('/api/lipsync-test/director', (req, res) => {
+  const job = startJob('Portrait du test Director', (update) => prepareDirectorTest(update));
   res.json({ jobId: job.id });
 });
 
@@ -685,6 +709,83 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
   const job = startJob(`Production épisode ${n}`, (update) => produceEpisode(p, n, update), { projectId: p.id });
   res.json({ jobId: job.id });
 });
+
+// ---------- Kit OpenArt Director ----------
+// Le kit (texte + casting pour la planche des visages) si le scénario existe.
+app.get('/api/projects/:id/episodes/:n/director-kit', (req, res) => {
+  withEpisode(req, res, (p, ep) => {
+    if (!ep) {
+      res.status(404).json({
+        error: "Pas encore de scénario pour cet épisode — clique « Préparer le kit » d'abord.",
+      });
+      return;
+    }
+    res.json(buildDirectorKit(p, ep));
+  });
+});
+
+// Prépare le kit : écrit le scénario s'il manque et complète les portraits.
+// Les SEULES dépenses : un appel Claude + les portraits manquants — aucune
+// image de scène, aucun clip, aucune voix (c'est Director qui fera tout ça).
+app.post('/api/projects/:id/episodes/:n/director-kit', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  if (p.mode === 'chaine') {
+    res.status(400).json({ error: 'Le Kit Director est réservé aux dramas.' });
+    return;
+  }
+  const n = Number(req.params.n);
+  const total = p.episodeCount || EPISODE_COUNT;
+  if (!(n >= 1 && n <= total)) {
+    res.status(400).json({ error: `Numéro d'épisode invalide (1 à ${total}).` });
+    return;
+  }
+  const job = startJob(
+    `Kit Director épisode ${n}`,
+    async (update) => {
+      await ensureEpisodeScript(p, n, update);
+      await ensureCharacterPortraits(p, update);
+    },
+    { projectId: p.id },
+  );
+  res.json({ jobId: job.id });
+});
+
+// Import du MP4 tourné dans OpenArt Director : il devient le rendu officiel
+// de l'épisode (rangé dans renders/ + copie Bureau/Dramas, comme un rendu
+// Remotion normal) — l'épisode passe en « ✅ validé ».
+app.post(
+  '/api/projects/:id/episodes/:n/import-video',
+  express.raw({ type: ['video/*', 'application/octet-stream'], limit: '800mb' }),
+  (req, res) => {
+    withEpisode(req, res, (p, ep) => {
+      if (!ep) {
+        res.status(404).json({ error: "Épisode introuvable — prépare d'abord son kit (scénario)." });
+        return;
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length < 10000) {
+        res.status(400).json({ error: 'Fichier vidéo vide ou illisible — envoie le MP4 exporté de Director.' });
+        return;
+      }
+      const outName = `episode-${ep.number}.mp4`;
+      const dir = rendersDir(p.id);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, outName), req.body);
+      ep.renderedFile = `renders/${outName}`;
+      ep.status = 'done';
+      ep.importedFrom = 'openart-director';
+      const exported = exportEpisode(p, ep);
+      if (exported) {
+        ep.exportedTo = exported;
+      }
+      saveProject(p);
+      res.json({ ok: true, file: ep.renderedFile, exportedTo: exported || null });
+    });
+  },
+);
 
 // Supprime un épisode (scénario + images + clips + voix + MP4) pour le
 // refaire de zéro : il repasse en « à produire ». Sa copie exportée est

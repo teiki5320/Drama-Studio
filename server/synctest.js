@@ -85,6 +85,57 @@ function stepError(label, e) {
   return new Error(`${label} : ${msg}`);
 }
 
+// Génère le portrait de test s'il manque (partagé entre le test complet et
+// le test OpenArt Director, qui n'a besoin QUE du portrait).
+async function ensureFace(meta, update, label = 'Étape 1 (portrait)') {
+  if (fs.existsSync(FACE) && meta.imageUrl) {
+    return;
+  }
+  if (currentProvider() === 'manual') {
+    throw new Error(
+      "Le test a besoin d'un fournisseur d'images automatique (IMAGE_PROVIDER=openart dans .env).",
+    );
+  }
+  try {
+    const { ok, url } = await generateImage(PORTRAIT_PROMPT, FACE, {});
+    if (!ok) {
+      throw new Error("l'image n'a pas pu être générée");
+    }
+    meta.imageUrl = url || null;
+  } catch (e) {
+    throw stepError(label, e);
+  }
+  saveMeta(meta);
+}
+
+// ---------- Test OpenArt Director ----------
+// La nouvelle méthode recommandée : un mini-clip parlé fabriqué DANS Director
+// (openart.ai) à partir du portrait de test + de cette consigne, pour juger
+// la voix française et la synchro AVANT de dépenser sur un épisode entier.
+
+const DIRECTOR_TEST_TEXT = [
+  "Fais UNE seule vidéo verticale 9:16 d'environ 10 secondes, en 480p, à partir du portrait joint.",
+  "L'homme du portrait regarde la caméra et dit EN FRANÇAIS, avec une voix d'homme naturelle et grave et les lèvres parfaitement synchronisées :",
+  `« ${TEST_LINE} »`,
+  'Garde EXACTEMENT le visage du portrait. Pas de musique, pas de sous-titres.',
+].join('\n');
+
+export function directorTestKit() {
+  const face = fs.existsSync(FACE);
+  return {
+    face,
+    faceUrl: face ? `/studio/synctest_face.jpg?t=${fs.statSync(FACE).mtimeMs}` : null,
+    text: DIRECTOR_TEST_TEXT,
+  };
+}
+
+export async function prepareDirectorTest(update) {
+  const meta = loadMeta();
+  update('Portrait du personnage de test…', 0.2);
+  await ensureFace(meta, update, 'Portrait');
+  return directorTestKit();
+}
+
 export async function runLipsyncTest({ fresh = false, model = '' } = {}, update) {
   if (fresh) {
     const meta = loadMeta();
@@ -96,24 +147,8 @@ export async function runLipsyncTest({ fresh = false, model = '' } = {}, update)
   const meta = loadMeta();
 
   // 1. Portrait du personnage de test
-  if (!fs.existsSync(FACE) || !meta.imageUrl) {
-    if (currentProvider() === 'manual') {
-      throw new Error(
-        "Le test a besoin d'un fournisseur d'images automatique (IMAGE_PROVIDER=openart dans .env).",
-      );
-    }
-    update('1/4 — Portrait du personnage de test…', 0.05);
-    try {
-      const { ok, url } = await generateImage(PORTRAIT_PROMPT, FACE, {});
-      if (!ok) {
-        throw new Error("l'image n'a pas pu être générée");
-      }
-      meta.imageUrl = url || null;
-    } catch (e) {
-      throw stepError('Étape 1 (portrait)', e);
-    }
-    saveMeta(meta);
-  }
+  update('1/4 — Portrait du personnage de test…', 0.05);
+  await ensureFace(meta, update);
 
   // Modèle « avatar » (OmniHuman) : image + voix suffisent — pas de clip.
   const talking = isTalkingModel(model || undefined);

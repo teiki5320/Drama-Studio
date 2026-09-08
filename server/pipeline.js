@@ -757,20 +757,29 @@ export async function produceSeason(project, update, count) {
   return { episodes: doneCount };
 }
 
-export async function produceEpisode(project, number, update) {
+// Écrit le scénario de l'épisode s'il n'existe pas encore — SEULEMENT le
+// texte (aucune image, voix ni vidéo). Utilisé par la production classique
+// et par le Kit Director, qui n'a besoin que du scénario et des portraits.
+export async function ensureEpisodeScript(project, number, update) {
   let episode = findEpisode(project, number);
-  if (!episode && project.mode === 'chaine') {
+  if (episode) {
+    return episode;
+  }
+  if (project.mode === 'chaine') {
     throw new Error('Crée d\'abord la vidéo avec « ➕ Nouvelle vidéo » (il faut son sujet).');
   }
-  if (!episode) {
-    update(`Écriture du scénario de l'épisode ${number} par Claude…`);
-    const raw = await askClaudeForJson(buildEpisodePrompt(project, number));
-    ensureUsage(project).claudeCalls += 1;
-    episode = normalizeEpisode(raw, number);
-    project.episodes.push(episode);
-    project.episodes.sort((a, b) => a.number - b.number);
-    saveProject(project);
-  }
+  update(`Écriture du scénario de l'épisode ${number} par Claude…`);
+  const raw = await askClaudeForJson(buildEpisodePrompt(project, number));
+  ensureUsage(project).claudeCalls += 1;
+  episode = normalizeEpisode(raw, number);
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  saveProject(project);
+  return episode;
+}
+
+export async function produceEpisode(project, number, update) {
+  const episode = await ensureEpisodeScript(project, number, update);
   await generateEpisodeAssets(project, episode, update);
   return { number };
 }
