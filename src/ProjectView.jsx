@@ -232,7 +232,7 @@ function CharactersReview({ project, busy, runJob, onValidate, projectId, voices
             disabled={busy}
             onClick={() => runJob(() => api.generatePortraits(projectId))}
           >
-            🎨 Générer les portraits manquants ({missing})
+            🎨 Portraits manquants ({missing})
           </button>
         )}
         <button
@@ -442,7 +442,7 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
       </p>
       {!open ? (
         <button className="btn-small primary" onClick={() => setOpen(true)}>
-          🎬 Préparer le tournage de l'épisode {episode.number}
+          🎬 Préparer le tournage
         </button>
       ) : !kit ? (
         <p className="downloads-hint">Préparation…</p>
@@ -450,8 +450,8 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
         <>
           {kit.missing.length > 0 && (
             <p className="downloads-hint">
-              ⚠️ Portraits manquants pour la planche : {kit.missing.join(', ')} — clique « ✅
-              Valider les personnages » ou « 🎨 Générer les portraits manquants » d'abord.
+              ⚠️ Portraits manquants pour la planche : {kit.missing.join(', ')} — clique « 🎨
+              Portraits manquants » dans l'atelier des personnages d'abord.
             </p>
           )}
           {sheetUrl && (
@@ -467,10 +467,10 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
                   href={sheetUrl}
                   download={`planche-visages-${(project.title || 'serie').replace(/[^\w àâéèêëîïôöùûüç-]+/gi, ' ').trim()}.jpg`}
                 >
-                  ⬇️ 1. Télécharger la planche des visages
+                  ⬇️ 1. La planche des visages
                 </a>{' '}
                 <button className="btn-small" onClick={copy}>
-                  {copied ? '✅ Copié !' : '📋 2. Copier le texte à coller'}
+                  {copied ? '✅ Copié !' : '📋 2. Copier le texte'}
                 </button>
               </p>
             </>
@@ -498,7 +498,7 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
             <li>Exporte le MP4 final, puis importe-le ici 👇 : il rejoint tes épisodes prêts.</li>
           </ol>
           <label className={`btn-small ${importing || busy ? 'disabled' : ''}`}>
-            {importing ? '⏳ Import en cours…' : `📥 3. Importer le MP4 de l'épisode ${episode.number}`}
+            {importing ? '⏳ Import en cours…' : '📥 3. Importer le MP4'}
             <input
               type="file"
               accept="video/mp4,video/quicktime"
@@ -634,7 +634,7 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
           onClick={() => navigator.clipboard.writeText(prompt)}
           title="Pour générer l'image sur openart.ai"
         >
-          📋 Copier le prompt (OpenArt)
+          📋 Copier le prompt
         </button>
       </details>
 
@@ -682,7 +682,7 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
             title="Anime les lèvres du clip sur les voix de la scène (fal.ai, payant à l'usage)"
             onClick={() => runJob(() => api.lipsyncScene(project.id, episode.number, scene.id))}
           >
-            🗣️ {scene.lipsynced ? 'Resynchroniser les lèvres' : 'Synchroniser les lèvres'}
+            🗣️ {scene.lipsynced ? 'Resynchroniser' : 'Synchroniser les lèvres'}
           </button>
         )}
         {scene.video && (
@@ -1427,7 +1427,7 @@ export function ProjectView({ projectId, onBack }) {
             }
           }}
         >
-          {isChaine ? `▶️ Produire la vidéo ${epNumber}` : `🛠️ Produire l'épisode ${epNumber} (production interne)`}
+          {isChaine ? `▶️ Produire la vidéo ${epNumber}` : `🛠️ Produire l'épisode ${epNumber}`}
         </button>
       )}
       {justRendered === epNumber && episode?.renderedFile && (
@@ -1472,7 +1472,7 @@ export function ProjectView({ projectId, onBack }) {
           }
         }}
       >
-        🖼️ Régénérer toutes les images
+        🖼️ Régénérer les images
       </button>
       <button
         className="btn-ghost"
@@ -1483,7 +1483,7 @@ export function ProjectView({ projectId, onBack }) {
           }
         }}
       >
-        🔊 Régénérer toutes les voix
+        🔊 Régénérer les voix
       </button>
       {episode && (
         <button
@@ -1507,7 +1507,7 @@ export function ProjectView({ projectId, onBack }) {
             }
           }}
         >
-          🗑️ Supprimer {isChaine ? 'la vidéo' : `l'épisode ${episode.number}`} (pour le refaire)
+          🗑️ Supprimer {isChaine ? 'la vidéo' : `l'épisode ${episode.number}`}
         </button>
       )}
       {episode?.renderedFile && (
@@ -1517,7 +1517,7 @@ export function ProjectView({ projectId, onBack }) {
           download={`${tiktokCaption(project, episode)}.mp4`}
           title="Le nom du fichier = titre + hashtags, prêt pour la description TikTok"
         >
-          ⬇️ Télécharger l'épisode {episode.number}
+          ⬇️ Télécharger le MP4
         </a>
       )}
       {nextNumber && !isChaine && (
@@ -1533,7 +1533,7 @@ export function ProjectView({ projectId, onBack }) {
             }
           }}
         >
-          🛠️ Produire l'épisode {nextNumber} (production interne)
+          🛠️ Produire l'épisode {nextNumber}
         </button>
       )}
       {remainingCount > 1 && !isChaine && (
@@ -1553,7 +1553,7 @@ export function ProjectView({ projectId, onBack }) {
               }
             }}
           >
-            ⏩ Produire les {Math.min(batchCount, remainingCount)} prochains (interne)
+            ⏩ Produire les {Math.min(batchCount, remainingCount)} prochains
           </button>
           <select
             className="season-select"
@@ -1585,7 +1585,7 @@ export function ProjectView({ projectId, onBack }) {
             }
           }}
         >
-          🚀 Produire toute la saison (interne, {remainingCount} restant{remainingCount > 1 ? 's' : ''})
+          🚀 Produire la saison ({remainingCount})
         </button>
       )}
       {renderedEpisodes.length > 0 && (
@@ -1633,7 +1633,7 @@ export function ProjectView({ projectId, onBack }) {
                 title={tiktokCaption(project, episode)}
                 onClick={() => navigator.clipboard.writeText(tiktokCaption(project, episode))}
               >
-                📋 Copier la description de l'ép. {episode.number}
+                📋 Description TikTok (ép. {episode.number})
               </button>
             )}
           </p>
@@ -1715,7 +1715,7 @@ export function ProjectView({ projectId, onBack }) {
             </div>
             <p className="cast-hint">
               🎙️ Change une voix ici (▶️ pour l'écouter), puis clique « 🔊 Régénérer la voix » sur
-              une scène — ou « 🔊 Régénérer toutes les voix » — pour l'appliquer.
+              une scène — ou « 🔊 Régénérer les voix » — pour l'appliquer.
             </p>
             <h2>
               {isChaine ? 'Vidéo' : 'Épisode'} {episode.number} — {episode.title}
@@ -1764,7 +1764,7 @@ export function ProjectView({ projectId, onBack }) {
                   }
                 }}
               >
-                🎬 Studio Director — préparer le tournage (recommandé)
+                🎬 Studio Director (recommandé)
               </button>
               <button
                 className="btn-ghost"
@@ -1776,7 +1776,7 @@ export function ProjectView({ projectId, onBack }) {
                   }
                 }}
               >
-                🛠️ Produire l'épisode {epNumber} (production interne)
+                🛠️ Production interne
               </button>
             </>
           )}
