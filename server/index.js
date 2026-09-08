@@ -489,10 +489,11 @@ app.post('/api/projects/:id/validate-script', (req, res) => {
     { projectId: p.id });
     res.json({ stage: p.stage, jobId: job.id });
   } else {
+    // Plus de production automatique : l'auteur choisit ensuite la méthode
+    // (classique ou Kit Director) sur l'épisode 1.
     p.stage = 'production';
     saveProject(p);
-    const job = startJob('Production épisode 1', (update) => produceEpisode(p, 1, update), { projectId: p.id });
-    res.json({ stage: p.stage, jobId: job.id });
+    res.json({ stage: p.stage });
   }
 });
 
@@ -514,10 +515,11 @@ app.post('/api/projects/:id/validate-characters', (req, res) => {
     res.status(404).json({ error: 'Projet introuvable' });
     return;
   }
+  // Plus de production automatique de l'épisode 1 : l'auteur choisit sa
+  // méthode (▶️ classique ou 🎬 Kit Director) — aucun crédit dépensé ici.
   p.stage = 'production';
   saveProject(p);
-  const job = startJob('Production épisode 1', (update) => produceEpisode(p, 1, update), { projectId: p.id });
-  res.json({ stage: p.stage, jobId: job.id });
+  res.json({ stage: p.stage });
 });
 
 // Job en cours pour ce projet (permet de raccrocher après un rechargement)

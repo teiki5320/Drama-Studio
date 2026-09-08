@@ -235,8 +235,13 @@ function CharactersReview({ project, busy, runJob, onValidate, projectId, voices
             🎨 Générer les portraits manquants ({missing})
           </button>
         )}
-        <button className="btn-primary" disabled={busy || missing > 0} onClick={onValidate}>
-          ✅ Valider les personnages et produire l'épisode 1
+        <button
+          className="btn-primary"
+          disabled={busy || missing > 0}
+          title="Aucun crédit dépensé : tu choisis ensuite la méthode de production de l'épisode 1 (🎬 Kit Director ou ▶️ classique)"
+          onClick={onValidate}
+        >
+          ✅ Valider les personnages
         </button>
       </div>
     </div>
@@ -1216,7 +1221,20 @@ export function ProjectView({ projectId, onBack }) {
           project={project}
           busy={busy}
           onRegen={() => runJob(() => api.regenScript(projectId))}
-          onValidate={() => runJob(() => api.validateScript(projectId))}
+          onValidate={async () => {
+            // Fournisseur OpenArt : job de portraits ; sinon passage direct
+            // à l'épisode 1 (le choix de la méthode de production).
+            try {
+              const r = await api.validateScript(projectId);
+              if (r.jobId) {
+                await runJob(() => Promise.resolve(r));
+              } else {
+                await refresh();
+              }
+            } catch (e) {
+              setError(e.message);
+            }
+          }}
         />
       </div>
     );
@@ -1234,7 +1252,13 @@ export function ProjectView({ projectId, onBack }) {
           busy={busy}
           runJob={runJob}
           voices={voices}
-          onValidate={() => runJob(() => api.validateCharacters(projectId)).then((ok) => ok && setEpNumber(1))}
+          onValidate={() =>
+            api
+              .validateCharacters(projectId)
+              .then(() => refresh())
+              .then(() => setEpNumber(1))
+              .catch((e) => setError(e.message))
+          }
         />
       </div>
     );
