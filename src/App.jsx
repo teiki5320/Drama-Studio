@@ -139,7 +139,7 @@ function BrandCard({ studio, onChange }) {
       </div>
       <p className="field-hint">
         💡 Ils apparaîtront dans l'aperçu et dans les prochains MP4. Pour les ajouter à un épisode
-        déjà produit, rouvre-le et clique « ✅ Valider et produire le MP4 ».
+        déjà produit, rouvre-le et clique « 🎞️ Monter le MP4 final ».
       </p>
     </details>
   );
@@ -201,16 +201,17 @@ function DirectorTestCard() {
   return (
     <details className="brand-card">
       <summary>
-        🎬 Test OpenArt Director {kit?.face ? '✅' : ''}
+        🎬 Tester le Studio Director {kit?.face ? '✅' : ''}
         <span className="brand-hint">
-          — la nouvelle méthode : un mini-clip parlé fait DANS Director, à tester avant les épisodes
+          — la méthode recommandée : un mini-clip parlé fait dans OpenArt Director, à tester
+          avant les épisodes
         </span>
       </summary>
       <p className="section-label">
         OpenArt <strong>Director</strong> (sur openart.ai, menu de gauche → Director) fabrique un
         clip complet en une seule passe : voix française et lèvres synchronisées nativement, avec
         tes crédits OpenArt (~60 crédits/seconde en 480p, soit ~600 crédits pour ce test de 10 s).
-        Si le résultat te plaît, chaque épisode aura son « 🎬 Kit Director » prêt à coller.
+        Si le résultat te plaît, chaque épisode a sa carte « 🎬 Studio Director » prête à coller.
       </p>
       {!kit?.face ? (
         busy ? (
@@ -252,7 +253,8 @@ function DirectorTestCard() {
             <li>Copie la consigne, colle-la dans le chat et envoie.</li>
             <li>
               Regarde le clip : si la voix française et les lèvres te plaisent, la méthode est
-              validée 🎉 — dis-le à Claude et utilise ensuite le Kit Director de tes épisodes.
+              validée 🎉 — dis-le à Claude et utilise ensuite la carte Studio Director de tes
+              épisodes.
             </li>
           </ol>
           <textarea
@@ -311,10 +313,10 @@ function SyncTestCard() {
   return (
     <details className="brand-card">
       <summary>
-        🧪 Test synchro {status?.lastSuccess ? '✅' : ''}
+        🧪 Tester la production interne {status?.lastSuccess ? '✅' : ''}
         <span className="brand-hint">
-          — l'ancienne chaîne (image → clip → voix → lèvres) sur UN mini-clip, sans produire
-          d'épisode
+          — l'autre méthode (image → clip → voix → lèvres, fabriquée par l'appli) sur UN
+          mini-clip, sans produire d'épisode
         </span>
       </summary>
       <p className="section-label">
@@ -539,7 +541,7 @@ function CustomCreate({ onSubmit, onCancel, busy, mode, seasonEpisodes, onSeason
 
       {mode === 'long' && (
         <div className="form-field">
-          <label>📺 Format long — épisodes dans la saison</label>
+          <label>📺 Drama série — épisodes dans la saison</label>
           <select value={seasonEpisodes} onChange={(e) => onSeasonChange(Number(e.target.value))}>
             {[30, 40, 50, 60, 70, 80].map((n) => (
               <option key={n} value={n}>
@@ -714,36 +716,36 @@ const EP_SECONDS_CHOICES = [
   { v: 40, label: '40 secondes (ultra court)' },
 ];
 
-// Écran d'entrée : la Version normale (voix off + sous-titres), le Format
-// long façon DramaWave (tout vidéo, lèvres animées via fal.ai), les Chaînes.
+// Écran d'entrée : le Drama court (voix off + sous-titres), le Drama série
+// façon DramaWave (tout vidéo, lèvres animées), les Chaînes.
 function ModeGate({ onPick }) {
   return (
     <div className="page centered">
       <header className="home-header">
         <h1>Drama Studio</h1>
-        <p className="tagline">Choisis ta version pour cette session.</p>
+        <p className="tagline">Choisis ton format pour cette session.</p>
       </header>
       <div className="mode-gate">
         <button className="mode-card" onClick={() => onPick('normal')}>
           <span className="mode-emoji">🎬</span>
-          <strong>Version normale</strong>
+          <strong>Drama court</strong>
           <span className="mode-desc">
-            Comme d'habitude : voix off + sous-titres, bouches immobiles dans les clips. Épisodes
-            rangés dans <strong>Dramas</strong>.
+            10 épisodes de 60 secondes : voix off + sous-titres, bouches immobiles dans les
+            clips. Épisodes rangés dans <strong>Dramas</strong>.
           </span>
         </button>
         <button className="mode-card" onClick={() => onPick('long')}>
           <span className="mode-emoji">📺</span>
-          <strong>Format long</strong>
+          <strong>Drama série</strong>
           <span className="mode-desc">
             Le format DramaWave : épisodes de 1 à 2 minutes (durée au choix), saisons de 30 à 80
-            épisodes, <strong>tout en vidéo</strong> avec les lèvres animées sur les voix
-            (fal.ai). Épisodes rangés dans <strong>Dramas Long</strong>.
+            épisodes, <strong>tout en vidéo</strong> avec les lèvres animées sur les voix.
+            Épisodes rangés dans <strong>Dramas Long</strong>.
           </span>
         </button>
         <button className="mode-card" onClick={() => onPick('chaine')}>
           <span className="mode-emoji">🎥</span>
-          <strong>Chaînes</strong>
+          <strong>Chaîne</strong>
           <span className="mode-desc">
             Hors dramas : vidéos de 1 à 2 minutes racontées par un narrateur (storytime,
             éducatif, tops…). Chaque chaîne a son style, sa voix et son dossier iCloud.
@@ -1005,21 +1007,22 @@ export function App() {
         <p className="tagline">Micro-dramas africains — 10 épisodes de 60 secondes, générés chez toi.</p>
         <p className="mode-line">
           {mode === 'long'
-            ? '📺 Format long (tout vidéo + lèvres animées)'
+            ? '📺 Drama série (tout vidéo + lèvres animées)'
             : mode === 'chaine'
-              ? '🎥 Chaînes (vidéos 1-2 min, narrateur)'
-              : '🎬 Version normale'}
+              ? '🎥 Chaîne (vidéos 1-2 min, narrateur)'
+              : '🎬 Drama court (voix off + images)'}
           <button className="btn-small" onClick={() => setMode(null)}>
-            ↔ Changer de version
+            ↔ Changer de format
           </button>
         </p>
       </header>
 
       {mode === 'long' && health && !health.fal && (
         <div className="banner warn">
-          🗣️ Le Format long anime les lèvres sur les voix via fal.ai : crée un compte sur
-          fal.ai, puis ajoute <code>FAL_KEY=...</code> dans le fichier <code>.env</code> et
-          relance. Sans clé, les dramas se créent normalement mais la synchro labiale échouera.
+          🗣️ La production interne du Drama série anime les lèvres via fal.ai : crée un compte
+          sur fal.ai, puis ajoute <code>FAL_KEY=...</code> dans le fichier <code>.env</code> et
+          relance. Sans clé, les dramas se créent normalement mais la synchro interne échouera
+          (le 🎬 Studio Director, lui, n'en a pas besoin).
         </div>
       )}
 
@@ -1180,7 +1183,7 @@ export function App() {
       {projects.filter((p) => homeMode(p) === mode).length > 0 && (
         <section className="library">
           <h2>
-            {mode === 'chaine' ? 'Mes chaînes' : `Mes dramas ${mode === 'long' ? 'Format long' : ''}`}
+            {mode === 'chaine' ? 'Mes chaînes' : mode === 'long' ? 'Mes dramas séries' : 'Mes dramas courts'}
           </h2>
           <div className="project-grid">
             {projects.filter((p) => homeMode(p) === mode).map((p) => (
