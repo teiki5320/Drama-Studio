@@ -369,7 +369,7 @@ export async function generateSceneVideo(project, episode, scene, update) {
 // clip muet ; la voix ElevenLabs d'origine joue par-dessus dans le montage.
 export async function lipsyncSceneVideo(project, episode, scene, update) {
   if (!wantsLipsync(project)) {
-    throw new Error('La synchro labiale est réservée aux dramas Format long.');
+    throw new Error('La synchro labiale est réservée aux dramas séries (tout vidéo).');
   }
   if (!lipsyncSpeaker(scene)) {
     throw new Error(

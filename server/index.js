@@ -210,7 +210,7 @@ app.post('/api/lipsync-test', (req, res) => {
     res.status(400).json({ error: 'Nom de modèle fal.ai invalide.' });
     return;
   }
-  const job = startJob('Test synchro labiale', (update) =>
+  const job = startJob('Test de la production interne', (update) =>
     runLipsyncTest({ fresh: Boolean(req.body && req.body.fresh), model }, update),
   );
   res.json({ jobId: job.id });
@@ -736,7 +736,7 @@ app.post('/api/projects/:id/episodes/:n/director-kit', (req, res) => {
     return;
   }
   if (p.mode === 'chaine') {
-    res.status(400).json({ error: 'Le Kit Director est réservé aux dramas.' });
+    res.status(400).json({ error: 'Le Studio Director est réservé aux dramas.' });
     return;
   }
   const n = Number(req.params.n);
@@ -746,7 +746,7 @@ app.post('/api/projects/:id/episodes/:n/director-kit', (req, res) => {
     return;
   }
   const job = startJob(
-    `Kit Director épisode ${n}`,
+    `Studio Director — préparation épisode ${n}`,
     async (update) => {
       await ensureEpisodeScript(p, n, update);
       await ensureCharacterPortraits(p, update);

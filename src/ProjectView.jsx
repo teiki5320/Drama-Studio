@@ -17,9 +17,9 @@ import {
 import './studio-redesign.css';
 
 const STATUS_LABELS = {
-  script: '📝 script',
-  ready: '🎞️ prêt',
-  done: '✅ validé',
+  script: '📝 scénario',
+  ready: '🧰 éléments prêts',
+  done: '✅ MP4 prêt',
 };
 
 // Lieu de rangement lisible à partir du chemin d'export réel d'un épisode.
@@ -238,7 +238,7 @@ function CharactersReview({ project, busy, runJob, onValidate, projectId, voices
         <button
           className="btn-primary"
           disabled={busy || missing > 0}
-          title="Aucun crédit dépensé : tu choisis ensuite la méthode de production de l'épisode 1 (🎬 Kit Director ou ▶️ classique)"
+          title="Aucun crédit dépensé : tu choisis ensuite la méthode de production de l'épisode 1 (🎬 Studio Director ou 🛠️ production interne)"
           onClick={onValidate}
         >
           ✅ Valider les personnages
@@ -357,7 +357,7 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
       api
         .directorKit(projectId, episode.number)
         .then(setKit)
-        .catch((e) => alert(`Kit Director : ${e.message}`));
+        .catch((e) => alert(`Studio Director : ${e.message}`));
     }
   }, [open, kit, projectId, episode.number]);
 
@@ -434,19 +434,18 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
 
   return (
     <div className="downloads-box director-kit">
-      <div className="downloads-title">🎬 Tourner cet épisode dans OpenArt Director</div>
+      <div className="downloads-title">🎬 Studio Director (recommandé)</div>
       <p className="downloads-hint">
-        La méthode recommandée : Director tourne l'épisode <strong>entier</strong> en une passe
-        (voix françaises + lèvres synchronisées nativement, ~60 crédits OpenArt/seconde en 480p).
-        Le kit ci-dessous contient la planche des visages et le texte exact à coller dans son
-        chat.
+        OpenArt Director tourne l'épisode <strong>entier</strong> en une passe (voix françaises +
+        lèvres synchronisées nativement, ~60 crédits OpenArt/seconde en 480p). Trois étapes :
+        télécharger la planche des visages, coller le texte dans son chat, ramener le MP4 ici.
       </p>
       {!open ? (
         <button className="btn-small primary" onClick={() => setOpen(true)}>
-          📦 Ouvrir le kit de l'épisode {episode.number}
+          🎬 Préparer le tournage de l'épisode {episode.number}
         </button>
       ) : !kit ? (
-        <p className="downloads-hint">Chargement du kit…</p>
+        <p className="downloads-hint">Préparation…</p>
       ) : (
         <>
           {kit.missing.length > 0 && (
@@ -499,7 +498,7 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
             <li>Exporte le MP4 final, puis importe-le ici 👇 : il rejoint tes épisodes prêts.</li>
           </ol>
           <label className={`btn-small ${importing || busy ? 'disabled' : ''}`}>
-            {importing ? '⏳ Import en cours…' : `📥 Importer le MP4 de l'épisode ${episode.number}`}
+            {importing ? '⏳ Import en cours…' : `📥 3. Importer le MP4 de l'épisode ${episode.number}`}
             <input
               type="file"
               accept="video/mp4,video/quicktime"
@@ -882,9 +881,9 @@ export function ProjectView({ projectId, onBack }) {
           {project.mode === 'long' && (
             <span
               className="scene-badge"
-              title={`Format long : ${project.episodeCount} épisodes de ${project.episodeSeconds || 60} secondes — tout vidéo, lèvres synchronisées`}
+              title={`Drama série : ${project.episodeCount} épisodes de ${project.episodeSeconds || 60} secondes — tout vidéo, lèvres synchronisées`}
             >
-              📺 Long · {project.episodeCount} ép. · {project.episodeSeconds || 60} s
+              📺 Série · {project.episodeCount} ép. · {project.episodeSeconds || 60} s
             </span>
           )}
           {isChaine && (
@@ -932,7 +931,7 @@ export function ProjectView({ projectId, onBack }) {
         <>
           <label
             className="video-count"
-            title="Nombre de scènes animées en clip vidéo par épisode (réparties de la première à la dernière). Chaque vidéo coûte nettement plus de crédits OpenArt qu'une image — 0 pour tout garder en images animées. En Format long, « Toutes » (le défaut) = style DramaWave, tout en vidéo."
+            title="Nombre de scènes animées en clip vidéo par épisode (réparties de la première à la dernière). Chaque vidéo coûte nettement plus de crédits OpenArt qu'une image — 0 pour tout garder en images animées. En Drama série, « Toutes » (le défaut) = style DramaWave, tout en vidéo."
           >
             🎬 Vidéos/épisode
             <select
@@ -1415,20 +1414,20 @@ export function ProjectView({ projectId, onBack }) {
         <button
           className="btn-primary"
           disabled={busy}
-          title="La production de cet épisode a été interrompue : reprend là où elle s'était arrêtée. Ce qui existe déjà (images, voix, clips) n'est PAS régénéré."
+          title="L'appli fabrique elle-même images, clips, voix et synchro. Si une production a été interrompue, elle reprend là où elle s'était arrêtée : l'existant n'est PAS re-payé."
           onClick={() => {
             if (
               confirm(
                 isChaine
                   ? `Produire la vidéo ${epNumber} (images, voix, clip) ?\n\n${quote(1)}`
-                  : `Reprendre la production de l'épisode ${epNumber} ?\n\nSeuls les éléments manquants seront générés — l'existant n'est pas re-payé.\n\n${quote(1)}\n(C'est le maximum : la reprise coûte souvent bien moins.)`,
+                  : `Produire l'épisode ${epNumber} en production interne ?\n\nSeuls les éléments manquants seront générés — l'existant n'est pas re-payé.\n\n${quote(1)}\n(C'est le maximum : une reprise coûte souvent bien moins.)`,
               )
             ) {
               runJob(() => api.produceEpisode(projectId, epNumber));
             }
           }}
         >
-          ▶️ {isChaine ? `Produire la vidéo ${epNumber}` : `Reprendre la production de l'épisode ${epNumber}`}
+          {isChaine ? `▶️ Produire la vidéo ${epNumber}` : `🛠️ Produire l'épisode ${epNumber} (production interne)`}
         </button>
       )}
       {justRendered === epNumber && episode?.renderedFile && (
@@ -1462,7 +1461,7 @@ export function ProjectView({ projectId, onBack }) {
           )
         }
       >
-        ✅ Valider et produire le MP4
+        🎞️ Monter le MP4 final
       </button>
       <button
         className="btn-ghost"
@@ -1484,7 +1483,7 @@ export function ProjectView({ projectId, onBack }) {
           }
         }}
       >
-        🔊 Générer toutes les voix
+        🔊 Régénérer toutes les voix
       </button>
       {episode && (
         <button
@@ -1529,12 +1528,12 @@ export function ProjectView({ projectId, onBack }) {
             const warn = currentDone
               ? ''
               : "L'épisode courant n'est pas encore validé.\n\n";
-            if (confirm(`${warn}Produire l'épisode ${nextNumber} ?\n\n${quote(1)}`)) {
+            if (confirm(`${warn}Produire l'épisode ${nextNumber} en production interne ?\n\n${quote(1)}`)) {
               produce(nextNumber);
             }
           }}
         >
-          ▶️ Produire l'épisode {nextNumber}
+          🛠️ Produire l'épisode {nextNumber} (production interne)
         </button>
       )}
       {remainingCount > 1 && !isChaine && (
@@ -1542,19 +1541,19 @@ export function ProjectView({ projectId, onBack }) {
           <button
             className="btn-ghost"
             disabled={busy}
-            title="Enchaîne automatiquement la production des prochains épisodes (scénario, images, clips, voix et MP4), puis s'arrête"
+            title="Production interne : enchaîne automatiquement les prochains épisodes (scénario, images, clips, voix et MP4), puis s'arrête"
             onClick={() => {
               const k = Math.min(batchCount, remainingCount);
               if (
                 confirm(
-                  `Produire automatiquement les ${k} prochains épisodes (scénario, images, voix et MP4) ?\n\n${quote(k)}\n\nC'est long — tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
+                  `Produire les ${k} prochains épisodes en production interne (scénario, images, voix et MP4) ?\n\n${quote(k)}\n\nC'est long — tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
                 )
               ) {
                 runJob(() => api.produceSeason(projectId, k));
               }
             }}
           >
-            ⏩ Produire les {Math.min(batchCount, remainingCount)} prochains
+            ⏩ Produire les {Math.min(batchCount, remainingCount)} prochains (interne)
           </button>
           <select
             className="season-select"
@@ -1579,19 +1578,19 @@ export function ProjectView({ projectId, onBack }) {
             const nVid = plannedVideoCount(project, 6);
             if (
               confirm(
-                `Produire automatiquement les ${remainingCount} épisodes restants (scénario, images${nVid > 0 ? ', clips vidéo' : ''}, voix et MP4) ?\n\n${quote(remainingCount)}\n\nC'est long — souvent plus d'une heure avec OpenArt. Tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
+                `Produire les ${remainingCount} épisodes restants en production interne (scénario, images${nVid > 0 ? ', clips vidéo' : ''}, voix et MP4) ?\n\n${quote(remainingCount)}\n\nC'est long — souvent plus d'une heure avec OpenArt. Tu peux fermer la page et revenir : la production continue et l'avancement se raccroche tout seul.`,
               )
             ) {
               runJob(() => api.produceSeason(projectId));
             }
           }}
         >
-          🚀 Produire toute la saison ({remainingCount} restant{remainingCount > 1 ? 's' : ''})
+          🚀 Produire toute la saison (interne, {remainingCount} restant{remainingCount > 1 ? 's' : ''})
         </button>
       )}
       {renderedEpisodes.length > 0 && (
         <div className="downloads-box">
-          <div className="downloads-title">📥 Épisodes prêts</div>
+          <div className="downloads-title">⬇️ MP4 prêts à publier</div>
           <div className="downloads-links">
             {renderedEpisodes.map((e) => (
               <a
@@ -1646,6 +1645,13 @@ export function ProjectView({ projectId, onBack }) {
   return (
     <div className="studio project">
       {header}
+      {!isChaine && (
+        <p className="cast-hint" style={{ margin: '4px 0 0' }}>
+          Étape 3 / 3 — La production : pour chaque épisode, choisis <strong>🎬 Studio
+          Director</strong> (recommandé — OpenArt tourne tout) ou <strong>🛠️ la production
+          interne</strong> (l'appli fabrique images, voix et synchro).
+        </p>
+      )}
       {episodeTabs}
       {topicBar}
       {costRibbon}
@@ -1709,7 +1715,7 @@ export function ProjectView({ projectId, onBack }) {
             </div>
             <p className="cast-hint">
               🎙️ Change une voix ici (▶️ pour l'écouter), puis clique « 🔊 Régénérer la voix » sur
-              une scène — ou « 🔊 Générer toutes les voix » — pour l'appliquer.
+              une scène — ou « 🔊 Régénérer toutes les voix » — pour l'appliquer.
             </p>
             <h2>
               {isChaine ? 'Vidéo' : 'Épisode'} {episode.number} — {episode.title}
@@ -1747,30 +1753,30 @@ export function ProjectView({ projectId, onBack }) {
               <button
                 className="btn-primary"
                 disabled={busy}
-                title="Écrit UNIQUEMENT le scénario (1 appel Claude, aucune image ni voix) : tu obtiens le kit à coller dans OpenArt Director, qui tournera l'épisode entier"
+                title="Écrit UNIQUEMENT le scénario (1 appel Claude, aucune image ni voix) : tu obtiens la planche et le texte à coller dans OpenArt Director, qui tournera l'épisode entier"
                 onClick={() => {
                   if (
                     confirm(
-                      `Préparer le Kit Director de l'épisode ${epNumber} ?\n\nClaude écrit seulement le scénario (+ les portraits manquants s'il y en a) — aucune image de scène, aucun clip, aucune voix. C'est OpenArt Director qui tournera l'épisode.`,
+                      `Studio Director — préparer le tournage de l'épisode ${epNumber} ?\n\nClaude écrit seulement le scénario (+ les portraits manquants s'il y en a) — aucune image de scène, aucun clip, aucune voix. C'est OpenArt Director qui tournera l'épisode.`,
                     )
                   ) {
                     runJob(() => api.prepareDirectorKit(projectId, epNumber));
                   }
                 }}
               >
-                🎬 Préparer le Kit Director (scénario seul)
+                🎬 Studio Director — préparer le tournage (recommandé)
               </button>
               <button
                 className="btn-ghost"
                 disabled={busy}
-                title="L'ancienne méthode : Drama Studio génère lui-même images, clips, voix et synchro"
+                title="L'appli génère elle-même images, clips, voix et synchro"
                 onClick={() => {
-                  if (confirm(`Produire l'épisode ${epNumber} ?\n\n${quote(1)}`)) {
+                  if (confirm(`Produire l'épisode ${epNumber} en production interne ?\n\n${quote(1)}`)) {
                     produce(epNumber);
                   }
                 }}
               >
-                ▶️ Produire l'épisode {epNumber} (méthode classique)
+                🛠️ Produire l'épisode {epNumber} (production interne)
               </button>
             </>
           )}
