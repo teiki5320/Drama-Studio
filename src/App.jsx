@@ -220,8 +220,8 @@ function DirectorTestCard() {
           </p>
         ) : (
           <div className="create-actions">
-            <button className="btn-primary" onClick={prepare}>
-              1️⃣ Créer le portrait de test (~8 crédits OpenArt)
+            <button className="btn-primary" onClick={prepare} title="Génère le portrait du personnage de test (~8 crédits OpenArt)">
+              1️⃣ Portrait de test
             </button>
           </div>
         )
