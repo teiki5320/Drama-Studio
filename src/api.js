@@ -129,7 +129,44 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ fresh: Boolean(fresh), model: model || undefined }),
     }),
+  directorTest: () => request('/api/lipsync-test/director'),
+  prepareDirectorTest: () => request('/api/lipsync-test/director', { method: 'POST' }),
+  directorKit: (id, n) => request(`/api/projects/${id}/episodes/${n}/director-kit`),
+  prepareDirectorKit: (id, n) =>
+    request(`/api/projects/${id}/episodes/${n}/director-kit`, { method: 'POST' }),
+  // Le MP4 part en binaire brut (pas de JSON : trop lourd en data-URL).
+  importEpisodeVideo: async (id, n, file) => {
+    const res = await fetch(`/api/projects/${id}/episodes/${n}/import-video`, {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || `Erreur ${res.status}`);
+    }
+    return data;
+  },
 };
+
+// Copie robuste : l'API moderne quand elle existe (localhost = contexte
+// sécurisé), sinon le repli execCommand (accès par IP locale depuis l'iPad).
+export function copyText(text) {
+  const legacy = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => legacy());
+  }
+  return Promise.resolve(legacy());
+}
 
 // Suit un job jusqu'à la fin ; onTick reçoit l'état à chaque itération.
 export async function followJob(jobId, onTick) {

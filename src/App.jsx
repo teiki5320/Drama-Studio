@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { STYLES, MAX_STYLES, EPISODE_COUNT, VOICES } from '../shared/catalog.js';
-import { api, followJob, fileToDataUrl } from './api.js';
+import { api, followJob, fileToDataUrl, copyText } from './api.js';
 import { ProjectView } from './ProjectView.jsx';
 
 function StylePicker({ selected, onToggle }) {
@@ -160,6 +160,115 @@ const LIPSYNC_MODELS = [
   { id: 'veed/lipsync', label: 'VEED lipsync ($)' },
 ];
 
+// ---------- Test OpenArt Director ----------
+// La NOUVELLE méthode recommandée : Director (openart.ai) fabrique un clip
+// parlé complet — voix française + lèvres synchronisées — en une passe.
+// Ce test prépare un portrait + la consigne exacte à coller dans son chat,
+// pour juger le résultat AVANT de dépenser sur un épisode entier.
+function DirectorTestCard() {
+  const [kit, setKit] = useState(null);
+  const [job, setJob] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const refresh = () => api.directorTest().then(setKit).catch(() => {});
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const prepare = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { jobId } = await api.prepareDirectorTest();
+      await followJob(jobId, setJob);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setJob(null);
+      setBusy(false);
+      refresh();
+    }
+  };
+
+  const copy = () =>
+    copyText(kit.text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+
+  return (
+    <details className="brand-card">
+      <summary>
+        🎬 Test OpenArt Director {kit?.face ? '✅' : ''}
+        <span className="brand-hint">
+          — la nouvelle méthode : un mini-clip parlé fait DANS Director, à tester avant les épisodes
+        </span>
+      </summary>
+      <p className="section-label">
+        OpenArt <strong>Director</strong> (sur openart.ai, menu de gauche → Director) fabrique un
+        clip complet en une seule passe : voix française et lèvres synchronisées nativement, avec
+        tes crédits OpenArt (~60 crédits/seconde en 480p, soit ~600 crédits pour ce test de 10 s).
+        Si le résultat te plaît, chaque épisode aura son « 🎬 Kit Director » prêt à coller.
+      </p>
+      {!kit?.face ? (
+        busy ? (
+          <p className="section-label">
+            <span className="spinner small" /> {job?.step || 'Démarrage…'}
+          </p>
+        ) : (
+          <div className="create-actions">
+            <button className="btn-primary" onClick={prepare}>
+              1️⃣ Créer le portrait de test (~8 crédits OpenArt)
+            </button>
+          </div>
+        )
+      ) : (
+        <>
+          <div className="create-actions" style={{ alignItems: 'center' }}>
+            <img
+              src={kit.faceUrl}
+              alt="Portrait de test"
+              style={{ width: 96, borderRadius: 8 }}
+            />
+            <a
+              className="btn-small"
+              href="/studio/synctest_face.jpg"
+              download="portrait-test-drama-studio.jpg"
+            >
+              ⬇️ 1. Télécharger le portrait
+            </a>
+            <button className="btn-small" onClick={copy}>
+              {copied ? '✅ Copié !' : '📋 2. Copier la consigne'}
+            </button>
+          </div>
+          <ol className="section-label" style={{ lineHeight: 1.8, paddingLeft: 20 }}>
+            <li>Télécharge le portrait ci-dessus.</li>
+            <li>
+              Sur <strong>openart.ai</strong>, ouvre <strong>Director</strong> (menu de gauche) et
+              joins le portrait avec le bouton « + » du chat.
+            </li>
+            <li>Copie la consigne, colle-la dans le chat et envoie.</li>
+            <li>
+              Regarde le clip : si la voix française et les lèvres te plaisent, la méthode est
+              validée 🎉 — dis-le à Claude et utilise ensuite le Kit Director de tes épisodes.
+            </li>
+          </ol>
+          <textarea
+            readOnly
+            value={kit.text}
+            rows={5}
+            style={{ width: '100%', fontSize: 12 }}
+            onFocus={(e) => e.target.select()}
+          />
+        </>
+      )}
+      {error && <p className="error">{error}</p>}
+    </details>
+  );
+}
+
 function SyncTestCard() {
   const [status, setStatus] = useState(null);
   const [job, setJob] = useState(null);
@@ -204,7 +313,8 @@ function SyncTestCard() {
       <summary>
         🧪 Test synchro {status?.lastSuccess ? '✅' : ''}
         <span className="brand-hint">
-          — vérifie image → clip → voix → lèvres sur UN mini-clip, sans produire d'épisode
+          — l'ancienne chaîne (image → clip → voix → lèvres) sur UN mini-clip, sans produire
+          d'épisode
         </span>
       </summary>
       <p className="section-label">
@@ -1062,6 +1172,8 @@ export function App() {
       <BrandCard studio={studio} onChange={refreshStudio} />
 
       <FrenchVoicesCard voices={voicesCatalog} onChange={refreshVoices} />
+
+      <DirectorTestCard />
 
       <SyncTestCard />
 
