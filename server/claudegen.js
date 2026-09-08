@@ -113,6 +113,7 @@ const DRAMA_IMAGE_SUFFIX =
   'dramatic close framing, shallow depth of field, african drama series, 9:16 vertical';
 
 const sceneSchema = (suffix) => `{
+  "location": "nom court du lieu EN FRANÇAIS (ex. 'salle du conseil'), IDENTIQUE lettre pour lettre pour toutes les scènes qui s'y déroulent",
   "lines": [1 à 2 répliques : {"speaker": "narrator" OU l'id d'un personnage, "text": "réplique courte et percutante en français, 18 mots maximum"} — JAMAIS deux personnages différents qui parlent dans la même scène],
   "characters": [ids des personnages VISIBLES à l'image dans cette scène, [] si aucun],
   "imagePrompt": "EN ANGLAIS : le plan cinématographique précis (lieu, action, émotion, cadrage — si un personnage parle dans la scène : GROS PLAN serré sur LUI SEUL, poitrine ou visage, face caméra ou trois quarts, bouche bien visible) en répétant mot pour mot la description visuelle 'visual' de chaque personnage présent, terminé par : ${suffix}"
@@ -193,6 +194,7 @@ const seriesSchema = (format) => `{
   "episode1": {
     "number": 1,
     "title": "titre de l'épisode 1",
+    "locations": {"nom du lieu (le même que dans les scènes)": "EN ANGLAIS : description visuelle très détaillée et STABLE du décor (architecture, mobilier, lumière, ambiance), recopiée mot pour mot dans les imagePrompt des scènes qui s'y déroulent"},
     "scenes": [${format.scenes} scènes : ${SCENE_SCHEMA}],
     "cliffhanger": "phrase de suspense qui donne envie de voir l'épisode 2"
   }
@@ -204,7 +206,7 @@ const seriesRules = (format) => `Contraintes STRICTES :${
     : ''
 }
 - CONTINUITÉ ET COHÉRENCE (l'écriture d'abord) : chaque épisode est un mini-récit complet — UNE question dramatique claire posée au début, une progression sans ellipse inexpliquée (chaque scène découle de la précédente), une réponse avant le cliffhanger. Un spectateur qui découvre l'épisode doit comprendre l'enjeu dans les 10 premières secondes.
-- COHÉRENCE VISUELLE : des scènes consécutives dans le même lieu recopient MOT POUR MOT la même description du décor dans leurs imagePrompt ; le moment de la journée reste constant sauf transition annoncée par le narrateur ; la tenue d'un personnage ne change jamais au sein d'un même épisode.
+- COHÉRENCE VISUELLE : chaque lieu de l'épisode a UNE description dans "locations" ; chaque scène porte son "location" et son imagePrompt recopie MOT POUR MOT la description de ce lieu ; le moment de la journée reste constant sauf transition annoncée par le narrateur ; la tenue d'un personnage ne change jamais au sein d'un même épisode.
 - GRAMMAIRE DES PLANS (indispensable — les lèvres des personnages sont animées par IA sur leur voix, et ça ne marche que sur UN visage en gros plan) : une scène où un personnage parle = UN SEUL personnage qui parle, cadré en GROS PLAN (poitrine ou visage), face caméra ou trois quarts, bouche bien visible, "characters" réduit à lui seul. Son interlocuteur répond dans la SCÈNE SUIVANTE — champ-contrechamp, comme dans les vraies séries. Le narrateur peut commenter n'importe quel plan. Les plans larges (décor, foule, action de groupe) sont réservés aux scènes SANS réplique de personnage.
 - STAR DE L'ÉCRAN (style DramaWave/ReelShort) : le personnage principal (le PREMIER de la liste "characters", homme ou femme) doit crever l'écran comme la star d'une mini-série verticale à succès. Si c'est une HÉROÏNE : beauté renversante, longs cheveux magnifiques coiffés avec soin, maquillage glamour, silhouette élégante, tenue signature chic qui la met en valeur (robe élégante, bijoux) — sa description "visual" contient OBLIGATOIREMENT ces mots anglais : ${leadAdjectives('femme').join(', ')}. Si c'est un HÉROS : allure de lead de CEO-drama (costume ajusté ou tenue impeccable, physique athlétique) — sa description "visual" contient OBLIGATOIREMENT : ${leadAdjectives('homme').join(', ')}.
 - CLARTÉ AVANT TOUT : un spectateur qui découvre l'épisode sur son téléphone doit tout comprendre du premier coup. Phrases courtes et simples, aucun sous-entendu obscur, aucune ellipse confuse. Une scène = une seule idée claire qui fait avancer l'intrigue. Les personnages s'appellent par leur prénom dans les dialogues pour qu'on sache toujours qui parle à qui.
@@ -512,6 +514,7 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 {
   "number": ${number},
   "title": "titre de l'épisode",
+  "locations": {"nom du lieu (le même que dans les scènes)": "EN ANGLAIS : description visuelle très détaillée et STABLE du décor (architecture, mobilier, lumière, ambiance), recopiée mot pour mot dans les imagePrompt des scènes qui s'y déroulent"},
   "scenes": [${format.scenes} scènes : ${SCENE_SCHEMA}],
   "cliffhanger": "phrase de suspense finale"
 }
@@ -523,7 +526,7 @@ Contraintes STRICTES :${
   }
 - CLARTÉ AVANT TOUT : tout doit se comprendre du premier coup. Phrases courtes et simples, une seule idée par scène, les personnages s'appellent par leur prénom. Le narrateur OUVRE OBLIGATOIREMENT l'épisode par un rappel « Précédemment » d'une phrase qui nomme les personnages et resitue l'enjeu, puis 3 interventions max.
 - CONTINUITÉ : aucune ellipse inexpliquée — chaque scène découle de la précédente, et l'épisode répond à sa question dramatique avant de poser le cliffhanger suivant.
-- COHÉRENCE VISUELLE : des scènes consécutives dans le même lieu recopient MOT POUR MOT la même description du décor dans leurs imagePrompt ; moment de la journée constant sauf transition annoncée ; la tenue d'un personnage ne change jamais au sein de l'épisode.
+- COHÉRENCE VISUELLE : chaque lieu a UNE description dans "locations" ; chaque scène porte son "location" et son imagePrompt recopie MOT POUR MOT la description de ce lieu ; moment de la journée constant sauf transition annoncée ; la tenue d'un personnage ne change jamais au sein de l'épisode.
 - DRAMA MAXIMAL : au moins une confrontation intense en face à face et une révélation choc dans l'épisode. Émotions fortes et assumées, phrases qui claquent.
 - Total des répliques ≈ ${format.words} mots (≈ ${format.seconds} secondes de voix) ; répliques ≤ 18 mots, percutantes et naturelles à l'oral.
 - Cliffhanger final irrésistible (danger imminent, secret sur le point d'éclater, retournement).

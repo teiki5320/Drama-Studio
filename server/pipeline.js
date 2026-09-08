@@ -108,6 +108,7 @@ function normalizeEpisode(raw, number) {
       : [...new Set(lines.map((l) => l.speaker).filter((sp) => sp !== 'narrator'))];
     return {
       id: `s${i + 1}`,
+      location: String(s.location || '').trim(),
       lines,
       characters,
       imagePrompt: String(s.imagePrompt || '').trim(),
@@ -117,9 +118,21 @@ function normalizeEpisode(raw, number) {
       version: 0,
     };
   });
+  // Fiches des lieux : { "nom du lieu": "description visuelle stable (EN)" } —
+  // la clé de la cohérence des décors (et du Kit Director, comme le casting).
+  const locations =
+    raw.locations && typeof raw.locations === 'object' && !Array.isArray(raw.locations)
+      ? Object.fromEntries(
+          Object.entries(raw.locations)
+            .filter(([, v]) => typeof v === 'string' && v.trim())
+            .slice(0, 12)
+            .map(([k, v]) => [String(k).trim(), v.trim()]),
+        )
+      : {};
   return {
     number,
     title: raw.title || `Épisode ${number}`,
+    locations,
     scenes,
     cliffhanger: raw.cliffhanger || '',
     status: 'script',

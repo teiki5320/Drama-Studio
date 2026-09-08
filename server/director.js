@@ -40,12 +40,12 @@ export function buildDirectorKit(project, episode) {
   const lines = [
     `Réalise l'épisode ${episode.number} de ma mini-série verticale. L'histoire et les dialogues sont DÉJÀ écrits ci-dessous : mets-les en scène tels quels, sans les changer.`,
     '',
-    'RÉGLAGES',
+    'RÉGLAGES DÉFINITIFS (ne me redemande ni format, ni résolution, ni durée)',
     `- Vidéo verticale 9:16 (TikTok), durée totale d'environ ${seconds} secondes.`,
     '- Résolution : 480p pour ce premier essai (je passerai en qualité supérieure ensuite).',
     '- Tous les dialogues et la voix off sont EN FRANÇAIS : voix naturelles en français, lèvres synchronisées sur le français.',
     '- Ajoute des sous-titres automatiques en français.',
-    '- Style : mini-série africaine glamour type DramaWave/ReelShort — image léchée, gros plans dramatiques sur celui qui parle, étalonnage riche.',
+    '- Style : mini-série africaine glamour type DramaWave/ReelShort — image léchée, gros plans dramatiques sur celui qui parle, plans de réaction, étalonnage riche.',
     "- L'image jointe est la planche OFFICIELLE des visages, dans l'ordre de la liste ci-dessous : garde ces visages EXACTEMENT, dans tous les plans.",
     '',
     `LA SÉRIE : ${project.title}`,
@@ -61,12 +61,34 @@ export function buildDirectorKit(project, episode) {
     lines.push(`${i + 1}. ${c.name} — ${c.role} (${c.gender}, ${c.age} ans). Apparence : ${c.visual}`);
   });
   lines.push('Aucun autre personnage ne parle (des figurants muets sont permis).');
+  // Les lieux sont des références à part entière, comme le casting : Director
+  // (et les outils du même genre) crée une fiche par décor et la réutilise.
+  const locations =
+    episode.locations && Object.keys(episode.locations).length > 0 ? episode.locations : null;
+  const locationNames = locations
+    ? []
+    : [...new Set((episode.scenes || []).map((s) => s.location).filter(Boolean))];
+  if (locations) {
+    lines.push(
+      '',
+      "LIEUX (crée une référence visuelle par lieu et garde-la EXACTEMENT dans tous les plans qui s'y déroulent)",
+    );
+    Object.entries(locations).forEach(([name, desc]) => {
+      lines.push(`- ${name} : ${desc}`);
+    });
+  } else if (locationNames.length > 0) {
+    lines.push(
+      '',
+      'LIEUX (un décor = une référence visuelle, gardée identique dans tous ses plans)',
+      ...locationNames.map((n) => `- ${n}`),
+    );
+  }
   if (prev && prev.summary) {
     lines.push('', `PRÉCÉDEMMENT (épisode ${episode.number - 1}) : ${prev.summary}`);
   }
   lines.push('', `ÉPISODE ${episode.number} — ${episode.title}`);
   (episode.scenes || []).forEach((scene, i) => {
-    lines.push('', `Scène ${i + 1}`);
+    lines.push('', `Scène ${i + 1}${scene.location ? ` — ${scene.location}` : ''}`);
     if (scene.imagePrompt) {
       lines.push(`Plan : ${scene.imagePrompt}`);
     }
@@ -74,7 +96,7 @@ export function buildDirectorKit(project, episode) {
       lines.push(
         l.speaker === 'narrator'
           ? `VOIX OFF (narrateur) : « ${l.text} »`
-          : `${speakerName(project, l.speaker).toUpperCase()}, en gros plan face caméra : « ${l.text} »`,
+          : `${speakerName(project, l.speaker).toUpperCase()}, en gros plan : « ${l.text} »`,
       );
     }
   });
@@ -84,7 +106,7 @@ export function buildDirectorKit(project, episode) {
   lines.push(
     '',
     'DÉROULÉ',
-    "Guide-moi étape par étape : montre-moi d'abord le casting et les décors pour validation, puis génère les plans dans l'ordre.",
+    "Montre-moi le casting et les lieux en UNE seule validation, puis génère TOUS les plans d'un coup, dans l'ordre, sans autre question. Assemble le montage avec les sous-titres français et donne-moi la vidéo finale.",
   );
 
   return {
