@@ -471,7 +471,15 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
                 </a>{' '}
                 <button className="btn-small" onClick={copy}>
                   {copied ? '✅ Copié !' : '📋 2. Copier le texte'}
-                </button>
+                </button>{' '}
+                <a
+                  className="btn-small"
+                  href={`data:text/plain;charset=utf-8,${encodeURIComponent(kit.text)}`}
+                  download={`episode-${episode.number}-studio-director.txt`}
+                  title="La même chose que « Copier », mais en fichier .txt dans Téléchargements — pratique si le copier-coller est capricieux"
+                >
+                  💾 Fichier texte
+                </a>
               </p>
             </>
           )}
