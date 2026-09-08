@@ -110,7 +110,8 @@ export function extractJson(text) {
 const DRAMA_IMAGE_SUFFIX =
   'glossy vertical short-drama film still in the style of hit apps like DramaWave and ReelShort, ' +
   'premium TV production value, glamorous polished cast styling, rich cinematic color grade, ' +
-  'dramatic close framing, shallow depth of field, african drama series, 9:16 vertical';
+  'dramatic close framing, shallow depth of field, african drama series, 9:16 vertical, ' +
+  'no on-screen text, no letters, no logo, no watermark';
 
 const sceneSchema = (suffix) => `{
   "location": "nom court du lieu EN FRANÇAIS (ex. 'salle du conseil'), IDENTIQUE lettre pour lettre pour toutes les scènes qui s'y déroulent",

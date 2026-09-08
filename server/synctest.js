@@ -24,7 +24,8 @@ const TEST_LINE =
 const PORTRAIT_PROMPT =
   'Waist-up portrait of a friendly charismatic african man in his thirties wearing a colorful ' +
   'patterned shirt, facing camera, mouth closed, plain warm background, soft cinematic light. ' +
-  'Photorealistic, cinematic film still, 9:16 vertical.';
+  'Photorealistic, cinematic film still, 9:16 vertical. ' +
+  'Clean photograph ONLY: no text, no letters, no logo, no watermark.';
 
 const MOTION_PROMPT =
   'Bring this portrait to life with subtle realistic motion: he breathes, blinks and makes tiny ' +

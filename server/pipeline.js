@@ -177,16 +177,21 @@ export async function ensureCharacterPortraits(project, update) {
     const file = `char_${c.id}_v${c.portraitVersion}.jpg`;
     // La star (premier personnage) a droit à un vrai portrait glamour de
     // télénovela ; les autres gardent un portrait neutre de référence.
+    // IMPORTANT : aucune mention de « magazine », « cover » ou de marques —
+    // le générateur les prend au mot et écrit un titre d'affiche SUR l'image.
     const prompt =
       i === 0
-        ? `Glamorous lead ${c.gender === 'femme' ? 'actress' : 'actor'} reference portrait for a hit ` +
-          `vertical short drama (DramaWave / ReelShort style), waist-up, facing camera, ` +
+        ? `Glamorous lead ${c.gender === 'femme' ? 'actress' : 'actor'} reference portrait for a ` +
+          `premium vertical drama series, waist-up, facing camera, ` +
           `confident captivating gaze, soft subtle smile, flattering cinematic beauty lighting, ` +
           `flawless elegant styling, plain warm background: ${c.visual}. ` +
-          `Magazine-cover quality, photorealistic, cinematic film still, 9:16 vertical.`
+          `Professional studio photography, photorealistic, cinematic film still, 9:16 vertical. ` +
+          `Clean photograph ONLY: absolutely no text, no letters, no words, no title, no logo, ` +
+          `no watermark, no poster graphics anywhere in the image.`
         : `Character reference portrait, waist-up, facing camera, neutral expression, ` +
           `plain warm background, soft natural light: ${c.visual}. ` +
-          `Photorealistic, cinematic film still, 9:16 vertical.`;
+          `Photorealistic, cinematic film still, 9:16 vertical. ` +
+          `Clean photograph ONLY: no text, no letters, no logo, no watermark.`;
     const { ok, url, provider } = await generateImage(prompt, path.join(dir, file), {});
     if (ok) {
       c.portrait = file;
