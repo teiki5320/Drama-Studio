@@ -54,8 +54,29 @@ export const api = {
     request(`/api/projects/${id}/episodes/${n}/regen-images`, { method: 'POST' }),
   retryAssets: (id, n) =>
     request(`/api/projects/${id}/episodes/${n}/retry-assets`, { method: 'POST' }),
+  regenStoryboard: (id, n) =>
+    request(`/api/projects/${id}/episodes/${n}/storyboard`, { method: 'POST' }),
+  regenShotImage: (id, n, sceneId, idx) =>
+    request(`/api/projects/${id}/episodes/${n}/scenes/${sceneId}/shots/${idx}/image`, {
+      method: 'POST',
+    }),
+  regenShotVideo: (id, n, sceneId, idx) =>
+    request(`/api/projects/${id}/episodes/${n}/scenes/${sceneId}/shots/${idx}/video`, {
+      method: 'POST',
+    }),
+  lipsyncShot: (id, n, sceneId, idx) =>
+    request(`/api/projects/${id}/episodes/${n}/scenes/${sceneId}/shots/${idx}/lipsync`, {
+      method: 'POST',
+    }),
   regenPortrait: (id, charId) =>
     request(`/api/projects/${id}/characters/${charId}/portrait`, { method: 'POST' }),
+  regenLocationImage: (id, idx) =>
+    request(`/api/projects/${id}/locations/${idx}/image`, { method: 'POST' }),
+  newLocationLook: (id, idx, instructions) =>
+    request(`/api/projects/${id}/locations/${idx}/new-look`, {
+      method: 'POST',
+      body: JSON.stringify({ instructions }),
+    }),
   patchCharacter: (id, charId, patch) =>
     request(`/api/projects/${id}/characters/${charId}`, {
       method: 'PATCH',

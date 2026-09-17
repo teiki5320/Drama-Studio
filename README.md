@@ -99,3 +99,17 @@ src/remotion/    Composition vidéo partagée entre l'aperçu (Player) et le ren
 shared/          Catalogue des styles (source unique front + serveur)
 projects/        Tes dramas (créé automatiquement, non versionné)
 ```
+
+## Storyboard (découpage en plans)
+
+Depuis la version storyboard, la production interne d'un drama insère une étape entre le
+scénario et les images : **Claude découpe chaque épisode en 12-18 plans** (plan large,
+champ/contrechamp, gros plan, insert) — un seul appel Claude, aucun crédit image/voix.
+Chaque plan porte sa durée cible, son lieu, ses personnages et, s'il y en a une, SA réplique
+(pointée par `lineIndex` — la voix reste générée par réplique). La production itère ensuite
+par plan : une image par plan (références visages + décor du lieu), un clip pour les seuls
+plans animés retenus, la synchro labiale calée sur la réplique du plan. Le réglage
+**« 🎬 Plans animés/épisode »** plafonne les clips payants : priorité aux plans avec
+réplique, puis au cliffhanger, puis aux autres. Le montage enchaîne les plans en coupes
+franches (image fixe = zoom lent), et « 🎬 Refaire le storyboard » redécoupe l'épisode.
+Les épisodes produits avant cette version restent lus et montés comme avant (une scène = une image).

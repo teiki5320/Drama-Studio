@@ -89,15 +89,34 @@ export function buildDirectorKit(project, episode) {
   lines.push('', `ÉPISODE ${episode.number} — ${episode.title}`);
   (episode.scenes || []).forEach((scene, i) => {
     lines.push('', `Scène ${i + 1}${scene.location ? ` — ${scene.location}` : ''}`);
-    if (scene.imagePrompt) {
-      lines.push(`Plan : ${scene.imagePrompt}`);
-    }
-    for (const l of scene.lines || []) {
-      lines.push(
-        l.speaker === 'narrator'
-          ? `VOIX OFF (narrateur) : « ${l.text} »`
-          : `${speakerName(project, l.speaker).toUpperCase()}, en gros plan : « ${l.text} »`,
-      );
+    const shots = Array.isArray(scene.shots) ? scene.shots : [];
+    if (shots.length > 0) {
+      // Épisode storyboardé : le découpage plan par plan guide Director.
+      for (const shot of shots) {
+        const l = shot.lineIndex != null ? (scene.lines || [])[shot.lineIndex] : null;
+        const who =
+          l && l.speaker !== 'narrator'
+            ? speakerName(project, l.speaker).toUpperCase()
+            : l
+              ? 'VOIX OFF'
+              : null;
+        lines.push(
+          `- Plan ${i + 1}.${shot.idx + 1} (${shot.type}, ~${shot.durationSec} s) : ${shot.visualDesc.slice(0, 160)}${
+            who ? ` — ${who} : « ${l.text} »` : ''
+          }`,
+        );
+      }
+    } else {
+      if (scene.imagePrompt) {
+        lines.push(`Plan : ${scene.imagePrompt}`);
+      }
+      for (const l of scene.lines || []) {
+        lines.push(
+          l.speaker === 'narrator'
+            ? `VOIX OFF (narrateur) : « ${l.text} »`
+            : `${speakerName(project, l.speaker).toUpperCase()}, en gros plan : « ${l.text} »`,
+        );
+      }
     }
   });
   if (episode.cliffhanger) {

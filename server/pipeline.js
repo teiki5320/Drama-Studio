@@ -6,7 +6,13 @@ import {
   plannedVideoIndexes,
   wantsLipsync,
   lipsyncSpeaker,
+  episodeHasShots,
+  sceneShots,
+  shotKey,
+  plannedShotKeys,
+  shotEffectiveSec,
 } from '../shared/catalog.js';
+import { generateStoryboard } from './storyboard.js';
 import { VIDEO_SCENES } from './config.js';
 import { openartGenerateVideo } from './openart.js';
 import {
@@ -29,6 +35,7 @@ import {
   buildChannelPrompt,
   buildTopicsPrompt,
   buildChannelVideoPrompt,
+  DRAMA_IMAGE_SUFFIX,
 } from './claudegen.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -141,6 +148,15 @@ function normalizeEpisode(raw, number) {
 }
 
 function recomputeSceneDuration(scene) {
+  // Scène storyboardée : la durée = la somme de ses plans (durée cible de
+  // chaque plan, allongée si sa réplique dépasse — la voix a le dernier mot).
+  const shots = sceneShots(scene);
+  if (shots.length > 0) {
+    scene.durationSec = Math.round(
+      shots.reduce((sum, sh) => sum + shotEffectiveSec(sh, scene), 0),
+    );
+    return;
+  }
   const spoken = (scene.lines || []).reduce(
     (sum, l) => sum + (l.audioDurationSec || 2) + LINE_GAP,
     0,
@@ -157,6 +173,65 @@ function sceneReferenceUrls(project, scene) {
     .map((id) => (project.characters || []).find((c) => c.id === id))
     .filter((c) => c && c.portraitUrl)
     .map((c) => c.portraitUrl);
+}
+
+// Références d'un PLAN : portraits de TOUS les personnages du plan (par nom
+// exact) + l'image de référence de son lieu.
+function shotReferenceUrls(project, shot) {
+  const urls = [];
+  for (const name of shot.characters || []) {
+    const c = (project.characters || []).find((x) => x.name === name);
+    if (c && c.portraitUrl) {
+      urls.push(c.portraitUrl);
+    }
+  }
+  const loc = findLocation(project, shot.location);
+  if (loc && loc.imageUrl) {
+    urls.push(loc.imageUrl);
+  }
+  return urls;
+}
+
+// Prompt image d'un plan : ce qu'on voit + rappel des tenues des personnages
+// présents + style de la série. Ni mouvement (motionDesc) ni dialogue.
+function shotImagePrompt(project, shot) {
+  const outfits = (shot.characters || [])
+    .map((name) => {
+      const c = (project.characters || []).find((x) => x.name === name);
+      return c ? `${c.name}: ${c.visual}` : null;
+    })
+    .filter(Boolean)
+    .join('. ');
+  return (
+    `${shot.visualDesc}` +
+    (outfits ? `. Characters present (KEEP their exact look and outfit): ${outfits}` : '') +
+    `. ${DRAMA_IMAGE_SUFFIX}`
+  );
+}
+
+// Génère (ou régénère) l'image d'un plan, références visages + lieu comprises.
+export async function generateShotImage(project, episode, scene, shot) {
+  shot.version = (shot.version || 0) + 1;
+  const file = `e${episode.number}_${scene.id}_p${shot.idx}_v${shot.version}.jpg`;
+  const { ok, url, provider } = await generateImage(
+    shotImagePrompt(project, shot),
+    path.join(assetsDir(project.id), file),
+    { referenceUrls: shotReferenceUrls(project, shot) },
+  );
+  if (!ok) {
+    throw new Error("l'image n'a pas pu être générée");
+  }
+  shot.image = file;
+  shot.imageUrl = url || null;
+  shot.video = null;
+  shot.lipsynced = false;
+  delete shot.imageError;
+  countImage(project, provider);
+  if (episode.status === 'done') {
+    episode.status = 'ready';
+  }
+  saveProject(project);
+  return file;
 }
 
 // Avec OpenArt : crée d'abord un portrait de référence par personnage,
@@ -202,16 +277,149 @@ export async function ensureCharacterPortraits(project, update) {
   }
 }
 
+// Nom de fichier sûr pour un lieu (accents et espaces retirés).
+function locationSlug(name) {
+  return (
+    String(name)
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '')
+      .toLowerCase()
+      .slice(0, 40) || 'lieu'
+  );
+}
+
+// Décors de référence au niveau PROJET (même mécanique que les portraits) :
+// une image par lieu, générée UNE fois par série puis réutilisée comme
+// référence dans tous les plans qui s'y déroulent. Les descriptions texte
+// restent dans episode.locations ; project.locations porte les images.
+export async function ensureLocationImages(project, update) {
+  if (currentProvider() !== 'openart') {
+    return;
+  }
+  const locs = project.locations || (project.locations = []);
+  for (const ep of project.episodes || []) {
+    for (const [name, visual] of Object.entries(ep.locations || {})) {
+      if (name && visual && !locs.find((l) => l.name === name)) {
+        locs.push({ name, visual, image: null, imageUrl: null, version: 0 });
+      }
+    }
+  }
+  const dir = assetsDir(project.id);
+  for (let i = 0; i < locs.length; i++) {
+    const l = locs[i];
+    if (l.image && l.imageUrl) {
+      continue;
+    }
+    update(`Décor de référence ${i + 1}/${locs.length} — ${l.name}…`, i / locs.length);
+    l.version = (l.version || 0) + 1;
+    const file = `loc_${locationSlug(l.name)}_v${l.version}.jpg`;
+    const prompt =
+      `Location reference plate for a drama series, completely empty of people: ${l.visual}. ` +
+      `Photorealistic, cinematic film still, 9:16 vertical. ` +
+      `Clean photograph ONLY: no text, no letters, no logo, no watermark.`;
+    try {
+      const { ok, url, provider } = await generateImage(prompt, path.join(dir, file), {});
+      if (ok) {
+        l.image = file;
+        l.imageUrl = url;
+        countImage(project, provider);
+      }
+    } catch (e) {
+      console.error(`Décor ${l.name} :`, e.message);
+    }
+    saveProject(project);
+  }
+}
+
+export function findLocation(project, name) {
+  return (project.locations || []).find((l) => l.name === name) || null;
+}
+
+// Regénère le décor avec la même description (variation légère).
+export async function regenerateLocationImage(project, index, update) {
+  const l = (project.locations || [])[index];
+  if (!l) {
+    throw new Error('Lieu introuvable');
+  }
+  l.image = null;
+  l.imageUrl = null;
+  saveProject(project);
+  await ensureLocationImages(project, update);
+  if (!l.image) {
+    throw new Error("Le décor n'a pas pu être généré.");
+  }
+}
+
+// « ✨ Nouveau décor » : Claude réécrit la description (guidée par les
+// consignes), puis l'image de référence est régénérée.
+export async function newLocationLook(project, index, instructions, update) {
+  const l = (project.locations || [])[index];
+  if (!l) {
+    throw new Error('Lieu introuvable');
+  }
+  update('Réécriture du décor par Claude…');
+  const data = await askClaudeForJson(
+    `Décor d'une mini-série verticale « ${project.title} » (${project.setting}).\n` +
+      `Lieu : ${l.name}. Description actuelle (EN) : ${l.visual}\n` +
+      (instructions ? `Consignes de l'auteur : ${instructions}\n` : '') +
+      `Réécris ce décor (même lieu, autre apparence/ambiance, guidée par les consignes).\n` +
+      `Réponds UNIQUEMENT avec un objet JSON valide : {"visual": "description visuelle EN ANGLAIS, très détaillée et STABLE du décor (architecture, mobilier, lumière, ambiance)"}`,
+  );
+  ensureUsage(project).claudeCalls += 1;
+  if (!data.visual) {
+    throw new Error("Claude n'a pas fourni de description.");
+  }
+  l.visual = String(data.visual);
+  l.image = null;
+  l.imageUrl = null;
+  saveProject(project);
+  await ensureLocationImages(project, update);
+}
+
 async function generateEpisodeAssets(project, episode, update) {
   const dir = assetsDir(project.id);
   const provider = currentProvider();
   const scenes = episode.scenes || [];
 
-  // 0. Portraits de référence (OpenArt uniquement) — la clé des visages constants.
+  // 0. Portraits + décors de référence (OpenArt) — visages et lieux constants.
   await ensureCharacterPortraits(project, update);
+  await ensureLocationImages(project, update);
 
-  // 1. Images
-  if (provider !== 'manual') {
+  // 0 bis. Storyboard : découpage des scènes en plans (dramas uniquement,
+  // UN appel Claude, aucun appel payant). Sans storyboard (anciens épisodes,
+  // chaînes), toute la suite garde le comportement « une scène = une image ».
+  if (project.mode !== 'chaine' && !episodeHasShots(episode)) {
+    await generateStoryboard(project, episode, update);
+  }
+
+  const hasShots = episodeHasShots(episode);
+
+  // 1. Images — une par PLAN quand l'épisode est storyboardé, sinon une par
+  // scène (anciens épisodes, chaînes) : comportement historique conservé.
+  if (provider !== 'manual' && hasShots) {
+    const all = [];
+    for (const scene of scenes) {
+      for (const shot of sceneShots(scene)) {
+        all.push({ scene, shot });
+      }
+    }
+    for (let i = 0; i < all.length; i++) {
+      const { scene, shot } = all[i];
+      if (shot.image) {
+        continue;
+      }
+      update(`Épisode ${episode.number} — image du plan ${i + 1}/${all.length}…`, i / all.length);
+      try {
+        await generateShotImage(project, episode, scene, shot);
+      } catch (e) {
+        console.error(`Image plan ${scene.id}#${shot.idx} :`, e.message);
+        shot.imageError = e.message;
+      }
+      saveProject(project);
+    }
+  } else if (provider !== 'manual') {
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       if (scene.image) {
@@ -272,10 +480,59 @@ async function generateEpisodeAssets(project, episode, update) {
     saveProject(project);
   }
 
-  // 3. Clips vidéo (OpenArt) : nombre réglable par drama — Format long :
-  // TOUTES les scènes par défaut (style DramaWave). Après les voix, pour
-  // connaître la durée cible.
-  if (provider === 'openart' && VIDEO_SCENES) {
+  // 3. Clips vidéo (OpenArt). Épisode storyboardé : un clip par PLAN animé
+  // retenu (priorité réplique → cliffhanger → ordre, plafond = « Plans
+  // animés/épisode »). Après les voix, pour caler la durée sur la réplique.
+  if (provider === 'openart' && VIDEO_SCENES && hasShots) {
+    const planned = plannedShotKeys(project, episode);
+    const flat = [];
+    scenes.forEach((scene, si) => {
+      for (const shot of sceneShots(scene)) {
+        if (planned.has(shotKey(si, shot))) {
+          flat.push({ scene, shot });
+        }
+      }
+    });
+    for (let k = 0; k < flat.length; k++) {
+      const { scene, shot } = flat[k];
+      if (shot.video || shot.videoDisabled || !shot.image) {
+        continue;
+      }
+      const line = shot.lineIndex != null ? (scene.lines || [])[shot.lineIndex] : null;
+      const spoken = Boolean(line && line.speaker !== 'narrator');
+      // Modèle « avatar » : le plan parlé est généré directement image + voix
+      // par la synchro — pas de clip OpenArt à payer.
+      const talking = spoken && isTalkingModel();
+      if (!talking) {
+        update(
+          `Épisode ${episode.number} — clip du plan ${k + 1}/${flat.length} (plusieurs minutes)…`,
+          k / flat.length,
+        );
+        try {
+          await generateShotVideo(project, episode, scene, shot);
+        } catch (e) {
+          console.error(`Clip plan ${scene.id}#${shot.idx} :`, e.message);
+          shot.videoError = e.message;
+          saveProject(project);
+        }
+      }
+      // Lèvres calées sur LA réplique du plan (un seul parleur par
+      // construction — plus besoin de la piste voix mixée de la scène).
+      if (spoken && (shot.video || talking) && !shot.lipsynced) {
+        update(
+          `Épisode ${episode.number} — synchro labiale du plan ${k + 1}/${flat.length}…`,
+          k / flat.length,
+        );
+        try {
+          await lipsyncShot(project, episode, scene, shot, () => {});
+        } catch (e) {
+          console.error(`Synchro plan ${scene.id}#${shot.idx} :`, e.message);
+          shot.lipsyncError = e.message;
+          saveProject(project);
+        }
+      }
+    }
+  } else if (provider === 'openart' && VIDEO_SCENES) {
     const wanted = plannedVideoIndexes(project, scenes.length);
     for (let k = 0; k < wanted.length; k++) {
       const scene = scenes[wanted[k]];
@@ -335,6 +592,52 @@ function videoMotionPrompt(scene) {
   );
 }
 
+// Prompt de mouvement d'un PLAN : le mouvement décidé au storyboard +
+// l'ambiance — sans redescription du décor (l'image source le porte déjà).
+function shotMotionPrompt(shot) {
+  return (
+    `Bring this shot to life with subtle, realistic motion: ` +
+    `${shot.motionDesc || 'characters breathe, blink and make small natural gestures; gentle slow camera push-in'}. ` +
+    (shot.ambience ? `Ambience: ${shot.ambience}. ` : '') +
+    `Vertical 9:16 framing. CRITICAL: nobody speaks — mouths stay CLOSED and still ` +
+    `(the voice is added separately). Faces, clothing and background stay EXACTLY as in the source image.`
+  );
+}
+
+// Génère (ou régénère) le clip vidéo d'un PLAN. Durée générée = la plus
+// courte durée supportée par le moteur (5 s, sinon 10 s) qui couvre la
+// réplique du plan (+0,5 s) ; le montage coupe ensuite à la durée du plan.
+export async function generateShotVideo(project, episode, scene, shot) {
+  if (currentProvider() !== 'openart') {
+    throw new Error('Les clips vidéo nécessitent IMAGE_PROVIDER=openart dans .env');
+  }
+  if (!shot.image) {
+    throw new Error("Génère d'abord l'image du plan.");
+  }
+  delete shot.videoDisabled;
+  const line = shot.lineIndex != null ? (scene.lines || [])[shot.lineIndex] : null;
+  const voiceSec = line && line.audioDurationSec ? line.audioDurationSec + 0.5 : 0;
+  const durationSec = voiceSec > 5 ? 10 : 5;
+  const { buffer } = await openartGenerateVideo({
+    prompt: shotMotionPrompt(shot),
+    imageUrl: shot.imageUrl || null,
+    referenceUrls: shot.imageUrl ? [] : shotReferenceUrls(project, shot),
+    durationSec,
+  });
+  shot.videoVersion = (shot.videoVersion || 0) + 1;
+  const file = `e${episode.number}_${scene.id}_p${shot.idx}_vid${shot.videoVersion}.mp4`;
+  fs.writeFileSync(path.join(assetsDir(project.id), file), buffer);
+  shot.video = file;
+  shot.lipsynced = false;
+  delete shot.videoError;
+  countVideo(project);
+  if (episode.status === 'done') {
+    episode.status = 'ready';
+  }
+  saveProject(project);
+  return file;
+}
+
 // Génère (ou régénère) le clip vidéo d'une scène via OpenArt.
 export async function generateSceneVideo(project, episode, scene, update) {
   if (currentProvider() !== 'openart') {
@@ -367,6 +670,54 @@ export async function generateSceneVideo(project, episode, scene, update) {
   }
   saveProject(project);
   return file;
+}
+
+// Synchro labiale d'un PLAN : les lèvres sont calées sur LA réplique du plan
+// (via lineIndex) — un seul parleur par construction. Le clip synchronisé
+// remplace le clip muet ; la voix d'origine joue par-dessus au montage.
+export async function lipsyncShot(project, episode, scene, shot, update) {
+  const line = shot.lineIndex != null ? (scene.lines || [])[shot.lineIndex] : null;
+  if (!line || line.speaker === 'narrator') {
+    throw new Error("Ce plan n'a pas de réplique de personnage à synchroniser.");
+  }
+  if (!line.audio) {
+    throw new Error("Génère d'abord la voix de la réplique.");
+  }
+  const talking = isTalkingModel();
+  if (!talking && !shot.video) {
+    throw new Error("Génère d'abord le clip du plan.");
+  }
+  if (talking && !shot.image) {
+    throw new Error("Génère d'abord l'image du plan.");
+  }
+  const dir = assetsDir(project.id);
+  shot.videoVersion = (shot.videoVersion || 0) + 1;
+  const out = `e${episode.number}_${scene.id}_p${shot.idx}_sync${shot.videoVersion}.mp4`;
+  if (talking) {
+    await makeTalkingClip({
+      imagePath: path.join(dir, shot.image),
+      imageUrl: shot.imageUrl || null,
+      audioPath: path.join(dir, line.audio),
+      outPath: path.join(dir, out),
+      update,
+    });
+  } else {
+    await lipsyncVideo({
+      videoPath: path.join(dir, shot.video),
+      audioPath: path.join(dir, line.audio),
+      outPath: path.join(dir, out),
+      update,
+    });
+  }
+  shot.video = out;
+  shot.lipsynced = true;
+  delete shot.lipsyncError;
+  ensureUsage(project).falLipsyncs = (ensureUsage(project).falLipsyncs || 0) + 1;
+  if (episode.status === 'done') {
+    episode.status = 'ready';
+  }
+  saveProject(project);
+  return out;
 }
 
 // Anime les lèvres du clip sur la piste voix de la scène (fal.ai) — Format

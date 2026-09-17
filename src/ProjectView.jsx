@@ -13,6 +13,12 @@ import {
   DEFAULT_VIDEO_SCENES,
   MAX_VIDEO_SCENES,
   tiktokCaption,
+  sceneShots,
+  episodeHasShots,
+  shotStats,
+  shotKey,
+  plannedShotKeys,
+  shotEffectiveSec,
 } from '../shared/catalog.js';
 import './studio-redesign.css';
 
@@ -201,9 +207,51 @@ function CharReviewCard({ project, projectId, c, busy, runJob, voices = VOICES }
   );
 }
 
+// Carte d'un décor de référence : même logique que les visages (🎲 variation,
+// ✨ nouvelle description guidée par des consignes).
+function LocationReviewCard({ projectId, l, idx, busy, runJob }) {
+  const [instructions, setInstructions] = useState('');
+  return (
+    <div className="char-card">
+      {l.image ? (
+        <img src={`/files/${projectId}/${l.image}?v=${l.version || 0}`} alt={l.name} />
+      ) : (
+        <div className="char-card-ph">🏞️</div>
+      )}
+      <strong>{l.name}</strong>
+      <input
+        className="face-instructions"
+        placeholder="Consignes (optionnel) : de nuit, plus moderne…"
+        value={instructions}
+        maxLength={200}
+        onChange={(e) => setInstructions(e.target.value)}
+      />
+      <div className="char-card-actions">
+        <button
+          className="btn-small primary"
+          disabled={busy}
+          title="Claude réécrit le décor (guidé par tes consignes), puis l'image est régénérée"
+          onClick={() => runJob(() => api.newLocationLook(projectId, idx, instructions))}
+        >
+          ✨ Nouveau décor
+        </button>
+        <button
+          className="btn-small"
+          disabled={busy}
+          title="Regénère le décor avec la même description (variation légère)"
+          onClick={() => runJob(() => api.regenLocationImage(projectId, idx))}
+        >
+          🎲
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Étape 2 : validation des personnages ----------
 function CharactersReview({ project, busy, runJob, onValidate, projectId, voices }) {
   const missing = project.characters.filter((c) => !c.portrait).length;
+  const locations = project.locations || [];
   return (
     <div className="review-panel wide">
       <div className="review-step">Étape 2 / 3 — Les personnages</div>
@@ -225,6 +273,27 @@ function CharactersReview({ project, busy, runJob, onValidate, projectId, voices
           />
         ))}
       </div>
+      {locations.length > 0 && (
+        <>
+          <h3 style={{ marginTop: 28 }}>🏞️ Les lieux</h3>
+          <p className="cast-hint">
+            Un décor de référence par lieu — il verrouille l'apparence de chaque endroit dans
+            tous les plans (comme les portraits pour les visages).
+          </p>
+          <div className="char-grid">
+            {locations.map((l, idx) => (
+              <LocationReviewCard
+                key={l.name}
+                projectId={projectId}
+                l={l}
+                idx={idx}
+                busy={busy}
+                runJob={runJob}
+              />
+            ))}
+          </div>
+        </>
+      )}
       <div className="review-actions">
         {missing > 0 && (
           <button
@@ -704,6 +773,90 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
           </button>
         )}
       </div>
+      {sceneShots(scene).length > 0 && (
+        <details className="prompt-details" open>
+          <summary>🎬 Plans du storyboard ({sceneShots(scene).length})</summary>
+          {sceneShots(scene).map((shot) => {
+            const planned = plannedShotKeys(project, episode).has(shotKey(index, shot));
+            const line = shot.lineIndex != null ? scene.lines[shot.lineIndex] : null;
+            const spoken = Boolean(line && line.speaker !== 'narrator');
+            return (
+              <div
+                key={shot.idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 0',
+                  borderTop: '1px solid rgba(255,255,255,0.08)',
+                  fontSize: 13,
+                }}
+              >
+                {shot.image ? (
+                  <img
+                    src={`/files/${project.id}/${shot.image}?v=${shot.version}`}
+                    alt=""
+                    style={{ width: 34, height: 60, objectFit: 'cover', borderRadius: 4 }}
+                  />
+                ) : (
+                  <span style={{ width: 34, textAlign: 'center' }}>◻️</span>
+                )}
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <strong>
+                    #{shot.idx + 1} {shot.type}
+                  </strong>{' '}
+                  · {Math.round(shotEffectiveSec(shot, scene))} s
+                  {planned && shot.animate ? ' · 🎬 clip' : ' · 🖼️ image'}
+                  {shot.isCliffhanger ? ' · 🔚 cliffhanger' : ''}
+                  {line ? (
+                    <em style={{ display: 'block', opacity: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      « {line.text} »
+                    </em>
+                  ) : null}
+                  {(shot.imageError || shot.videoError || shot.lipsyncError) && (
+                    <span className="error small" style={{ display: 'block' }}>
+                      {shot.imageError || shot.videoError || shot.lipsyncError}
+                    </span>
+                  )}
+                </span>
+                <span title="Statuts : image / clip / lèvres">
+                  {shot.image ? '🖼️✅' : '🖼️◻️'}
+                  {planned && shot.animate ? (shot.video ? ' 🎬✅' : ' 🎬◻️') : ''}
+                  {planned && shot.animate && spoken ? (shot.lipsynced ? ' 👄✅' : ' 👄◻️') : ''}
+                </span>
+                <button
+                  className="btn-small"
+                  disabled={busy}
+                  title="Régénérer l'image du plan"
+                  onClick={() => runJob(() => api.regenShotImage(project.id, episode.number, scene.id, shot.idx))}
+                >
+                  🖼️
+                </button>
+                {planned && shot.animate && (
+                  <button
+                    className="btn-small"
+                    disabled={busy || !shot.image}
+                    title="Régénérer le clip du plan"
+                    onClick={() => runJob(() => api.regenShotVideo(project.id, episode.number, scene.id, shot.idx))}
+                  >
+                    🎬
+                  </button>
+                )}
+                {planned && shot.animate && spoken && (
+                  <button
+                    className={`btn-small ${shot.lipsynced ? '' : 'primary'}`}
+                    disabled={busy}
+                    title="Synchroniser les lèvres du plan sur sa réplique"
+                    onClick={() => runJob(() => api.lipsyncShot(project.id, episode.number, scene.id, shot.idx))}
+                  >
+                    👄
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </details>
+      )}
       {scene.imageError && <p className="error small">Image : {scene.imageError}</p>}
       {scene.videoError && <p className="error small">Vidéo : {scene.videoError}</p>}
       {scene.lipsyncError && <p className="error small">Synchro : {scene.lipsyncError}</p>}
@@ -939,9 +1092,9 @@ export function ProjectView({ projectId, onBack }) {
         <>
           <label
             className="video-count"
-            title="Nombre de scènes animées en clip vidéo par épisode (réparties de la première à la dernière). Chaque vidéo coûte nettement plus de crédits OpenArt qu'une image — 0 pour tout garder en images animées. En Drama série, « Toutes » (le défaut) = style DramaWave, tout en vidéo."
+            title="Nombre de plans animés en clip vidéo par épisode. Priorité aux plans avec réplique, puis au cliffhanger, puis aux autres dans l'ordre — les plans non retenus restent en image (zoom lent). Chaque clip coûte nettement plus de crédits OpenArt qu'une image ; 0 pour tout garder en images. En Drama série, « Toutes » (le défaut) = style DramaWave."
           >
-            🎬 Vidéos/épisode
+            🎬 Plans animés/épisode
             <select
               value={
                 project.videoScenes ?? (project.mode === 'long' ? 'all' : DEFAULT_VIDEO_SCENES)
@@ -1729,6 +1882,28 @@ export function ProjectView({ projectId, onBack }) {
               {isChaine ? 'Vidéo' : 'Épisode'} {episode.number} — {episode.title}
             </h2>
             {episode.cliffhanger && <p className="cliffhanger">Cliffhanger : « {episode.cliffhanger} »</p>}
+            {episodeHasShots(episode) && (
+              <p className="cast-hint">
+                🎬 Storyboard : <strong>{shotStats(episode).count} plans</strong> ·{' '}
+                {shotStats(episode).seconds} s · {shotStats(episode).animated} animés{' '}
+                <button
+                  className="btn-small"
+                  disabled={busy}
+                  title="Claude redécoupe l'épisode entier en plans — les images et clips des plans déjà produits sont invalidés"
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Refaire le storyboard de l'épisode ${episode.number} ?\n\nClaude redécoupe tout l'épisode en plans (1 appel, gratuit) — MAIS les images et clips déjà produits pour ces plans seront invalidés et devront être régénérés (crédits).`,
+                      )
+                    ) {
+                      runJob(() => api.regenStoryboard(projectId, episode.number));
+                    }
+                  }}
+                >
+                  🎬 Refaire le storyboard
+                </button>
+              </p>
+            )}
             {!isChaine && (
               <DirectorKitCard
                 project={project}

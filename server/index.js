@@ -33,6 +33,12 @@ import {
   produceEpisode,
   produceSeason,
   ensureEpisodeScript,
+  ensureLocationImages,
+  regenerateLocationImage,
+  newLocationLook,
+  generateShotImage,
+  generateShotVideo,
+  lipsyncShot,
   regenerateScript,
   ensureCharacterPortraits,
   regenerateAllImages,
@@ -70,6 +76,7 @@ import {
   prepareDirectorTest,
 } from './synctest.js';
 import { buildDirectorKit } from './director.js';
+import { generateStoryboard, clearStoryboard } from './storyboard.js';
 import {
   STUDIO_DIR,
   loadStudio,
@@ -484,9 +491,10 @@ app.post('/api/projects/:id/validate-script', (req, res) => {
   if (currentProvider() === 'openart') {
     p.stage = 'characters_review';
     saveProject(p);
-    const job = startJob('Portraits des personnages', (update) =>
-      ensureCharacterPortraits(p, update),
-    { projectId: p.id });
+    const job = startJob('Portraits et décors de référence', async (update) => {
+      await ensureCharacterPortraits(p, update);
+      await ensureLocationImages(p, update);
+    }, { projectId: p.id });
     res.json({ stage: p.stage, jobId: job.id });
   } else {
     // Plus de production automatique : l'auteur choisit ensuite la méthode
@@ -673,6 +681,33 @@ app.post('/api/projects/:id/characters/:charId/new-face', (req, res) => {
   res.json({ jobId: job.id });
 });
 
+// ---------- Décors de référence ----------
+app.post('/api/projects/:id/locations/:idx/image', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  const idx = Number(req.params.idx);
+  const job = startJob('Décor de référence', (update) =>
+    regenerateLocationImage(p, idx, update),
+  { projectId: p.id });
+  res.json({ jobId: job.id });
+});
+
+app.post('/api/projects/:id/locations/:idx/new-look', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  const idx = Number(req.params.idx);
+  const job = startJob('Nouveau décor', (update) =>
+    newLocationLook(p, idx, req.body.instructions, update),
+  { projectId: p.id });
+  res.json({ jobId: job.id });
+});
+
 // Rouvrir l'étape personnages sur un projet déjà en production
 app.post('/api/projects/:id/review-characters', (req, res) => {
   const p = loadProject(req.params.id);
@@ -710,6 +745,82 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
   }
   const job = startJob(`Production épisode ${n}`, (update) => produceEpisode(p, n, update), { projectId: p.id });
   res.json({ jobId: job.id });
+});
+
+// ---------- Plans (storyboard) : régénération à l'unité ----------
+function withShot(req, res, fn) {
+  withEpisode(req, res, (p, ep) => {
+    const scene = ep && findScene(ep, req.params.sceneId);
+    const shot = scene && (scene.shots || [])[Number(req.params.idx)];
+    if (!ep || !scene || !shot) {
+      res.status(404).json({ error: 'Plan introuvable' });
+      return;
+    }
+    fn(p, ep, scene, shot);
+  });
+}
+
+app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/shots/:idx/image', (req, res) => {
+  withShot(req, res, (p, ep, scene, shot) => {
+    const job = startJob("Image du plan", () => generateShotImage(p, ep, scene, shot), {
+      projectId: p.id,
+    });
+    res.json({ jobId: job.id });
+  });
+});
+
+app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/shots/:idx/video', (req, res) => {
+  withShot(req, res, (p, ep, scene, shot) => {
+    const job = startJob('Clip du plan', () => generateShotVideo(p, ep, scene, shot), {
+      projectId: p.id,
+    });
+    res.json({ jobId: job.id });
+  });
+});
+
+app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/shots/:idx/lipsync', (req, res) => {
+  withShot(req, res, (p, ep, scene, shot) => {
+    const job = startJob('Synchro du plan', (update) => lipsyncShot(p, ep, scene, shot, update), {
+      projectId: p.id,
+    });
+    res.json({ jobId: job.id });
+  });
+});
+
+// ---------- Storyboard ----------
+// Regénère le découpage en plans de l'épisode ENTIER. Les images/clips déjà
+// produits par plan sont invalidés (leurs fichiers e{n}_s*_p*_* sont retirés).
+app.post('/api/projects/:id/episodes/:n/storyboard', (req, res) => {
+  withEpisode(req, res, (p, ep) => {
+    if (!ep) {
+      res.status(404).json({ error: 'Épisode introuvable' });
+      return;
+    }
+    if (p.mode === 'chaine') {
+      res.status(400).json({ error: 'Le storyboard est réservé aux dramas.' });
+      return;
+    }
+    const job = startJob(
+      `Storyboard épisode ${ep.number}`,
+      async (update) => {
+        const dir = path.join(projectDir(p.id), 'assets');
+        const prefix = new RegExp(`^e${ep.number}_s\\d+_p\\d+_`);
+        for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+          if (prefix.test(f)) {
+            fs.rmSync(path.join(dir, f), { force: true });
+          }
+        }
+        clearStoryboard(ep);
+        await generateStoryboard(p, ep, update);
+        if (ep.status === 'done') {
+          ep.status = 'ready';
+        }
+        saveProject(p);
+      },
+      { projectId: p.id },
+    );
+    res.json({ jobId: job.id });
+  });
 });
 
 // ---------- Kit OpenArt Director ----------
