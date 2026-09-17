@@ -54,6 +54,8 @@ export const api = {
     request(`/api/projects/${id}/episodes/${n}/regen-images`, { method: 'POST' }),
   retryAssets: (id, n) =>
     request(`/api/projects/${id}/episodes/${n}/retry-assets`, { method: 'POST' }),
+  regenStoryboard: (id, n) =>
+    request(`/api/projects/${id}/episodes/${n}/storyboard`, { method: 'POST' }),
   regenPortrait: (id, charId) =>
     request(`/api/projects/${id}/characters/${charId}/portrait`, { method: 'POST' }),
   regenLocationImage: (id, idx) =>

@@ -6,7 +6,13 @@ import {
   plannedVideoIndexes,
   wantsLipsync,
   lipsyncSpeaker,
+  episodeHasShots,
+  sceneShots,
+  shotKey,
+  plannedShotKeys,
+  shotEffectiveSec,
 } from '../shared/catalog.js';
+import { generateStoryboard } from './storyboard.js';
 import { VIDEO_SCENES } from './config.js';
 import { openartGenerateVideo } from './openart.js';
 import {
@@ -311,6 +317,13 @@ async function generateEpisodeAssets(project, episode, update) {
   // 0. Portraits + décors de référence (OpenArt) — visages et lieux constants.
   await ensureCharacterPortraits(project, update);
   await ensureLocationImages(project, update);
+
+  // 0 bis. Storyboard : découpage des scènes en plans (dramas uniquement,
+  // UN appel Claude, aucun appel payant). Sans storyboard (anciens épisodes,
+  // chaînes), toute la suite garde le comportement « une scène = une image ».
+  if (project.mode !== 'chaine' && !episodeHasShots(episode)) {
+    await generateStoryboard(project, episode, update);
+  }
 
   // 1. Images
   if (provider !== 'manual') {

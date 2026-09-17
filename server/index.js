@@ -73,6 +73,7 @@ import {
   prepareDirectorTest,
 } from './synctest.js';
 import { buildDirectorKit } from './director.js';
+import { generateStoryboard, clearStoryboard } from './storyboard.js';
 import {
   STUDIO_DIR,
   loadStudio,
@@ -741,6 +742,42 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
   }
   const job = startJob(`Production épisode ${n}`, (update) => produceEpisode(p, n, update), { projectId: p.id });
   res.json({ jobId: job.id });
+});
+
+// ---------- Storyboard ----------
+// Regénère le découpage en plans de l'épisode ENTIER. Les images/clips déjà
+// produits par plan sont invalidés (leurs fichiers e{n}_s*_p*_* sont retirés).
+app.post('/api/projects/:id/episodes/:n/storyboard', (req, res) => {
+  withEpisode(req, res, (p, ep) => {
+    if (!ep) {
+      res.status(404).json({ error: 'Épisode introuvable' });
+      return;
+    }
+    if (p.mode === 'chaine') {
+      res.status(400).json({ error: 'Le storyboard est réservé aux dramas.' });
+      return;
+    }
+    const job = startJob(
+      `Storyboard épisode ${ep.number}`,
+      async (update) => {
+        const dir = path.join(projectDir(p.id), 'assets');
+        const prefix = new RegExp(`^e${ep.number}_s\\d+_p\\d+_`);
+        for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+          if (prefix.test(f)) {
+            fs.rmSync(path.join(dir, f), { force: true });
+          }
+        }
+        clearStoryboard(ep);
+        await generateStoryboard(p, ep, update);
+        if (ep.status === 'done') {
+          ep.status = 'ready';
+        }
+        saveProject(p);
+      },
+      { projectId: p.id },
+    );
+    res.json({ jobId: job.id });
+  });
 });
 
 // ---------- Kit OpenArt Director ----------
