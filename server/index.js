@@ -33,6 +33,9 @@ import {
   produceEpisode,
   produceSeason,
   ensureEpisodeScript,
+  ensureLocationImages,
+  regenerateLocationImage,
+  newLocationLook,
   regenerateScript,
   ensureCharacterPortraits,
   regenerateAllImages,
@@ -484,9 +487,10 @@ app.post('/api/projects/:id/validate-script', (req, res) => {
   if (currentProvider() === 'openart') {
     p.stage = 'characters_review';
     saveProject(p);
-    const job = startJob('Portraits des personnages', (update) =>
-      ensureCharacterPortraits(p, update),
-    { projectId: p.id });
+    const job = startJob('Portraits et décors de référence', async (update) => {
+      await ensureCharacterPortraits(p, update);
+      await ensureLocationImages(p, update);
+    }, { projectId: p.id });
     res.json({ stage: p.stage, jobId: job.id });
   } else {
     // Plus de production automatique : l'auteur choisit ensuite la méthode
@@ -669,6 +673,33 @@ app.post('/api/projects/:id/characters/:charId/new-face', (req, res) => {
   }
   const job = startJob('Nouveau visage', (update) =>
     newCharacterFace(p, req.params.charId, req.body.instructions, update),
+  { projectId: p.id });
+  res.json({ jobId: job.id });
+});
+
+// ---------- Décors de référence ----------
+app.post('/api/projects/:id/locations/:idx/image', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  const idx = Number(req.params.idx);
+  const job = startJob('Décor de référence', (update) =>
+    regenerateLocationImage(p, idx, update),
+  { projectId: p.id });
+  res.json({ jobId: job.id });
+});
+
+app.post('/api/projects/:id/locations/:idx/new-look', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  const idx = Number(req.params.idx);
+  const job = startJob('Nouveau décor', (update) =>
+    newLocationLook(p, idx, req.body.instructions, update),
   { projectId: p.id });
   res.json({ jobId: job.id });
 });

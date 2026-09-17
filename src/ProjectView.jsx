@@ -201,9 +201,51 @@ function CharReviewCard({ project, projectId, c, busy, runJob, voices = VOICES }
   );
 }
 
+// Carte d'un décor de référence : même logique que les visages (🎲 variation,
+// ✨ nouvelle description guidée par des consignes).
+function LocationReviewCard({ projectId, l, idx, busy, runJob }) {
+  const [instructions, setInstructions] = useState('');
+  return (
+    <div className="char-card">
+      {l.image ? (
+        <img src={`/files/${projectId}/${l.image}?v=${l.version || 0}`} alt={l.name} />
+      ) : (
+        <div className="char-card-ph">🏞️</div>
+      )}
+      <strong>{l.name}</strong>
+      <input
+        className="face-instructions"
+        placeholder="Consignes (optionnel) : de nuit, plus moderne…"
+        value={instructions}
+        maxLength={200}
+        onChange={(e) => setInstructions(e.target.value)}
+      />
+      <div className="char-card-actions">
+        <button
+          className="btn-small primary"
+          disabled={busy}
+          title="Claude réécrit le décor (guidé par tes consignes), puis l'image est régénérée"
+          onClick={() => runJob(() => api.newLocationLook(projectId, idx, instructions))}
+        >
+          ✨ Nouveau décor
+        </button>
+        <button
+          className="btn-small"
+          disabled={busy}
+          title="Regénère le décor avec la même description (variation légère)"
+          onClick={() => runJob(() => api.regenLocationImage(projectId, idx))}
+        >
+          🎲
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Étape 2 : validation des personnages ----------
 function CharactersReview({ project, busy, runJob, onValidate, projectId, voices }) {
   const missing = project.characters.filter((c) => !c.portrait).length;
+  const locations = project.locations || [];
   return (
     <div className="review-panel wide">
       <div className="review-step">Étape 2 / 3 — Les personnages</div>
@@ -225,6 +267,27 @@ function CharactersReview({ project, busy, runJob, onValidate, projectId, voices
           />
         ))}
       </div>
+      {locations.length > 0 && (
+        <>
+          <h3 style={{ marginTop: 28 }}>🏞️ Les lieux</h3>
+          <p className="cast-hint">
+            Un décor de référence par lieu — il verrouille l'apparence de chaque endroit dans
+            tous les plans (comme les portraits pour les visages).
+          </p>
+          <div className="char-grid">
+            {locations.map((l, idx) => (
+              <LocationReviewCard
+                key={l.name}
+                projectId={projectId}
+                l={l}
+                idx={idx}
+                busy={busy}
+                runJob={runJob}
+              />
+            ))}
+          </div>
+        </>
+      )}
       <div className="review-actions">
         {missing > 0 && (
           <button

@@ -202,13 +202,115 @@ export async function ensureCharacterPortraits(project, update) {
   }
 }
 
+// Nom de fichier sûr pour un lieu (accents et espaces retirés).
+function locationSlug(name) {
+  return (
+    String(name)
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '')
+      .toLowerCase()
+      .slice(0, 40) || 'lieu'
+  );
+}
+
+// Décors de référence au niveau PROJET (même mécanique que les portraits) :
+// une image par lieu, générée UNE fois par série puis réutilisée comme
+// référence dans tous les plans qui s'y déroulent. Les descriptions texte
+// restent dans episode.locations ; project.locations porte les images.
+export async function ensureLocationImages(project, update) {
+  if (currentProvider() !== 'openart') {
+    return;
+  }
+  const locs = project.locations || (project.locations = []);
+  for (const ep of project.episodes || []) {
+    for (const [name, visual] of Object.entries(ep.locations || {})) {
+      if (name && visual && !locs.find((l) => l.name === name)) {
+        locs.push({ name, visual, image: null, imageUrl: null, version: 0 });
+      }
+    }
+  }
+  const dir = assetsDir(project.id);
+  for (let i = 0; i < locs.length; i++) {
+    const l = locs[i];
+    if (l.image && l.imageUrl) {
+      continue;
+    }
+    update(`Décor de référence ${i + 1}/${locs.length} — ${l.name}…`, i / locs.length);
+    l.version = (l.version || 0) + 1;
+    const file = `loc_${locationSlug(l.name)}_v${l.version}.jpg`;
+    const prompt =
+      `Location reference plate for a drama series, completely empty of people: ${l.visual}. ` +
+      `Photorealistic, cinematic film still, 9:16 vertical. ` +
+      `Clean photograph ONLY: no text, no letters, no logo, no watermark.`;
+    try {
+      const { ok, url, provider } = await generateImage(prompt, path.join(dir, file), {});
+      if (ok) {
+        l.image = file;
+        l.imageUrl = url;
+        countImage(project, provider);
+      }
+    } catch (e) {
+      console.error(`Décor ${l.name} :`, e.message);
+    }
+    saveProject(project);
+  }
+}
+
+export function findLocation(project, name) {
+  return (project.locations || []).find((l) => l.name === name) || null;
+}
+
+// Regénère le décor avec la même description (variation légère).
+export async function regenerateLocationImage(project, index, update) {
+  const l = (project.locations || [])[index];
+  if (!l) {
+    throw new Error('Lieu introuvable');
+  }
+  l.image = null;
+  l.imageUrl = null;
+  saveProject(project);
+  await ensureLocationImages(project, update);
+  if (!l.image) {
+    throw new Error("Le décor n'a pas pu être généré.");
+  }
+}
+
+// « ✨ Nouveau décor » : Claude réécrit la description (guidée par les
+// consignes), puis l'image de référence est régénérée.
+export async function newLocationLook(project, index, instructions, update) {
+  const l = (project.locations || [])[index];
+  if (!l) {
+    throw new Error('Lieu introuvable');
+  }
+  update('Réécriture du décor par Claude…');
+  const data = await askClaudeForJson(
+    `Décor d'une mini-série verticale « ${project.title} » (${project.setting}).\n` +
+      `Lieu : ${l.name}. Description actuelle (EN) : ${l.visual}\n` +
+      (instructions ? `Consignes de l'auteur : ${instructions}\n` : '') +
+      `Réécris ce décor (même lieu, autre apparence/ambiance, guidée par les consignes).\n` +
+      `Réponds UNIQUEMENT avec un objet JSON valide : {"visual": "description visuelle EN ANGLAIS, très détaillée et STABLE du décor (architecture, mobilier, lumière, ambiance)"}`,
+  );
+  ensureUsage(project).claudeCalls += 1;
+  if (!data.visual) {
+    throw new Error("Claude n'a pas fourni de description.");
+  }
+  l.visual = String(data.visual);
+  l.image = null;
+  l.imageUrl = null;
+  saveProject(project);
+  await ensureLocationImages(project, update);
+}
+
 async function generateEpisodeAssets(project, episode, update) {
   const dir = assetsDir(project.id);
   const provider = currentProvider();
   const scenes = episode.scenes || [];
 
-  // 0. Portraits de référence (OpenArt uniquement) — la clé des visages constants.
+  // 0. Portraits + décors de référence (OpenArt) — visages et lieux constants.
   await ensureCharacterPortraits(project, update);
+  await ensureLocationImages(project, update);
 
   // 1. Images
   if (provider !== 'manual') {
