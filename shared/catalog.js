@@ -165,3 +165,83 @@ export function styleLabel(id) {
   const s = STYLES.find((x) => x.id === id);
   return s ? s.label : id;
 }
+
+// ---------- Storyboard : découpage des scènes en plans ----------
+// Un épisode storyboardé porte, sur chaque scène, un tableau `shots` (plans).
+// Un plan : { idx, type, durationSec, characters (NOMS exacts), location,
+// visualDesc, motionDesc, lineIndex (index dans scene.lines, ou null),
+// ambience, animate, isCliffhanger, image, imageUrl, video, lipsynced, version }.
+// Rétrocompatibilité : sans `shots`, tout le circuit garde l'ancien
+// comportement « une scène = une image ».
+
+export const SHOT_TYPES = ['large', 'champ', 'contrechamp', 'gros_plan', 'insert'];
+
+export function sceneShots(scene) {
+  return Array.isArray(scene?.shots) ? scene.shots : [];
+}
+
+export function episodeHasShots(episode) {
+  return (episode?.scenes || []).some((s) => sceneShots(s).length > 0);
+}
+
+// Durée effective d'un plan : durationSec est une CIBLE — la voix a le
+// dernier mot (le plan s'allonge pour laisser finir sa réplique).
+export function shotEffectiveSec(shot, scene) {
+  const base = Math.max(3, shot.durationSec || 4);
+  if (shot.lineIndex == null) {
+    return Math.min(12, base);
+  }
+  const line = (scene.lines || [])[shot.lineIndex];
+  const voice = line && line.audioDurationSec ? line.audioDurationSec + 0.6 : 0;
+  return Math.min(14, Math.max(base, voice));
+}
+
+// Récapitulatif d'un storyboard : « 14 plans · 58 s · 8 animés ».
+export function shotStats(episode) {
+  let count = 0;
+  let seconds = 0;
+  let animated = 0;
+  for (const scene of episode?.scenes || []) {
+    for (const shot of sceneShots(scene)) {
+      count += 1;
+      seconds += shotEffectiveSec(shot, scene);
+      if (shot.animate) {
+        animated += 1;
+      }
+    }
+  }
+  return { count, seconds: Math.round(seconds), animated };
+}
+
+export function shotKey(sceneIndex, shot) {
+  return `${sceneIndex}:${shot.idx}`;
+}
+
+// Plans animés RETENUS pour l'épisode (le réglage « Plans animés/épisode »
+// plafonne les clips payants) — priorité : plans avec réplique (lineIndex),
+// puis le plan cliffhanger, puis les autres dans l'ordre du montage.
+// Les plans non retenus restent en image fixe (zoom lent au montage).
+export function plannedShotKeys(project, episode) {
+  const all = [];
+  (episode?.scenes || []).forEach((scene, si) => {
+    for (const shot of sceneShots(scene)) {
+      if (shot.animate && !shot.videoDisabled) {
+        all.push({
+          key: shotKey(si, shot),
+          dialogue: shot.lineIndex != null ? 1 : 0,
+          cliff: shot.isCliffhanger ? 1 : 0,
+          order: all.length,
+        });
+      }
+    }
+  });
+  const limit = Number.isInteger(project?.videoScenes)
+    ? project.videoScenes
+    : project?.mode === 'long'
+      ? all.length
+      : Math.min(DEFAULT_VIDEO_SCENES, all.length);
+  const ranked = [...all].sort(
+    (a, b) => b.dialogue - a.dialogue || b.cliff - a.cliff || a.order - b.order,
+  );
+  return new Set(ranked.slice(0, Math.max(0, limit)).map((x) => x.key));
+}
