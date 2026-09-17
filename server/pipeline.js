@@ -471,10 +471,44 @@ async function generateEpisodeAssets(project, episode, update) {
     saveProject(project);
   }
 
-  // 3. Clips vidéo (OpenArt) : nombre réglable par drama — Format long :
-  // TOUTES les scènes par défaut (style DramaWave). Après les voix, pour
-  // connaître la durée cible.
-  if (provider === 'openart' && VIDEO_SCENES) {
+  // 3. Clips vidéo (OpenArt). Épisode storyboardé : un clip par PLAN animé
+  // retenu (priorité réplique → cliffhanger → ordre, plafond = « Plans
+  // animés/épisode »). Après les voix, pour caler la durée sur la réplique.
+  if (provider === 'openart' && VIDEO_SCENES && hasShots) {
+    const planned = plannedShotKeys(project, episode);
+    const flat = [];
+    scenes.forEach((scene, si) => {
+      for (const shot of sceneShots(scene)) {
+        if (planned.has(shotKey(si, shot))) {
+          flat.push({ scene, shot });
+        }
+      }
+    });
+    for (let k = 0; k < flat.length; k++) {
+      const { scene, shot } = flat[k];
+      if (shot.video || shot.videoDisabled || !shot.image) {
+        continue;
+      }
+      const line = shot.lineIndex != null ? (scene.lines || [])[shot.lineIndex] : null;
+      const spoken = Boolean(line && line.speaker !== 'narrator');
+      // Modèle « avatar » : le plan parlé est généré directement image + voix
+      // par la synchro — pas de clip OpenArt à payer.
+      const talking = spoken && isTalkingModel();
+      if (!talking) {
+        update(
+          `Épisode ${episode.number} — clip du plan ${k + 1}/${flat.length} (plusieurs minutes)…`,
+          k / flat.length,
+        );
+        try {
+          await generateShotVideo(project, episode, scene, shot);
+        } catch (e) {
+          console.error(`Clip plan ${scene.id}#${shot.idx} :`, e.message);
+          shot.videoError = e.message;
+          saveProject(project);
+        }
+      }
+    }
+  } else if (provider === 'openart' && VIDEO_SCENES) {
     const wanted = plannedVideoIndexes(project, scenes.length);
     for (let k = 0; k < wanted.length; k++) {
       const scene = scenes[wanted[k]];
@@ -532,6 +566,52 @@ function videoMotionPrompt(scene) {
     `Faces, clothing and background stay EXACTLY as in the source image. ` +
     `Scene: ${scene.imagePrompt}`
   );
+}
+
+// Prompt de mouvement d'un PLAN : le mouvement décidé au storyboard +
+// l'ambiance — sans redescription du décor (l'image source le porte déjà).
+function shotMotionPrompt(shot) {
+  return (
+    `Bring this shot to life with subtle, realistic motion: ` +
+    `${shot.motionDesc || 'characters breathe, blink and make small natural gestures; gentle slow camera push-in'}. ` +
+    (shot.ambience ? `Ambience: ${shot.ambience}. ` : '') +
+    `Vertical 9:16 framing. CRITICAL: nobody speaks — mouths stay CLOSED and still ` +
+    `(the voice is added separately). Faces, clothing and background stay EXACTLY as in the source image.`
+  );
+}
+
+// Génère (ou régénère) le clip vidéo d'un PLAN. Durée générée = la plus
+// courte durée supportée par le moteur (5 s, sinon 10 s) qui couvre la
+// réplique du plan (+0,5 s) ; le montage coupe ensuite à la durée du plan.
+export async function generateShotVideo(project, episode, scene, shot) {
+  if (currentProvider() !== 'openart') {
+    throw new Error('Les clips vidéo nécessitent IMAGE_PROVIDER=openart dans .env');
+  }
+  if (!shot.image) {
+    throw new Error("Génère d'abord l'image du plan.");
+  }
+  delete shot.videoDisabled;
+  const line = shot.lineIndex != null ? (scene.lines || [])[shot.lineIndex] : null;
+  const voiceSec = line && line.audioDurationSec ? line.audioDurationSec + 0.5 : 0;
+  const durationSec = voiceSec > 5 ? 10 : 5;
+  const { buffer } = await openartGenerateVideo({
+    prompt: shotMotionPrompt(shot),
+    imageUrl: shot.imageUrl || null,
+    referenceUrls: shot.imageUrl ? [] : shotReferenceUrls(project, shot),
+    durationSec,
+  });
+  shot.videoVersion = (shot.videoVersion || 0) + 1;
+  const file = `e${episode.number}_${scene.id}_p${shot.idx}_vid${shot.videoVersion}.mp4`;
+  fs.writeFileSync(path.join(assetsDir(project.id), file), buffer);
+  shot.video = file;
+  shot.lipsynced = false;
+  delete shot.videoError;
+  countVideo(project);
+  if (episode.status === 'done') {
+    episode.status = 'ready';
+  }
+  saveProject(project);
+  return file;
 }
 
 // Génère (ou régénère) le clip vidéo d'une scène via OpenArt.
