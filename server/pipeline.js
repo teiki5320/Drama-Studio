@@ -148,6 +148,15 @@ function normalizeEpisode(raw, number) {
 }
 
 function recomputeSceneDuration(scene) {
+  // Scène storyboardée : la durée = la somme de ses plans (durée cible de
+  // chaque plan, allongée si sa réplique dépasse — la voix a le dernier mot).
+  const shots = sceneShots(scene);
+  if (shots.length > 0) {
+    scene.durationSec = Math.round(
+      shots.reduce((sum, sh) => sum + shotEffectiveSec(sh, scene), 0),
+    );
+    return;
+  }
   const spoken = (scene.lines || []).reduce(
     (sum, l) => sum + (l.audioDurationSec || 2) + LINE_GAP,
     0,

@@ -1,5 +1,7 @@
 // Constantes et calculs de durée partagés entre le Player (aperçu) et le rendu final.
 
+import { sceneShots, shotEffectiveSec } from '../../shared/catalog.js';
+
 export const FPS = 30;
 export const WIDTH = 1080;
 export const HEIGHT = 1920;
@@ -10,8 +12,29 @@ export const OUTRO_SECONDS = 5.5;
 export const LINE_START_DELAY = 0.5; // secondes avant la première réplique d'une scène
 export const LINE_GAP = 0.35; // pause entre deux répliques
 
+// Délai (s) entre la coupe d'un plan et le départ de sa réplique.
+export const SHOT_AUDIO_DELAY = 0.25;
+
 export function sceneFrames(scene) {
+  // Scène storyboardée : la durée = la somme de ses plans (la voix de
+  // chaque plan a le dernier mot sur sa durée cible).
+  const shots = sceneShots(scene);
+  if (shots.length > 0) {
+    const total = shots.reduce((sum, sh) => sum + shotEffectiveSec(sh, scene), 0);
+    return Math.max(FPS, Math.round(total * FPS));
+  }
   return Math.max(FPS, Math.round((scene.durationSec || 5) * FPS));
+}
+
+// Position de départ (frames, relatives à la scène) de chaque plan.
+export function shotOffsets(scene) {
+  const offsets = [];
+  let t = 0;
+  for (const sh of sceneShots(scene)) {
+    offsets.push(Math.round(t * FPS));
+    t += shotEffectiveSec(sh, scene);
+  }
+  return offsets;
 }
 
 // Position de départ (en frames, relatives à la scène) de chaque réplique audio.
