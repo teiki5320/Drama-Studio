@@ -56,6 +56,18 @@ export const api = {
     request(`/api/projects/${id}/episodes/${n}/retry-assets`, { method: 'POST' }),
   regenStoryboard: (id, n) =>
     request(`/api/projects/${id}/episodes/${n}/storyboard`, { method: 'POST' }),
+  regenShotImage: (id, n, sceneId, idx) =>
+    request(`/api/projects/${id}/episodes/${n}/scenes/${sceneId}/shots/${idx}/image`, {
+      method: 'POST',
+    }),
+  regenShotVideo: (id, n, sceneId, idx) =>
+    request(`/api/projects/${id}/episodes/${n}/scenes/${sceneId}/shots/${idx}/video`, {
+      method: 'POST',
+    }),
+  lipsyncShot: (id, n, sceneId, idx) =>
+    request(`/api/projects/${id}/episodes/${n}/scenes/${sceneId}/shots/${idx}/lipsync`, {
+      method: 'POST',
+    }),
   regenPortrait: (id, charId) =>
     request(`/api/projects/${id}/characters/${charId}/portrait`, { method: 'POST' }),
   regenLocationImage: (id, idx) =>

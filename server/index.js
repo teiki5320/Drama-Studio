@@ -36,6 +36,9 @@ import {
   ensureLocationImages,
   regenerateLocationImage,
   newLocationLook,
+  generateShotImage,
+  generateShotVideo,
+  lipsyncShot,
   regenerateScript,
   ensureCharacterPortraits,
   regenerateAllImages,
@@ -742,6 +745,46 @@ app.post('/api/projects/:id/episodes/:n/produce', (req, res) => {
   }
   const job = startJob(`Production épisode ${n}`, (update) => produceEpisode(p, n, update), { projectId: p.id });
   res.json({ jobId: job.id });
+});
+
+// ---------- Plans (storyboard) : régénération à l'unité ----------
+function withShot(req, res, fn) {
+  withEpisode(req, res, (p, ep) => {
+    const scene = ep && findScene(ep, req.params.sceneId);
+    const shot = scene && (scene.shots || [])[Number(req.params.idx)];
+    if (!ep || !scene || !shot) {
+      res.status(404).json({ error: 'Plan introuvable' });
+      return;
+    }
+    fn(p, ep, scene, shot);
+  });
+}
+
+app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/shots/:idx/image', (req, res) => {
+  withShot(req, res, (p, ep, scene, shot) => {
+    const job = startJob("Image du plan", () => generateShotImage(p, ep, scene, shot), {
+      projectId: p.id,
+    });
+    res.json({ jobId: job.id });
+  });
+});
+
+app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/shots/:idx/video', (req, res) => {
+  withShot(req, res, (p, ep, scene, shot) => {
+    const job = startJob('Clip du plan', () => generateShotVideo(p, ep, scene, shot), {
+      projectId: p.id,
+    });
+    res.json({ jobId: job.id });
+  });
+});
+
+app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/shots/:idx/lipsync', (req, res) => {
+  withShot(req, res, (p, ep, scene, shot) => {
+    const job = startJob('Synchro du plan', (update) => lipsyncShot(p, ep, scene, shot, update), {
+      projectId: p.id,
+    });
+    res.json({ jobId: job.id });
+  });
 });
 
 // ---------- Storyboard ----------
