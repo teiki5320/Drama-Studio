@@ -507,6 +507,21 @@ async function generateEpisodeAssets(project, episode, update) {
           saveProject(project);
         }
       }
+      // Lèvres calées sur LA réplique du plan (un seul parleur par
+      // construction — plus besoin de la piste voix mixée de la scène).
+      if (spoken && (shot.video || talking) && !shot.lipsynced) {
+        update(
+          `Épisode ${episode.number} — synchro labiale du plan ${k + 1}/${flat.length}…`,
+          k / flat.length,
+        );
+        try {
+          await lipsyncShot(project, episode, scene, shot, () => {});
+        } catch (e) {
+          console.error(`Synchro plan ${scene.id}#${shot.idx} :`, e.message);
+          shot.lipsyncError = e.message;
+          saveProject(project);
+        }
+      }
     }
   } else if (provider === 'openart' && VIDEO_SCENES) {
     const wanted = plannedVideoIndexes(project, scenes.length);
@@ -646,6 +661,54 @@ export async function generateSceneVideo(project, episode, scene, update) {
   }
   saveProject(project);
   return file;
+}
+
+// Synchro labiale d'un PLAN : les lèvres sont calées sur LA réplique du plan
+// (via lineIndex) — un seul parleur par construction. Le clip synchronisé
+// remplace le clip muet ; la voix d'origine joue par-dessus au montage.
+export async function lipsyncShot(project, episode, scene, shot, update) {
+  const line = shot.lineIndex != null ? (scene.lines || [])[shot.lineIndex] : null;
+  if (!line || line.speaker === 'narrator') {
+    throw new Error("Ce plan n'a pas de réplique de personnage à synchroniser.");
+  }
+  if (!line.audio) {
+    throw new Error("Génère d'abord la voix de la réplique.");
+  }
+  const talking = isTalkingModel();
+  if (!talking && !shot.video) {
+    throw new Error("Génère d'abord le clip du plan.");
+  }
+  if (talking && !shot.image) {
+    throw new Error("Génère d'abord l'image du plan.");
+  }
+  const dir = assetsDir(project.id);
+  shot.videoVersion = (shot.videoVersion || 0) + 1;
+  const out = `e${episode.number}_${scene.id}_p${shot.idx}_sync${shot.videoVersion}.mp4`;
+  if (talking) {
+    await makeTalkingClip({
+      imagePath: path.join(dir, shot.image),
+      imageUrl: shot.imageUrl || null,
+      audioPath: path.join(dir, line.audio),
+      outPath: path.join(dir, out),
+      update,
+    });
+  } else {
+    await lipsyncVideo({
+      videoPath: path.join(dir, shot.video),
+      audioPath: path.join(dir, line.audio),
+      outPath: path.join(dir, out),
+      update,
+    });
+  }
+  shot.video = out;
+  shot.lipsynced = true;
+  delete shot.lipsyncError;
+  ensureUsage(project).falLipsyncs = (ensureUsage(project).falLipsyncs || 0) + 1;
+  if (episode.status === 'done') {
+    episode.status = 'ready';
+  }
+  saveProject(project);
+  return out;
 }
 
 // Anime les lèvres du clip sur la piste voix de la scène (fal.ai) — Format
