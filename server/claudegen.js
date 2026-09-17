@@ -107,7 +107,7 @@ export function extractJson(text) {
 
 // Le look « mini-série verticale à succès » (DramaWave, ReelShort…) :
 // production léchée, casting glamour, gros plans dramatiques, étalonnage riche.
-const DRAMA_IMAGE_SUFFIX =
+export const DRAMA_IMAGE_SUFFIX =
   'glossy vertical short-drama film still in the style of hit apps like DramaWave and ReelShort, ' +
   'premium TV production value, glamorous polished cast styling, rich cinematic color grade, ' +
   'dramatic close framing, shallow depth of field, african drama series, 9:16 vertical, ' +

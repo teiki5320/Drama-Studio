@@ -35,6 +35,7 @@ import {
   buildChannelPrompt,
   buildTopicsPrompt,
   buildChannelVideoPrompt,
+  DRAMA_IMAGE_SUFFIX,
 } from './claudegen.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -163,6 +164,65 @@ function sceneReferenceUrls(project, scene) {
     .map((id) => (project.characters || []).find((c) => c.id === id))
     .filter((c) => c && c.portraitUrl)
     .map((c) => c.portraitUrl);
+}
+
+// Références d'un PLAN : portraits de TOUS les personnages du plan (par nom
+// exact) + l'image de référence de son lieu.
+function shotReferenceUrls(project, shot) {
+  const urls = [];
+  for (const name of shot.characters || []) {
+    const c = (project.characters || []).find((x) => x.name === name);
+    if (c && c.portraitUrl) {
+      urls.push(c.portraitUrl);
+    }
+  }
+  const loc = findLocation(project, shot.location);
+  if (loc && loc.imageUrl) {
+    urls.push(loc.imageUrl);
+  }
+  return urls;
+}
+
+// Prompt image d'un plan : ce qu'on voit + rappel des tenues des personnages
+// présents + style de la série. Ni mouvement (motionDesc) ni dialogue.
+function shotImagePrompt(project, shot) {
+  const outfits = (shot.characters || [])
+    .map((name) => {
+      const c = (project.characters || []).find((x) => x.name === name);
+      return c ? `${c.name}: ${c.visual}` : null;
+    })
+    .filter(Boolean)
+    .join('. ');
+  return (
+    `${shot.visualDesc}` +
+    (outfits ? `. Characters present (KEEP their exact look and outfit): ${outfits}` : '') +
+    `. ${DRAMA_IMAGE_SUFFIX}`
+  );
+}
+
+// Génère (ou régénère) l'image d'un plan, références visages + lieu comprises.
+export async function generateShotImage(project, episode, scene, shot) {
+  shot.version = (shot.version || 0) + 1;
+  const file = `e${episode.number}_${scene.id}_p${shot.idx}_v${shot.version}.jpg`;
+  const { ok, url, provider } = await generateImage(
+    shotImagePrompt(project, shot),
+    path.join(assetsDir(project.id), file),
+    { referenceUrls: shotReferenceUrls(project, shot) },
+  );
+  if (!ok) {
+    throw new Error("l'image n'a pas pu être générée");
+  }
+  shot.image = file;
+  shot.imageUrl = url || null;
+  shot.video = null;
+  shot.lipsynced = false;
+  delete shot.imageError;
+  countImage(project, provider);
+  if (episode.status === 'done') {
+    episode.status = 'ready';
+  }
+  saveProject(project);
+  return file;
 }
 
 // Avec OpenArt : crée d'abord un portrait de référence par personnage,
@@ -325,8 +385,32 @@ async function generateEpisodeAssets(project, episode, update) {
     await generateStoryboard(project, episode, update);
   }
 
-  // 1. Images
-  if (provider !== 'manual') {
+  const hasShots = episodeHasShots(episode);
+
+  // 1. Images — une par PLAN quand l'épisode est storyboardé, sinon une par
+  // scène (anciens épisodes, chaînes) : comportement historique conservé.
+  if (provider !== 'manual' && hasShots) {
+    const all = [];
+    for (const scene of scenes) {
+      for (const shot of sceneShots(scene)) {
+        all.push({ scene, shot });
+      }
+    }
+    for (let i = 0; i < all.length; i++) {
+      const { scene, shot } = all[i];
+      if (shot.image) {
+        continue;
+      }
+      update(`Épisode ${episode.number} — image du plan ${i + 1}/${all.length}…`, i / all.length);
+      try {
+        await generateShotImage(project, episode, scene, shot);
+      } catch (e) {
+        console.error(`Image plan ${scene.id}#${shot.idx} :`, e.message);
+        shot.imageError = e.message;
+      }
+      saveProject(project);
+    }
+  } else if (provider !== 'manual') {
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       if (scene.image) {
