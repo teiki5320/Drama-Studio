@@ -389,18 +389,19 @@ app.post('/api/projects/:id/recipe-videos', (req, res) => {
   }
   const b = req.body || {};
   const url = String(b.url || '').trim();
+  const text = String(b.text || '').trim().slice(0, 12000);
   if (url && !/^https?:\/\//i.test(url)) {
     res.status(400).json({ error: 'Adresse de recette invalide.' });
     return;
   }
-  if (!url && !b.manual) {
-    res.status(400).json({ error: 'Choisis une recette du site, ou remplis le formulaire.' });
+  if (!text && !url) {
+    res.status(400).json({ error: 'Colle ta recette, ou choisis une fiche du site.' });
     return;
   }
   const seconds = Number(b.seconds);
   const params = {
     url,
-    manual: b.manual || null,
+    text,
     seconds: RECIPE_SECONDS.includes(seconds) ? seconds : p.targetSeconds || 60,
     tone: RECIPE_TONES[b.tone] ? b.tone : p.tone || 'chaleureux',
     useSiteImage: b.useSiteImage !== false,

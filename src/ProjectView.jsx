@@ -713,8 +713,10 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
       {scene.kind ? (
         <div className="form-field" style={{ margin: '8px 0' }}>
           <label>
-            🍲 Texte à l'écran{scene.kind === 'etape' ? ` (étape ${scene.stepNumber || ''})` : ''}
+            🍲 Texte à l'écran
+            {scene.stepNumber ? ` (étape ${scene.stepNumber})` : ''}
           </label>
+          {scene.gesture ? <p className="field-hint">✋ Geste filmé : {scene.gesture}</p> : null}
           <input
             value={onScreen}
             maxLength={80}
@@ -997,20 +999,23 @@ function ScreenshotsPanel({ project, projectId, busy, onRefresh }) {
   );
 }
 
-// Barre de création d'une vidéo de recette : liste du site (avec recherche),
-// durée, ton — et un repli manuel si la fiche n'est pas importable.
+// Onglet Recettes : on COLLE la recette détaillée, et Claude la découpe en
+// gestes filmés du dessus. L'import d'une fiche du site reste possible.
 function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
+  const [texte, setTexte] = useState('');
+  const [seconds, setSeconds] = useState(project.targetSeconds || 60);
+  const [tone, setTone] = useState(project.tone || 'chaleureux');
+  const [depuisSite, setDepuisSite] = useState(false);
   const [list, setList] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [recherche, setRecherche] = useState('');
   const [url, setUrl] = useState('');
-  const [seconds, setSeconds] = useState(project.targetSeconds || 60);
-  const [tone, setTone] = useState(project.tone || 'chaleureux');
   const [useSiteImage, setUseSiteImage] = useState(true);
-  const [manuel, setManuel] = useState(false);
-  const [m, setM] = useState({ name: '', country: '', totalMin: '', ingredients: '', steps: '' });
 
   useEffect(() => {
+    if (!depuisSite || list) {
+      return;
+    }
     api
       .recipes()
       .then((r) => {
@@ -1020,15 +1025,18 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
         }
       })
       .catch((e) => setErreur(e.message));
-  }, []);
+  }, [depuisSite, list]);
 
   const filtres = (list || []).filter((r) =>
     r.label.toLowerCase().includes(recherche.trim().toLowerCase()),
   );
 
   const lancer = async (params) => {
-    const ok = await runJob(() => api.createRecipeVideo(projectId, { seconds, tone, useSiteImage, ...params }));
+    const ok = await runJob(() =>
+      api.createRecipeVideo(projectId, { seconds, tone, useSiteImage, ...params }),
+    );
     if (ok) {
+      setTexte('');
       onCreated();
     }
   };
@@ -1036,113 +1044,122 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
   return (
     <div className="downloads-box">
       <div className="downloads-title">🍲 Nouvelle recette en vidéo</div>
-      {erreur && (
-        <p className="error small">
-          Le site est injoignable ({erreur}) — utilise « ✍️ Saisir la recette à la main »
-          ci-dessous, ou colle directement l'adresse d'une fiche.
-        </p>
-      )}
-      <div className="topic-bar">
-        <input
-          value={recherche}
-          placeholder="Chercher une recette (ndolé, yassa, mafé…)"
-          onChange={(e) => setRecherche(e.target.value)}
-          style={{ maxWidth: 260 }}
-        />
-        <select
-          className="season-select"
-          value={url}
-          disabled={busy || !list}
-          onChange={(e) => setUrl(e.target.value)}
-          style={{ flex: 1, minWidth: 180 }}
-        >
-          {!list && <option>Chargement des recettes…</option>}
-          {filtres.map((r) => (
-            <option key={r.slug} value={r.url}>
-              {r.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="season-select"
-          value={seconds}
-          disabled={busy}
-          title="Durée de la vidéo"
-          onChange={(e) => setSeconds(Number(e.target.value))}
-        >
-          {[45, 60, 90].map((sec) => (
-            <option key={sec} value={sec}>
-              {sec} s
-            </option>
-          ))}
-        </select>
-        <select
-          className="season-select"
-          value={tone}
-          disabled={busy}
-          title="Ton de la narration"
-          onChange={(e) => setTone(e.target.value)}
-        >
-          <option value="chaleureux">🫕 Chaleureux</option>
-          <option value="street">🔥 Street food</option>
-          <option value="gourmand">😋 Gourmand</option>
-        </select>
-        <button
-          className="btn-primary"
-          disabled={busy || !url}
-          onClick={() => lancer({ url })}
-        >
-          ➕ Créer la vidéo
-        </button>
-      </div>
       <p className="downloads-hint">
-        <label style={{ cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={useSiteImage}
-            onChange={(e) => setUseSiteImage(e.target.checked)}
-          />{' '}
-          Utiliser la photo du site pour le plat fini (aucun crédit d'image)
-        </label>{' '}
-        ·{' '}
-        <button className="btn-small" onClick={() => setManuel((v) => !v)}>
-          {manuel ? '↩️ Revenir à la liste' : '✍️ Saisir la recette à la main'}
-        </button>
+        Colle ta recette complète — ingrédients et étapes. Claude la découpe en{' '}
+        <strong>gestes</strong> filmés en vue du dessus : les mains posent le bol, prennent les
+        œufs, les cassent, versent la farine… Un plan par geste, le même plan de travail et les
+        mêmes mains du début à la fin.
       </p>
-      {manuel && (
-        <div className="custom-form" style={{ marginTop: 6 }}>
-          <div className="form-field">
-            <label>Nom du plat</label>
-            <input value={m.name} maxLength={120} onChange={(e) => setM({ ...m, name: e.target.value })} />
+
+      {!depuisSite ? (
+        <>
+          <textarea
+            rows={9}
+            value={texte}
+            maxLength={12000}
+            placeholder={
+              'Ndolé aux crevettes — Cameroun — 1 h 55 — 6 personnes\n\n' +
+              'Ingrédients :\n200 g de feuilles de ndolé séchées\n500 g d\'arachides crues\n…\n\n' +
+              'Étapes :\n1. Réhydrater les feuilles 30 minutes, rincer et presser.\n2. …'
+            }
+            style={{ width: '100%', fontSize: 14 }}
+            onChange={(e) => setTexte(e.target.value)}
+          />
+          <div className="topic-bar" style={{ marginTop: 8 }}>
+            <select
+              className="season-select"
+              value={seconds}
+              disabled={busy}
+              title="Durée de la vidéo"
+              onChange={(e) => setSeconds(Number(e.target.value))}
+            >
+              {[45, 60, 90].map((sec) => (
+                <option key={sec} value={sec}>
+                  {sec} s
+                </option>
+              ))}
+            </select>
+            <select
+              className="season-select"
+              value={tone}
+              disabled={busy}
+              title="Ton de la narration"
+              onChange={(e) => setTone(e.target.value)}
+            >
+              <option value="chaleureux">🫕 Chaleureux</option>
+              <option value="street">🔥 Street food</option>
+              <option value="gourmand">😋 Gourmand</option>
+            </select>
+            <button
+              className="btn-primary"
+              disabled={busy || texte.trim().length < 40}
+              onClick={() => lancer({ text: texte.trim() })}
+            >
+              ✂️ Découper en gestes
+            </button>
+            <button className="btn-small" disabled={busy} onClick={() => setDepuisSite(true)}>
+              🌍 Prendre une recette du site
+            </button>
           </div>
-          <div className="form-field">
-            <label>Pays</label>
-            <input value={m.country} maxLength={60} onChange={(e) => setM({ ...m, country: e.target.value })} />
-          </div>
-          <div className="form-field">
-            <label>Temps total (minutes)</label>
+        </>
+      ) : (
+        <>
+          {erreur && (
+            <p className="error small">
+              Le site est injoignable ({erreur}) — reviens au collage de la recette.
+            </p>
+          )}
+          <div className="topic-bar">
             <input
-              value={m.totalMin}
-              maxLength={4}
-              onChange={(e) => setM({ ...m, totalMin: e.target.value.replace(/\D/g, '') })}
+              value={recherche}
+              placeholder="Chercher (ndolé, yassa, mafé…)"
+              onChange={(e) => setRecherche(e.target.value)}
+              style={{ maxWidth: 240 }}
             />
+            <select
+              className="season-select"
+              value={url}
+              disabled={busy || !list}
+              onChange={(e) => setUrl(e.target.value)}
+              style={{ flex: 1, minWidth: 170 }}
+            >
+              {!list && <option>Chargement…</option>}
+              {filtres.map((r) => (
+                <option key={r.slug} value={r.url}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="season-select"
+              value={seconds}
+              disabled={busy}
+              onChange={(e) => setSeconds(Number(e.target.value))}
+            >
+              {[45, 60, 90].map((sec) => (
+                <option key={sec} value={sec}>
+                  {sec} s
+                </option>
+              ))}
+            </select>
+            <button className="btn-primary" disabled={busy || !url} onClick={() => lancer({ url })}>
+              ✂️ Découper en gestes
+            </button>
+            <button className="btn-small" disabled={busy} onClick={() => setDepuisSite(false)}>
+              ↩️ Coller ma recette
+            </button>
           </div>
-          <div className="form-field">
-            <label>Ingrédients (un par ligne)</label>
-            <textarea rows={5} value={m.ingredients} onChange={(e) => setM({ ...m, ingredients: e.target.value })} />
-          </div>
-          <div className="form-field">
-            <label>Étapes (une par ligne)</label>
-            <textarea rows={6} value={m.steps} onChange={(e) => setM({ ...m, steps: e.target.value })} />
-          </div>
-          <button
-            className="btn-primary"
-            disabled={busy || m.name.trim().length < 2}
-            onClick={() => lancer({ url: '', manual: m })}
-          >
-            ➕ Créer la vidéo
-          </button>
-        </div>
+          <p className="downloads-hint">
+            <label style={{ cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={useSiteImage}
+                onChange={(e) => setUseSiteImage(e.target.checked)}
+              />{' '}
+              Utiliser la photo du site pour le plat fini (aucun crédit d'image)
+            </label>
+          </p>
+        </>
       )}
     </div>
   );

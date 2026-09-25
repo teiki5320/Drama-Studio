@@ -213,6 +213,7 @@ const Etape = ({ numero, texte }) => {
   });
   return (
     <AbsoluteFill style={{ alignItems: 'flex-start', justifyContent: 'flex-start', padding: 90, opacity }}>
+      {numero ? (
       <div
         style={{
           fontFamily: 'Georgia, serif',
@@ -227,6 +228,7 @@ const Etape = ({ numero, texte }) => {
       >
         {String(numero).padStart(2, '0')}
       </div>
+      ) : null}
       {texte ? (
         <div
           style={{
@@ -356,7 +358,9 @@ const PlanRecette = ({ scene, recipe, episodeTitle, assetBase, durationInFrames 
       {kind === 'ingredients' && (scene.ingredients || []).length > 0 ? (
         <ListeIngredients items={scene.ingredients} />
       ) : null}
-      {kind === 'etape' ? <Etape numero={scene.stepNumber || 1} texte={scene.onScreen} /> : null}
+      {kind === 'geste' || kind === 'etape' ? (
+        <Etape numero={scene.stepNumber} texte={scene.onScreen} />
+      ) : null}
       {(kind === 'hook' || kind === 'final') && scene.onScreen ? (
         <TexteEcran texte={scene.onScreen} position="haut" />
       ) : null}

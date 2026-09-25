@@ -39,6 +39,7 @@ import {
   buildAdPrompt,
   buildAdVideoPrompt,
   buildRecipePrompt,
+  KITCHEN_REFERENCE_PROMPT,
   RECIPE_SECONDS,
   findHealthClaims,
   DRAMA_IMAGE_SUFFIX,
@@ -129,6 +130,8 @@ function normalizeEpisode(raw, number) {
       badge: typeof s.badge === 'string' && s.badge.trim() ? s.badge.trim().slice(0, 40) : null,
       // Recette : rôle du plan, texte à l'écran, numéro d'étape, liste d'ingrédients.
       kind: typeof s.kind === 'string' ? s.kind.trim().slice(0, 20) : undefined,
+      // Recette : le geste filmé sur ce plan (« casser les œufs dans le bol »).
+      gesture: typeof s.gesture === 'string' ? s.gesture.trim().slice(0, 80) : undefined,
       onScreen: typeof s.onScreen === 'string' ? s.onScreen.trim().slice(0, 80) : undefined,
       stepNumber: Number.isInteger(s.stepNumber) ? s.stepNumber : undefined,
       ingredients: Array.isArray(s.ingredients)
@@ -186,8 +189,44 @@ function recomputeSceneDuration(scene) {
   );
 }
 
-// Références de visages : URLs des portraits des personnages visibles dans la scène.
+// Atelier de recettes : UNE image de référence du plan de travail vu du
+// dessus, avec les mains. Elle est passée en référence à TOUS les plans —
+// c'est elle qui garde le même bois, les mêmes mains et la même vaisselle
+// du premier au dernier geste.
+export async function ensureKitchenReference(project, update) {
+  if (project.mode !== 'recette' || currentProvider() !== 'openart') {
+    return;
+  }
+  const k = project.kitchen || (project.kitchen = { image: null, imageUrl: null, version: 0 });
+  if (k.image && k.imageUrl) {
+    return;
+  }
+  update('Plan de travail de référence (vue du dessus, mains)…', 0.02);
+  k.version = (k.version || 0) + 1;
+  const file = `kitchen_v${k.version}.jpg`;
+  try {
+    const { ok, url, provider } = await generateImage(
+      KITCHEN_REFERENCE_PROMPT,
+      path.join(assetsDir(project.id), file),
+      {},
+    );
+    if (ok) {
+      k.image = file;
+      k.imageUrl = url;
+      countImage(project, provider);
+    }
+  } catch (e) {
+    console.error('Plan de travail de référence :', e.message);
+  }
+  saveProject(project);
+}
+
+// Références de visages : URLs des portraits des personnages visibles dans la
+// scène — et, pour une recette, le plan de travail de référence.
 function sceneReferenceUrls(project, scene) {
+  if (project.mode === 'recette') {
+    return project.kitchen && project.kitchen.imageUrl ? [project.kitchen.imageUrl] : [];
+  }
   return (scene.characters || [])
     .map((id) => (project.characters || []).find((c) => c.id === id))
     .filter((c) => c && c.portraitUrl)
@@ -405,6 +444,7 @@ async function generateEpisodeAssets(project, episode, update) {
   // 0. Portraits + décors de référence (OpenArt) — visages et lieux constants.
   await ensureCharacterPortraits(project, update);
   await ensureLocationImages(project, update);
+  await ensureKitchenReference(project, update);
 
   // 0 bis. Storyboard : découpage des scènes en plans (dramas uniquement,
   // UN appel Claude, aucun appel payant). Sans storyboard (anciens épisodes,
@@ -1149,8 +1189,8 @@ export async function createRecipeProject(info) {
   return { projectId: id };
 }
 
-// Écrit la vidéo d'une recette : import de la fiche (ou saisie manuelle),
-// script par Claude, puis photo du plat fini récupérée du site si demandée.
+// Écrit la vidéo d'une recette : l'auteur COLLE son texte (ou importe une
+// fiche du site), Claude en extrait la recette et la découpe en gestes.
 export async function createRecipeVideo(project, params, update) {
   if (project.mode !== 'recette') {
     throw new Error('Réservé aux projets Recettes.');
@@ -1158,17 +1198,58 @@ export async function createRecipeVideo(project, params, update) {
   const seconds = RECIPE_SECONDS.includes(params.seconds) ? params.seconds : project.targetSeconds || 60;
   const tone = params.tone || project.tone || 'chaleureux';
 
-  update('Import de la fiche recette…');
-  const recipe = params.url
-    ? await fetchRecipe(params.url)
-    : manualRecipe(params.manual || {});
+  // Deux entrées possibles : le texte collé, ou une fiche du site.
+  let texte = String(params.text || '').trim();
+  let fiche = null;
+  if (!texte && params.url) {
+    update('Import de la fiche recette…');
+    fiche = await fetchRecipe(params.url);
+    texte = [
+      fiche.name,
+      fiche.country ? `Pays : ${fiche.country}` : '',
+      fiche.totalText ? `Temps total : ${fiche.totalText}` : '',
+      fiche.servings ? `Pour : ${fiche.servings}` : '',
+      '',
+      'Ingrédients :',
+      ...fiche.ingredients.map((i) => `- ${i}`),
+      '',
+      'Étapes :',
+      ...fiche.steps.map((st, i) => `${i + 1}. ${st}`),
+    ]
+      .filter((l) => l !== null && l !== undefined)
+      .join('\n');
+  }
+  if (texte.length < 40) {
+    throw new Error(
+      'Colle la recette complète (ingrédients ET étapes) — le texte est trop court pour en faire une vidéo.',
+    );
+  }
 
   const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
-  update(`Écriture du script « ${recipe.name} » par Claude…`);
-  const raw = await askClaudeForJson(buildRecipePrompt(project, recipe, seconds, tone));
+  update('Découpage de la recette en gestes par Claude…');
+  const raw = await askClaudeForJson(buildRecipePrompt(project, texte, seconds, tone));
   ensureUsage(project).claudeCalls += 1;
 
   const episode = normalizeEpisode(raw, number);
+  // Fiche de la recette : celle que Claude a lue dans le texte, complétée
+  // par la fiche du site quand la vidéo vient d'une URL.
+  const r = raw.recipe && typeof raw.recipe === 'object' ? raw.recipe : {};
+  const recipe = {
+    url: params.url || '',
+    name: String(r.name || raw.title || 'Recette').slice(0, 120),
+    country: String(r.country || (fiche && fiche.country) || '').slice(0, 60),
+    totalText: String(r.totalText || (fiche && fiche.totalText) || '').slice(0, 40),
+    servings: String(r.servings || (fiche && fiche.servings) || '').slice(0, 40),
+    description: (fiche && fiche.description) || '',
+    image: (fiche && fiche.image) || '',
+    ingredients: Array.isArray(r.ingredients)
+      ? r.ingredients.map((x) => String(x).slice(0, 80)).slice(0, 25)
+      : (fiche && fiche.ingredients) || [],
+    steps: Array.isArray(r.steps)
+      ? r.steps.map((x) => String(x).slice(0, 300)).slice(0, 20)
+      : (fiche && fiche.steps) || [],
+    source: params.url ? 'site' : 'collée',
+  };
   episode.title = recipe.name;
   episode.topic = recipe.name;
   episode.cliffhanger = '';
@@ -1183,8 +1264,43 @@ export async function createRecipeVideo(project, params, update) {
       l.speaker = 'narrator';
     }
   }
-  // Photo du plat fini fournie par le site : utilisée telle quelle sur le
-  // dernier plan « final » (aucune génération, donc aucun crédit).
+  // Filet de sécurité : la vidéo se termine TOUJOURS sur le plat fini puis
+  // l'appel à l'action — même si Claude les a oubliés en fin de liste.
+  const povSuffix = (episode.scenes[0] && episode.scenes[0].imagePrompt) || '';
+  const style = povSuffix.slice(povSuffix.indexOf('first-person POV')) || '';
+  const addScene = (extra) => {
+    const id = `s${episode.scenes.length + 1}`;
+    episode.scenes.push({
+      id,
+      location: '',
+      screenshot: null,
+      badge: null,
+      lines: [{ speaker: 'narrator', text: extra.text, audio: null, audioDurationSec: null }],
+      characters: [],
+      image: null,
+      kenBurns: 'zoom-in',
+      durationSec: 5,
+      version: 0,
+      ...extra.fields,
+      imagePrompt: `${extra.image} ${style}`.trim(),
+    });
+  };
+  if (!episode.scenes.some((sc) => sc.kind === 'final')) {
+    addScene({
+      text: `${recipe.name}, prêt à partager.`,
+      image: 'Two african hands placing the finished dish, beautifully plated in a traditional bowl, on the worktop, seen from directly above.',
+      fields: { kind: 'final', gesture: 'poser le plat fini sur le plan', onScreen: 'Et voilà' },
+    });
+  }
+  if (!episode.scenes.some((sc) => sc.kind === 'cta')) {
+    addScene({
+      text: 'Recette complète et produits rares sur alohash.fr.',
+      image: 'Two african hands sliding the finished dish towards the camera on the worktop, seen from directly above, warm inviting light.',
+      fields: { kind: 'cta', gesture: 'présenter le plat à la caméra', onScreen: 'Recette complète sur alohash.fr' },
+    });
+  }
+
+  // Fiche du site : sa photo peut servir telle quelle au plan du plat fini.
   if (params.useSiteImage !== false && recipe.image) {
     const target = [...episode.scenes].reverse().find((s) => s.kind === 'final') || episode.scenes[0];
     if (target) {
@@ -1196,8 +1312,6 @@ export async function createRecipeVideo(project, params, update) {
         target.image = file;
         target.imageUrl = null;
         target.fromSite = true;
-        // Photo du site : ni régénérée, ni animée en clip (le budget clip
-        // repart sur un plan de cuisson).
         target.videoDisabled = true;
         delete target.clip;
       } catch (e) {
