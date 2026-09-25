@@ -705,7 +705,8 @@ function CreationProgress({ job, error, onBack }) {
 
 // Les anciens dramas « Version Synchro » (entrée retirée du menu) restent
 // accessibles dans la liste de la Version normale.
-const homeMode = (p) => (p.mode === 'synchro' ? 'normal' : p.mode || 'normal');
+const homeMode = (p) =>
+  p.kind === 'pub' ? 'pub' : p.mode === 'synchro' ? 'normal' : p.mode || 'normal';
 
 // Durées d'épisode du Format long — 60 s conseillé (40 s : trop court pour
 // suivre l'histoire, retour d'expérience du premier drama).
@@ -743,6 +744,15 @@ function ModeGate({ onPick }) {
             Épisodes rangés dans <strong>Dramas Long</strong>.
           </span>
         </button>
+        <button className="mode-card" onClick={() => onPick('pub')}>
+          <span className="mode-emoji">📣</span>
+          <strong>Publicité</strong>
+          <span className="mode-desc">
+            Tes <strong>applis</strong> et leurs pubs : une appli décrite une fois, puis autant de
+            vidéos de 30 s à 1 min qu'il y a d'angles à tester. Tes captures d'écran sont
+            insérées telles quelles.
+          </span>
+        </button>
         <button className="mode-card" onClick={() => onPick('chaine')}>
           <span className="mode-emoji">🎥</span>
           <strong>Chaîne</strong>
@@ -757,6 +767,155 @@ function ModeGate({ onPick }) {
 }
 
 // Création d'une chaîne : identité fixe (nom, genre, thème, style, durée, voix).
+// Création d'une APPLI à promouvoir : son identité commerciale (ce qu'elle
+// fait, pour qui, ce qu'elle propose, l'appel à l'action). Ensuite, dans
+// l'appli, on enchaîne autant de pubs que d'angles à tester.
+function AppCreate({ onSubmit, error, voices = VOICES }) {
+  const [name, setName] = useState('');
+  const [pitch, setPitch] = useState('');
+  const [platform, setPlatform] = useState('iOS');
+  const [audience, setAudience] = useState('');
+  const [features, setFeatures] = useState('');
+  const [tone, setTone] = useState('probleme');
+  const [cta, setCta] = useState('');
+  const [storeUrl, setStoreUrl] = useState('');
+  const [visualStyle, setVisualStyle] = useState('photorealiste');
+  const [targetSeconds, setTargetSeconds] = useState(30);
+  const [narratorVoice, setNarratorVoice] = useState('onwK4e9ZLuTAKqWW03F9');
+
+  return (
+    <section className="create-card custom-form">
+      <h2>➕ Nouvelle appli</h2>
+      <p className="section-label">
+        Décris ton appli une seule fois : Claude s'en sert ensuite pour écrire autant de pubs que
+        tu veux, chacune sous un angle différent. Tu pourras ajouter tes captures d'écran juste
+        après — elles sont insérées telles quelles dans les vidéos (aucun crédit).
+      </p>
+      <div className="form-field">
+        <label>1. 📱 Nom de l'appli (obligatoire)</label>
+        <input
+          value={name}
+          maxLength={80}
+          placeholder="Ex. : Erea"
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>2. 💡 Ce qu'elle fait, en une phrase (obligatoire)</label>
+        <p className="field-hint">Comme si tu l'expliquais à un ami — le bénéfice, pas la technique.</p>
+        <input
+          value={pitch}
+          maxLength={400}
+          placeholder="Ex. : un jeu de culture historique où l'on place les événements sur une grande frise du temps"
+          onChange={(e) => setPitch(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>3. 🎯 À qui elle s'adresse</label>
+        <input
+          value={audience}
+          maxLength={200}
+          placeholder="Ex. : familles, curieux d'histoire, joueurs de quiz de 15 à 60 ans"
+          onChange={(e) => setAudience(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>4. ✨ Ce qu'elle propose (une ligne par élément)</label>
+        <p className="field-hint">
+          Modes de jeu, fonctions clés, chiffres réels… Claude y pioche des arguments concrets —
+          il n'invente rien d'autre.
+        </p>
+        <textarea
+          rows={5}
+          value={features}
+          maxLength={800}
+          placeholder={'Défi du jour : 10 mêmes questions pour tout le monde\nMode Chrono : 10 secondes par question\n1 738 événements vérifiés\nClassements mondiaux Game Center'}
+          onChange={(e) => setFeatures(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>5. 🎭 Ton des pubs</label>
+        <select value={tone} onChange={(e) => setTone(e.target.value)}>
+          <option value="probleme">😤 Problème → solution</option>
+          <option value="temoignage">🗣️ Témoignage</option>
+          <option value="demo">📲 Démo de l'appli</option>
+          <option value="punchy">⚡ Punchy / rythme TikTok</option>
+          <option value="storytelling">📖 Mini-histoire</option>
+        </select>
+      </div>
+      <div className="form-field">
+        <label>6. 📣 Appel à l'action final</label>
+        <input
+          value={cta}
+          maxLength={120}
+          placeholder={name ? `Télécharge ${name} sur l'App Store` : "Télécharge l'appli sur l'App Store"}
+          onChange={(e) => setCta(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>7. 🎨 Style des images générées</label>
+        <select value={visualStyle} onChange={(e) => setVisualStyle(e.target.value)}>
+          <option value="photorealiste">📷 Photoréaliste</option>
+          <option value="illustration">🖌️ Illustration moderne</option>
+          <option value="archives">🎞️ Style archives / sépia</option>
+          <option value="epure">◻️ Épuré / minimaliste</option>
+        </select>
+      </div>
+      <div className="form-field">
+        <label>8. ⏱️ Durée des pubs</label>
+        <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))}>
+          {[30, 40, 45, 50, 60].map((sec) => (
+            <option key={sec} value={sec}>
+              {sec} secondes {sec === 30 ? '(recommandé)' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="form-field">
+        <label>9. 🎙️ La voix des pubs</label>
+        <select value={narratorVoice} onChange={(e) => setNarratorVoice(e.target.value)}>
+          {voices.map((v) => (
+            <option key={v.id} value={v.id}>
+              🎙️ {v.name} — {v.desc}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="form-field">
+        <label>10. 🔗 Lien de la fiche (optionnel)</label>
+        <input
+          value={storeUrl}
+          maxLength={300}
+          placeholder="https://apps.apple.com/…"
+          onChange={(e) => setStoreUrl(e.target.value)}
+        />
+      </div>
+      {error && <p className="error">{error}</p>}
+      <button
+        className="btn-primary"
+        disabled={name.trim().length < 2 || pitch.trim().length < 10}
+        onClick={() =>
+          onSubmit({
+            name: name.trim(),
+            pitch: pitch.trim(),
+            platform,
+            audience: audience.trim(),
+            features,
+            tone,
+            cta: cta.trim(),
+            storeUrl: storeUrl.trim(),
+            visualStyle,
+            targetSeconds,
+            narratorVoice,
+          })
+        }
+      >
+        📱 Ajouter l'appli
+      </button>
+    </section>
+  );
+}
+
 function ChannelCreate({ onSubmit, error, voices = VOICES }) {
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('storytime');
@@ -1010,7 +1169,9 @@ export function App() {
             ? '📺 Drama série (tout vidéo + lèvres animées)'
             : mode === 'chaine'
               ? '🎥 Chaîne (vidéos 1-2 min, narrateur)'
-              : '🎬 Drama court (voix off + images)'}
+              : mode === 'pub'
+                ? '📣 Publicité (mes applis)'
+                : '🎬 Drama court (voix off + images)'}
           <button className="btn-small" onClick={() => setMode(null)}>
             ↔ Changer de format
           </button>
@@ -1104,7 +1265,13 @@ export function App() {
         </section>
       )}
 
-      {mode === 'chaine' ? (
+      {mode === 'pub' ? (
+        <AppCreate
+          error={error}
+          voices={voicesCatalog}
+          onSubmit={(info) => runCreation(() => api.createAdProject(info))}
+        />
+      ) : mode === 'chaine' ? (
         <ChannelCreate
           error={error}
           voices={voicesCatalog}
@@ -1183,7 +1350,13 @@ export function App() {
       {projects.filter((p) => homeMode(p) === mode).length > 0 && (
         <section className="library">
           <h2>
-            {mode === 'chaine' ? 'Mes chaînes' : mode === 'long' ? 'Mes dramas séries' : 'Mes dramas courts'}
+            {mode === 'pub'
+              ? 'Mes applis'
+              : mode === 'chaine'
+                ? 'Mes chaînes'
+                : mode === 'long'
+                  ? 'Mes dramas séries'
+                  : 'Mes dramas courts'}
           </h2>
           <div className="project-grid">
             {projects.filter((p) => homeMode(p) === mode).map((p) => (

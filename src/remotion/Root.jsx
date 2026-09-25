@@ -21,9 +21,10 @@ export const RemotionRoot = () => {
         studio: null,
         studioBase: '',
         noOutroCard: false,
+        cta: '',
       }}
       calculateMetadata={({ props }) => ({
-        durationInFrames: episodeDurationInFrames(props.episode, props.studio, props.noOutroCard),
+        durationInFrames: episodeDurationInFrames(props.episode, props.studio, props.noOutroCard, props.cta),
       })}
     />
   );

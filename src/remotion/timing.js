@@ -8,6 +8,8 @@ export const HEIGHT = 1920;
 export const TRANSITION_FRAMES = 12;
 // Carton « À suivre » : assez long pour lire le cliffhanger tranquillement.
 export const OUTRO_SECONDS = 5.5;
+// Carton final d'une pub : nom de l'appli + appel à l'action.
+export const CTA_SECONDS = 3.5;
 
 export const LINE_START_DELAY = 0.5; // secondes avant la première réplique d'une scène
 export const LINE_GAP = 0.35; // pause entre deux répliques
@@ -58,16 +60,21 @@ export function outroClipFrames(studio) {
 
 // noOutroCard (chaînes) : la vidéo se termine sans carton « À suivre » —
 // directement sur l'outro perso s'il existe.
-export function episodeDurationInFrames(episode, studio, noOutroCard = false) {
+export function episodeDurationInFrames(episode, studio, noOutroCard = false, cta = '') {
   const scenes = episode?.scenes || [];
   if (scenes.length === 0) {
     return FPS * 3;
   }
   const scenesTotal = scenes.reduce((sum, sc) => sum + sceneFrames(sc), 0);
-  const card = noOutroCard ? 0 : Math.round(OUTRO_SECONDS * FPS);
+  // Drama : carton « À suivre ». Pub : carton d'appel à l'action.
+  const card = noOutroCard
+    ? cta
+      ? Math.round(CTA_SECONDS * FPS)
+      : 0
+    : Math.round(OUTRO_SECONDS * FPS);
   const clip = outroClipFrames(studio);
   // TransitionSeries : un fondu par coupe — entre les scènes, puis vers
   // chaque élément de fin présent (carton et/ou outro perso).
-  const cuts = scenes.length - 1 + (noOutroCard ? 0 : 1) + (clip > 0 ? 1 : 0);
+  const cuts = scenes.length - 1 + (card > 0 ? 1 : 0) + (clip > 0 ? 1 : 0);
   return scenesTotal + card + clip - TRANSITION_FRAMES * cuts;
 }

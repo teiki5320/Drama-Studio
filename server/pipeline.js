@@ -35,6 +35,8 @@ import {
   buildChannelPrompt,
   buildTopicsPrompt,
   buildChannelVideoPrompt,
+  buildAdPrompt,
+  buildAdVideoPrompt,
   DRAMA_IMAGE_SUFFIX,
 } from './claudegen.js';
 import { generateImage, currentProvider } from './images.js';
@@ -116,6 +118,8 @@ function normalizeEpisode(raw, number) {
     return {
       id: `s${i + 1}`,
       location: String(s.location || '').trim(),
+      // Pub : numéro de la capture d'écran à afficher (résolu en fichier ci-après).
+      screenshot: Number.isInteger(s.screenshot) ? s.screenshot : null,
       lines,
       characters,
       imagePrompt: String(s.imagePrompt || '').trim(),
@@ -1001,6 +1005,79 @@ export async function createChannel(info, update) {
   return { projectId: id };
 }
 
+// ---------- Publicités d'applis ----------
+// Une « pub » est techniquement une chaîne (mode 'chaine') marquée kind:'pub' :
+// elle réutilise toute la mécanique des vidéos courtes à narrateur unique,
+// avec ses propres prompts et ses captures d'écran d'appli.
+export async function createAdProject(info, update) {
+  update("Préparation de la campagne par Claude (moins d'une minute)…");
+  const data = await askClaudeForJson(buildAdPrompt(info));
+
+  const id = newId();
+  createProjectDirs(id);
+  const project = {
+    id,
+    mode: 'chaine',
+    kind: 'pub',
+    title: info.title,
+    logline: info.pitch || '',
+    setting: '',
+    pitch: info.pitch || '',
+    audience: info.audience || '',
+    features: info.features || '',
+    platform: info.platform || '',
+    tone: info.tone || 'probleme',
+    cta: info.cta || `Télécharge ${info.title}`,
+    storeUrl: info.storeUrl || '',
+    visualStyle: info.visualStyle || 'photorealiste',
+    targetSeconds: info.targetSeconds || 30,
+    narratorVoice: isCatalogVoice(info.narratorVoice) ? info.narratorVoice : undefined,
+    videoScenes: 1,
+    screenshots: [],
+    styles: [],
+    theme: '',
+    characters: [],
+    episodeSummaries: [],
+    episodeCount: 0,
+    hashtags: Array.isArray(data.hashtags) ? data.hashtags.slice(0, 12).map(String) : [],
+    topicIdeas: Array.isArray(data.topics) ? data.topics.slice(0, 15).map(String) : [],
+    musicFile: null,
+    episodes: [],
+    stage: 'production',
+    createdAt: new Date().toISOString(),
+  };
+  ensureUsage(project).claudeCalls += 1;
+  saveProject(project);
+  return { projectId: id };
+}
+
+// Capture d'écran de l'appli : elle est insérée TELLE QUELLE dans les pubs
+// (aucune génération d'image, donc aucun crédit).
+export function saveScreenshot(project, base64Data, label) {
+  const m = String(base64Data || '').match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/);
+  if (!m) {
+    throw new Error('Format attendu : capture PNG, JPEG ou WEBP.');
+  }
+  const ext = m[1] === 'png' ? 'png' : m[1] === 'webp' ? 'webp' : 'jpg';
+  const list = project.screenshots || (project.screenshots = []);
+  const file = `screenshot_${list.length + 1}_${Date.now().toString(36)}.${ext}`;
+  fs.writeFileSync(path.join(assetsDir(project.id), file), Buffer.from(m[2], 'base64'));
+  list.push({ file, label: String(label || '').slice(0, 80) });
+  saveProject(project);
+  return file;
+}
+
+export function removeScreenshot(project, index) {
+  const list = project.screenshots || [];
+  const s = list[index];
+  if (!s) {
+    throw new Error('Capture introuvable');
+  }
+  fs.rmSync(path.join(assetsDir(project.id), s.file), { force: true });
+  list.splice(index, 1);
+  saveProject(project);
+}
+
 // Écrit le script d'une nouvelle vidéo de la chaîne sur un sujet donné.
 export async function createChannelVideo(project, topic, update) {
   if (project.mode !== 'chaine') {
@@ -1008,7 +1085,11 @@ export async function createChannelVideo(project, topic, update) {
   }
   const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
   update(`Écriture du script « ${topic.slice(0, 60)} » par Claude…`);
-  const raw = await askClaudeForJson(buildChannelVideoPrompt(project, topic, number));
+  const raw = await askClaudeForJson(
+    project.kind === 'pub'
+      ? buildAdVideoPrompt(project, topic, number)
+      : buildChannelVideoPrompt(project, topic, number),
+  );
   ensureUsage(project).claudeCalls += 1;
   const episode = normalizeEpisode(raw, number);
   // Narrateur seul : aucune autre voix, aucun personnage à l'image.
@@ -1016,6 +1097,22 @@ export async function createChannelVideo(project, topic, update) {
     s.characters = [];
     for (const l of s.lines) {
       l.speaker = 'narrator';
+    }
+  }
+  // Pub : une scène qui désigne une capture d'écran l'utilise TELLE QUELLE
+  // (aucune génération d'image, donc aucun crédit) et n'est jamais animée.
+  if (project.kind === 'pub') {
+    const shots = project.screenshots || [];
+    for (const s of episode.scenes) {
+      const n = s.screenshot;
+      if (Number.isInteger(n) && n >= 1 && n <= shots.length) {
+        s.image = shots[n - 1].file;
+        s.imageUrl = null;
+        s.imagePrompt = '';
+        s.videoDisabled = true;
+      } else {
+        s.screenshot = null;
+      }
     }
   }
   episode.topic = topic;

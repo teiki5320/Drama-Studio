@@ -45,6 +45,8 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
     studioBase: studioBase || '',
     // Chaîne : la vidéo se termine sans carton « À suivre ».
     noOutroCard: project.mode === 'chaine',
+    // Pub : carton final « nom de l'appli + appel à l'action ».
+    cta: project.kind === 'pub' ? project.cta || '' : '',
   };
 }
 

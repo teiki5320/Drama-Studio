@@ -27,6 +27,15 @@ export const api = {
     request('/api/projects/custom', { method: 'POST', body: JSON.stringify(answers) }),
   createChannel: (info) =>
     request('/api/projects/channel', { method: 'POST', body: JSON.stringify(info) }),
+  createAdProject: (info) =>
+    request('/api/projects/ad', { method: 'POST', body: JSON.stringify(info) }),
+  uploadScreenshot: (id, dataUrl, label) =>
+    request(`/api/projects/${id}/screenshots`, {
+      method: 'POST',
+      body: JSON.stringify({ data: dataUrl, label }),
+    }),
+  deleteScreenshot: (id, idx) =>
+    request(`/api/projects/${id}/screenshots/${idx}`, { method: 'DELETE' }),
   createChannelVideo: (id, topic) =>
     request(`/api/projects/${id}/videos`, { method: 'POST', body: JSON.stringify({ topic }) }),
   suggestTopics: (id) => request(`/api/projects/${id}/suggest-topics`, { method: 'POST' }),

@@ -16,6 +16,7 @@ import {
   FPS,
   TRANSITION_FRAMES,
   OUTRO_SECONDS,
+  CTA_SECONDS,
   sceneFrames,
   outroClipFrames,
   episodeDurationInFrames,
@@ -85,7 +86,61 @@ const Outro = ({ title, cliffhanger }) => {
   );
 };
 
-export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle, studio, studioBase, noOutroCard }) => {
+// Carton final d'une PUB : le nom de l'appli et l'appel à l'action.
+const CtaCard = ({ appName, cta }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const opacity = interpolate(frame, [0, 0.4 * fps], [0, 1], { extrapolateRight: 'clamp' });
+  const pop = interpolate(frame, [0, 0.5 * fps], [0.92, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  return (
+    <AbsoluteFill
+      style={{
+        background: 'radial-gradient(ellipse at 50% 40%, #12243a 0%, #05080c 78%)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity,
+        padding: 80,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'Helvetica, Arial, sans-serif',
+          fontWeight: 800,
+          color: '#ffffff',
+          fontSize: 92,
+          letterSpacing: 2,
+          textAlign: 'center',
+          transform: `scale(${pop})`,
+          textShadow: '0 6px 40px rgba(0,0,0,0.8)',
+        }}
+      >
+        {appName}
+      </div>
+      <div
+        style={{
+          marginTop: 44,
+          padding: '26px 54px',
+          borderRadius: 999,
+          background: '#ffffff',
+          color: '#05080c',
+          fontFamily: 'Helvetica, Arial, sans-serif',
+          fontWeight: 800,
+          fontSize: 46,
+          textAlign: 'center',
+          lineHeight: 1.25,
+          maxWidth: 880,
+        }}
+      >
+        {cta}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle, studio, studioBase, noOutroCard, cta }) => {
   const scenes = episode?.scenes || [];
 
   if (scenes.length === 0) {
@@ -98,7 +153,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
 
   const clipFrames = outroClipFrames(studio);
   // Fin du contenu principal (scènes + carton éventuel) — l'outro perso vient après.
-  const mainFrames = episodeDurationInFrames(episode, null, noOutroCard);
+  const mainFrames = episodeDurationInFrames(episode, null, noOutroCard, cta);
 
   const transition = (key) => (
     <TransitionSeries.Transition
@@ -132,6 +187,14 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
       transition('tr-outro-card'),
       <TransitionSeries.Sequence key="outro-card" durationInFrames={Math.round(OUTRO_SECONDS * FPS)}>
         <Outro title={seriesTitle} cliffhanger={episode.cliffhanger} />
+      </TransitionSeries.Sequence>,
+    );
+  } else if (cta) {
+    // Pub : carton d'appel à l'action à la place du « À suivre ».
+    seriesChildren.push(
+      transition('tr-cta-card'),
+      <TransitionSeries.Sequence key="cta-card" durationInFrames={Math.round(CTA_SECONDS * FPS)}>
+        <CtaCard appName={seriesTitle} cta={cta} />
       </TransitionSeries.Sequence>,
     );
   }

@@ -882,6 +882,92 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
   );
 }
 
+// Captures d'écran de l'appli (mode pub) : elles sont insérées TELLES QUELLES
+// dans les pubs — aucune génération d'image, donc aucun crédit. Claude en
+// reçoit la liste (avec l'étiquette) et choisit quand les montrer.
+function ScreenshotsPanel({ project, projectId, busy, onRefresh }) {
+  const [label, setLabel] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const shots = project.screenshots || [];
+
+  const add = async (file) => {
+    setUploading(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      await api.uploadScreenshot(projectId, dataUrl, label.trim());
+      setLabel('');
+      await onRefresh();
+    } catch (e) {
+      alert(`Import impossible : ${e.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="downloads-box">
+      <div className="downloads-title">📱 Captures d'écran de l'appli ({shots.length})</div>
+      <p className="downloads-hint">
+        Ajoute les écrans que tu veux montrer dans tes pubs. Ils sont utilisés tels quels
+        (aucun crédit) et Claude décide à quel moment les afficher. L'étiquette lui dit ce
+        qu'on voit — ex. « la frise du temps », « l'écran de score ».
+      </p>
+      <div className="topic-bar" style={{ marginBottom: 10 }}>
+        <input
+          value={label}
+          maxLength={80}
+          placeholder="Ce qu'on voit sur la capture (ex. : la frise du temps)"
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <label className={`btn-small primary ${uploading || busy ? 'disabled' : ''}`}>
+          {uploading ? '⏳ Import…' : '➕ Ajouter une capture'}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            disabled={uploading || busy}
+            onChange={(e) => {
+              const f = e.target.files && e.target.files[0];
+              e.target.value = '';
+              if (f) {
+                add(f);
+              }
+            }}
+          />
+        </label>
+      </div>
+      {shots.length > 0 && (
+        <div className="char-grid">
+          {shots.map((sc, i) => (
+            <div key={sc.file} className="char-card">
+              <img src={`/files/${projectId}/${sc.file}`} alt={sc.label || `Capture ${i + 1}`} />
+              <strong>Capture {i + 1}</strong>
+              <span className="char-role">{sc.label || '(sans étiquette)'}</span>
+              <div className="char-card-actions">
+                <button
+                  className="btn-small"
+                  disabled={busy}
+                  title="Retirer cette capture (les pubs déjà écrites qui l'utilisent gardent leur image)"
+                  onClick={() => {
+                    if (confirm(`Retirer la capture ${i + 1} ?`)) {
+                      api
+                        .deleteScreenshot(projectId, i)
+                        .then(onRefresh)
+                        .catch((e) => alert(e.message));
+                    }
+                  }}
+                >
+                  🗑️ Retirer
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProjectView({ projectId, onBack }) {
   const [project, setProject] = useState(null);
   const [epNumber, setEpNumber] = useState(1);
@@ -945,6 +1031,8 @@ export function ProjectView({ projectId, onBack }) {
   }, [epNumber]);
 
   const isChaine = project?.mode === 'chaine';
+  // Une pub est une chaîne marquée kind='pub' : même mécanique, autre vocabulaire.
+  const isPub = project?.kind === 'pub';
 
   // Une chaîne peut avoir sa propre outro (sinon la marque globale s'applique).
   const effectiveStudio = useMemo(() => {
@@ -960,7 +1048,7 @@ export function ProjectView({ projectId, onBack }) {
   }, [studio, project]);
 
   const duration = useMemo(
-    () => (episode ? episodeDurationInFrames(episode, effectiveStudio, isChaine) : FPS * 3),
+    () => (episode ? episodeDurationInFrames(episode, effectiveStudio, isChaine, isPub ? project.cta || '' : '') : FPS * 3),
     [episode, effectiveStudio, isChaine],
   );
 
@@ -1480,7 +1568,11 @@ export function ProjectView({ projectId, onBack }) {
         <input
           value={topic}
           maxLength={300}
-          placeholder="Sujet de la prochaine vidéo — ex. « l'histoire vraie de Thomas Sankara »"
+          placeholder={
+            isPub
+              ? "Angle de la prochaine pub — ex. « pour les parents qui veulent apprendre l'histoire en famille »"
+              : "Sujet de la prochaine vidéo — ex. « l'histoire vraie de Thomas Sankara »"
+          }
           onChange={(e) => setTopic(e.target.value)}
         />
         <button
@@ -1488,15 +1580,15 @@ export function ProjectView({ projectId, onBack }) {
           disabled={busy || topic.trim().length < 5}
           onClick={() => createVideoFromTopic(topic.trim())}
         >
-          ➕ Créer la vidéo
+          ➕ {isPub ? 'Écrire la pub' : 'Créer la vidéo'}
         </button>
         <button
           className="btn-ghost"
           disabled={busy}
-          title="Claude propose 10 sujets dans le thème de la chaîne"
+          title={isPub ? "Claude propose d'autres angles publicitaires pour cette appli" : 'Claude propose 10 sujets dans le thème de la chaîne'}
           onClick={() => runJob(() => api.suggestTopics(projectId))}
         >
-          💡 Proposer des sujets
+          💡 {isPub ? "Proposer des angles" : 'Proposer des sujets'}
         </button>
       </div>
       {(project.topicIdeas || []).length > 0 && (
@@ -1505,7 +1597,7 @@ export function ProjectView({ projectId, onBack }) {
             <button
               key={i}
               className="dl-chip"
-              title="Cliquer pour reprendre ce sujet"
+              title="Cliquer pour reprendre cet angle"
               onClick={() => setTopic(t)}
             >
               💡 {t}
@@ -1814,6 +1906,14 @@ export function ProjectView({ projectId, onBack }) {
         </p>
       )}
       {episodeTabs}
+      {isPub && (
+        <ScreenshotsPanel
+          project={project}
+          projectId={projectId}
+          busy={busy}
+          onRefresh={refresh}
+        />
+      )}
       {topicBar}
       {costRibbon}
       {jobBanner}
@@ -1836,6 +1936,7 @@ export function ProjectView({ projectId, onBack }) {
                   studio: effectiveStudio,
                   studioBase: '/studio',
                   noOutroCard: isChaine,
+                  cta: isPub ? project.cta || '' : '',
                 }}
                 durationInFrames={duration}
                 fps={FPS}

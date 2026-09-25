@@ -29,6 +29,9 @@ import {
   createCustomProject,
   createChannel,
   createChannelVideo,
+  createAdProject,
+  saveScreenshot,
+  removeScreenshot,
   suggestTopics,
   produceEpisode,
   produceSeason,
@@ -337,6 +340,66 @@ app.post('/api/projects/channel', (req, res) => {
   };
   const job = startJob('Création de la chaîne', (update) => createChannel(info, update));
   res.json({ jobId: job.id });
+});
+
+// ---------- Publicités d'applis ----------
+app.post('/api/projects/ad', (req, res) => {
+  const b = req.body || {};
+  const title = String(b.name || '').trim().slice(0, 80);
+  if (title.length < 2) {
+    res.status(400).json({ error: "Donne le nom de ton appli." });
+    return;
+  }
+  const pitch = String(b.pitch || '').trim().slice(0, 400);
+  if (pitch.length < 10) {
+    res.status(400).json({ error: "Explique en une phrase ce que fait l'appli." });
+    return;
+  }
+  const seconds = Number(b.targetSeconds);
+  const info = {
+    title,
+    pitch,
+    audience: String(b.audience || '').trim().slice(0, 200),
+    tone: String(b.tone || 'probleme').slice(0, 30),
+    cta: String(b.cta || '').trim().slice(0, 120),
+    storeUrl: String(b.storeUrl || '').trim().slice(0, 300),
+    visualStyle: String(b.visualStyle || 'photorealiste').slice(0, 30),
+    features: String(b.features || '').trim().slice(0, 800),
+    platform: String(b.platform || '').trim().slice(0, 60),
+    targetSeconds: Number.isInteger(seconds) && seconds >= 30 && seconds <= 60 ? seconds : 30,
+    narratorVoice: b.narratorVoice,
+  };
+  const job = startJob('Création de la campagne', (update) => createAdProject(info, update));
+  res.json({ jobId: job.id });
+});
+
+// Captures d'écran de l'appli : insérées telles quelles dans les pubs.
+app.post('/api/projects/:id/screenshots', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  try {
+    saveScreenshot(p, req.body.data, req.body.label);
+    res.json(p);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/projects/:id/screenshots/:idx', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  try {
+    removeScreenshot(p, Number(req.params.idx));
+    res.json(p);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.post('/api/projects/:id/videos', (req, res) => {

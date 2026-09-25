@@ -637,3 +637,83 @@ export async function askClaudeForJson(prompt) {
     return extractJson(retry);
   }
 }
+
+// ---------- Publicités d'applis (mode « pub ») ----------
+// Une pub = une vidéo verticale très courte qui vend UNE appli. Même
+// mécanique que les chaînes (narrateur unique, une vidéo par angle), mais
+// avec un but commercial : accroche en 3 secondes, promesse, preuve, appel
+// à l'action. Les captures d'écran de l'appli sont insérées telles quelles.
+
+export const AD_TONES = {
+  probleme: "problème → solution : on montre la galère, puis l'appli qui la règle",
+  temoignage: "témoignage : quelqu'un raconte ce que l'appli a changé pour lui",
+  demo: "démo : on montre l'appli en action, fonctionnalité par fonctionnalité",
+  punchy: 'punchy : rythme rapide, phrases courtes qui claquent, énergie TikTok',
+  storytelling: "mini-histoire : une situation racontée qui amène l'appli comme dénouement",
+};
+
+function adDesc(ad) {
+  const feats = String(ad.features || '')
+    .split(/\r?\n/)
+    .map((f) => f.trim())
+    .filter(Boolean);
+  return `Appli « ${ad.title} » — ${ad.pitch}
+Plateforme : ${ad.platform || 'mobile'}
+Public visé : ${ad.audience || 'grand public francophone'}${
+    feats.length ? `\nCe que l'appli propose (à piocher, pas à réciter) :\n${feats.map((f) => `- ${f}`).join('\n')}` : ''
+  }
+Ton de la pub : ${AD_TONES[ad.tone] || ad.tone || 'libre'}
+Appel à l'action : ${ad.cta || `Télécharge ${ad.title}`}
+Format : vidéo verticale TikTok de ${ad.targetSeconds || 30} secondes, un NARRATEUR unique en voix off (aucun dialogue).`;
+}
+
+export function buildAdPrompt(ad) {
+  return `Tu es directeur créatif d'une agence de publicité spécialisée dans les applis mobiles, pour TikTok.
+${adDesc(ad)}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "hashtags": [10 hashtags TikTok en minuscules SANS le symbole # : 4 génériques à gros volume (application, appli, astuce…) + 6 propres à l'appli et à son public],
+  "topics": [8 ANGLES PUBLICITAIRES différents pour cette appli — chacun en une phrase : le bénéfice précis mis en avant et à qui il parle. Variés (gain de temps, économie, émotion, curiosité, preuve sociale, avant/après…), classés du plus vendeur au moins vendeur]
+}`;
+}
+
+export function buildAdVideoPrompt(project, angle, number) {
+  const seconds = project.targetSeconds || 30;
+  const words = Math.round(seconds * 2.2);
+  const sMin = Math.max(4, Math.round(seconds / 5));
+  const sMax = Math.max(sMin + 1, Math.round(seconds / 3.5));
+  const shots = project.screenshots || [];
+  const shotList = shots.length
+    ? shots.map((s, i) => `  capture ${i + 1} : ${s.label || 'écran de l\'appli'}`).join('\n')
+    : '  (aucune capture fournie)';
+  return `Tu écris des publicités vidéo verticales pour une appli mobile, diffusées sur TikTok.
+${adDesc(project)}
+
+ANGLE DE CETTE PUB (n°${number}) : ${angle}
+
+CAPTURES D'ÉCRAN DISPONIBLES de l'appli (à montrer au bon moment) :
+${shotList}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "number": ${number},
+  "title": "titre court de la pub (usage interne)",
+  "scenes": [${sMin} à ${sMax} scènes : {
+  "lines": [1 réplique : {"speaker": "narrator", "text": "phrase courte et percutante en français, 14 mots maximum"}],
+  "screenshot": ${shots.length ? `numéro de la capture à afficher (1 à ${shots.length}) SI cette scène montre l'appli, sinon null` : 'null'},
+  "characters": [],
+  "imagePrompt": "EN ANGLAIS : le plan à générer (uniquement si \\"screenshot\\" vaut null ; sinon mets une chaîne vide), terminé par : ${channelImageSuffix(project)}"
+}],
+  "cliffhanger": ""
+}
+
+Contraintes STRICTES :
+- ACCROCHE : la PREMIÈRE scène doit arrêter le pouce en 3 secondes — une phrase qui parle d'un problème vécu, d'un chiffre ou d'une promesse forte. Jamais « Découvrez notre application ».
+- L'appli s'appelle « ${project.title} » : son nom est prononcé AU MOINS une fois, et dans la dernière scène.
+- Montre l'appli : au moins ${shots.length ? 'DEUX scènes utilisent une capture d\'écran (champ "screenshot")' : 'deux scènes montrent un téléphone en main avec une interface simple'}.
+- La DERNIÈRE scène est l'appel à l'action : « ${project.cta || `Télécharge ${project.title}`} ».
+- Total des répliques ≈ ${words} mots (≈ ${seconds} secondes de voix) — phrases courtes, orales, une idée par scène.
+- Parle du BÉNÉFICE pour la personne, jamais de la technique. Pas de superlatif creux (« révolutionnaire », « incroyable »).
+- Aucune promesse mensongère, aucun faux avis, aucun chiffre inventé.`;
+}
