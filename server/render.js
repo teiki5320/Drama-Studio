@@ -3,6 +3,7 @@ import { ROOT, PORT } from './config.js';
 import { rendersDir, saveProject } from './projects.js';
 import { exportEpisode } from './exporter.js';
 import { loadStudio } from './studio.js';
+import { assertNoHealthClaims } from './pipeline.js';
 
 let bundlePromise = null;
 
@@ -36,6 +37,7 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
       title: episode.title,
       cliffhanger: episode.cliffhanger,
       scenes: episode.scenes,
+      recipe: episode.recipe || null,
     },
     characters: project.characters,
     assetBase,
@@ -51,6 +53,10 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
 }
 
 export async function renderEpisode(project, episode, update) {
+  // Recette : aucune allégation de santé ne doit partir au rendu.
+  if (project.mode === 'recette') {
+    assertNoHealthClaims(episode);
+  }
   update('Préparation du moteur de rendu…');
   const serveUrl = await getBundle();
 
@@ -65,7 +71,8 @@ export async function renderEpisode(project, episode, update) {
   update('Analyse de la composition…');
   const composition = await selectComposition({
     serveUrl,
-    id: 'Episode',
+    // Les recettes ont leur propre composition (titres, ingrédients, étapes).
+    id: project.mode === 'recette' ? 'Recipe' : 'Episode',
     inputProps,
     browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || undefined,
   });

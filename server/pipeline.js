@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import {
   SPEAKER_COLORS,
   EPISODE_COUNT,
+  plannedVideoCount,
   plannedVideoIndexes,
   wantsLipsync,
   lipsyncSpeaker,
@@ -37,8 +38,12 @@ import {
   buildChannelVideoPrompt,
   buildAdPrompt,
   buildAdVideoPrompt,
+  buildRecipePrompt,
+  RECIPE_SECONDS,
+  findHealthClaims,
   DRAMA_IMAGE_SUFFIX,
 } from './claudegen.js';
+import { fetchRecipe, manualRecipe, downloadRecipeImage } from './recipes.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
 import {
@@ -122,6 +127,14 @@ function normalizeEpisode(raw, number) {
       screenshot: Number.isInteger(s.screenshot) ? s.screenshot : null,
       // Pub : incrustation courte qui situe le plan (« Rome, -52 »).
       badge: typeof s.badge === 'string' && s.badge.trim() ? s.badge.trim().slice(0, 40) : null,
+      // Recette : rôle du plan, texte à l'écran, numéro d'étape, liste d'ingrédients.
+      kind: typeof s.kind === 'string' ? s.kind.trim().slice(0, 20) : undefined,
+      onScreen: typeof s.onScreen === 'string' ? s.onScreen.trim().slice(0, 80) : undefined,
+      stepNumber: Number.isInteger(s.stepNumber) ? s.stepNumber : undefined,
+      ingredients: Array.isArray(s.ingredients)
+        ? s.ingredients.map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 8)
+        : undefined,
+      clip: s.clip === true ? true : undefined,
       lines,
       characters,
       imagePrompt: String(s.imagePrompt || '').trim(),
@@ -396,7 +409,7 @@ async function generateEpisodeAssets(project, episode, update) {
   // 0 bis. Storyboard : découpage des scènes en plans (dramas uniquement,
   // UN appel Claude, aucun appel payant). Sans storyboard (anciens épisodes,
   // chaînes), toute la suite garde le comportement « une scène = une image ».
-  if (project.mode !== 'chaine' && !episodeHasShots(episode)) {
+  if (project.mode !== 'chaine' && project.mode !== 'recette' && !episodeHasShots(episode)) {
     await generateStoryboard(project, episode, update);
   }
 
@@ -539,7 +552,15 @@ async function generateEpisodeAssets(project, episode, update) {
       }
     }
   } else if (provider === 'openart' && VIDEO_SCENES) {
-    const wanted = plannedVideoIndexes(project, scenes.length);
+    // Recette : les plans animés sont ceux que Claude a marqués (vapeur, sauce
+    // qui mijote, plat qu'on sert), pas une répartition par position.
+    const wanted =
+      project.mode === 'recette'
+        ? scenes
+            .map((sc, i) => (sc.clip ? i : -1))
+            .filter((i) => i >= 0)
+            .slice(0, plannedVideoCount(project, scenes.length))
+        : plannedVideoIndexes(project, scenes.length);
     for (let k = 0; k < wanted.length; k++) {
       const scene = scenes[wanted[k]];
       if (scene.video || scene.videoDisabled || !scene.image) {
@@ -644,6 +665,18 @@ export async function generateShotVideo(project, episode, scene, shot) {
   return file;
 }
 
+// Recette : le mouvement d'un plan culinaire — vapeur, sauce qui mijote,
+// geste de la main. Aucun visage, aucune bouche qui parle.
+function recipeMotionPrompt(scene) {
+  return (
+    `Bring this food shot to life with subtle, appetising motion: rising steam, ` +
+    `simmering sauce, slow stirring or pouring, gentle cinematic camera push-in. ` +
+    `Hands may move naturally but NO FACE is ever visible and nobody speaks. ` +
+    `Food, cookware, colours and background stay EXACTLY as in the source image. ` +
+    `Shot: ${scene.imagePrompt}`
+  );
+}
+
 // Génère (ou régénère) le clip vidéo d'une scène via OpenArt.
 export async function generateSceneVideo(project, episode, scene, update) {
   if (currentProvider() !== 'openart') {
@@ -658,7 +691,7 @@ export async function generateSceneVideo(project, episode, scene, update) {
   const durationSec =
     effSeconds === 'auto' ? Math.max(5, Math.min(10, Math.round(scene.durationSec || 6))) : 5;
   const { buffer } = await openartGenerateVideo({
-    prompt: videoMotionPrompt(scene),
+    prompt: project.mode === 'recette' ? recipeMotionPrompt(scene) : videoMotionPrompt(scene),
     imageUrl: scene.imageUrl || null,
     referenceUrls: scene.imageUrl ? [] : sceneReferenceUrls(project, scene),
     durationSec,
@@ -1078,6 +1111,126 @@ export function removeScreenshot(project, index) {
   fs.rmSync(path.join(assetsDir(project.id), s.file), { force: true });
   list.splice(index, 1);
   saveProject(project);
+}
+
+// ---------- Recettes ----------
+// Un projet « recette » est un atelier de cuisine : une identité fixe (voix du
+// narrateur, style d'images, musique), dans lequel on enchaîne les vidéos —
+// une par recette importée du site.
+export async function createRecipeProject(info) {
+  const id = newId();
+  createProjectDirs(id);
+  const project = {
+    id,
+    mode: 'recette',
+    title: info.title,
+    logline: info.themeDesc || 'Recettes africaines pas à pas',
+    setting: '',
+    themeDesc: info.themeDesc || '',
+    siteUrl: info.siteUrl || '',
+    visualStyle: 'photorealiste',
+    targetSeconds: RECIPE_SECONDS.includes(info.targetSeconds) ? info.targetSeconds : 60,
+    tone: info.tone || 'chaleureux',
+    narratorVoice: isCatalogVoice(info.narratorVoice) ? info.narratorVoice : undefined,
+    videoScenes: 3,
+    styles: [],
+    theme: '',
+    characters: [],
+    episodeSummaries: [],
+    episodeCount: 0,
+    hashtags: [],
+    topicIdeas: [],
+    musicFile: null,
+    episodes: [],
+    stage: 'production',
+    createdAt: new Date().toISOString(),
+  };
+  saveProject(project);
+  return { projectId: id };
+}
+
+// Écrit la vidéo d'une recette : import de la fiche (ou saisie manuelle),
+// script par Claude, puis photo du plat fini récupérée du site si demandée.
+export async function createRecipeVideo(project, params, update) {
+  if (project.mode !== 'recette') {
+    throw new Error('Réservé aux projets Recettes.');
+  }
+  const seconds = RECIPE_SECONDS.includes(params.seconds) ? params.seconds : project.targetSeconds || 60;
+  const tone = params.tone || project.tone || 'chaleureux';
+
+  update('Import de la fiche recette…');
+  const recipe = params.url
+    ? await fetchRecipe(params.url)
+    : manualRecipe(params.manual || {});
+
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  update(`Écriture du script « ${recipe.name} » par Claude…`);
+  const raw = await askClaudeForJson(buildRecipePrompt(project, recipe, seconds, tone));
+  ensureUsage(project).claudeCalls += 1;
+
+  const episode = normalizeEpisode(raw, number);
+  episode.title = recipe.name;
+  episode.topic = recipe.name;
+  episode.cliffhanger = '';
+  episode.recipe = recipe;
+  episode.hook = String(raw.hook || '').trim().slice(0, 140);
+  episode.tone = tone;
+  episode.targetSeconds = seconds;
+  // Voix off uniquement : aucun personnage à l'image, aucune synchro labiale.
+  for (const s of episode.scenes) {
+    s.characters = [];
+    for (const l of s.lines) {
+      l.speaker = 'narrator';
+    }
+  }
+  // Photo du plat fini fournie par le site : utilisée telle quelle sur le
+  // dernier plan « final » (aucune génération, donc aucun crédit).
+  if (params.useSiteImage !== false && recipe.image) {
+    const target = [...episode.scenes].reverse().find((s) => s.kind === 'final') || episode.scenes[0];
+    if (target) {
+      const ext = (recipe.image.match(/\.(jpe?g|png|webp)(\?|$)/i) || [])[1] || 'jpg';
+      const file = `e${number}_${target.id}_site.${ext.toLowerCase().replace('jpeg', 'jpg')}`;
+      try {
+        update('Récupération de la photo du plat…');
+        await downloadRecipeImage(recipe.image, path.join(assetsDir(project.id), file));
+        target.image = file;
+        target.imageUrl = null;
+        target.fromSite = true;
+        // Photo du site : ni régénérée, ni animée en clip (le budget clip
+        // repart sur un plan de cuisson).
+        target.videoDisabled = true;
+        delete target.clip;
+      } catch (e) {
+        console.error('Photo du site :', e.message);
+      }
+    }
+  }
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  saveProject(project);
+  return { number };
+}
+
+// Garde-fou avant le rendu : aucune allégation de santé dans la narration ni
+// dans le texte à l'écran. Bloque et nomme le mot fautif.
+export function assertNoHealthClaims(episode) {
+  for (const [i, scene] of (episode.scenes || []).entries()) {
+    const pieces = [
+      ...(scene.lines || []).map((l) => ({ where: 'la narration', text: l.text })),
+      { where: "le texte à l'écran", text: scene.onScreen || '' },
+      ...(scene.ingredients || []).map((x) => ({ where: 'la liste des ingrédients', text: x })),
+    ];
+    for (const piece of pieces) {
+      const found = findHealthClaims(piece.text);
+      if (found.length > 0) {
+        throw new Error(
+          `Allégation de santé interdite dans ${piece.where} du plan ${i + 1} : « ${found.join(', ')} ». ` +
+            `Corrige le texte (on parle de goût, de texture et de tradition — jamais d'effets sur la santé), puis relance le rendu.`,
+        );
+      }
+    }
+  }
 }
 
 // Écrit le script d'une nouvelle vidéo de la chaîne sur un sujet donné.

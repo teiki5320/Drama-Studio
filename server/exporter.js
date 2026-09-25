@@ -37,8 +37,8 @@ export function exportRootFor(project) {
   if (project && project.mode === 'long') {
     return EXPORT_ROOT_LONG;
   }
-  // Chaîne : un dossier au nom de la chaîne, à côté du dossier Dramas.
-  if (project && project.mode === 'chaine') {
+  // Chaîne et Recettes : un dossier au nom du projet, à côté de Dramas.
+  if (project && (project.mode === 'chaine' || project.mode === 'recette')) {
     return path.join(path.dirname(EXPORT_ROOT), sanitizeName(project.title));
   }
   return EXPORT_ROOT;
@@ -57,7 +57,7 @@ export function sanitizeName(s) {
 // Dossier d'export d'un drama (ex. iCloud Drive/Dramas/Ma Sœur, Mon Poison).
 // Pour une chaîne, la racine EST déjà le dossier de la chaîne.
 export function projectExportDir(project) {
-  if (project && project.mode === 'chaine') {
+  if (project && (project.mode === 'chaine' || project.mode === 'recette')) {
     return exportRootFor(project);
   }
   return path.join(exportRootFor(project), sanitizeName(project.title));
@@ -93,7 +93,10 @@ export function exportEpisode(project, episode) {
     // copie passe : le nettoyage est optionnel, la copie reste prioritaire.
     try {
       const oldPrefix = `Episode ${String(episode.number).padStart(2, '0')}`;
-      const newPrefix = `Épisode ${episode.number} `;
+      const newPrefix =
+        project.mode === 'recette'
+          ? `${(episode.recipe && episode.recipe.name) || episode.title || ''} `
+          : `Épisode ${episode.number} `;
       for (const f of fs.readdirSync(dir)) {
         if (f.endsWith('.mp4') && (f.startsWith(oldPrefix) || f.startsWith(newPrefix))) {
           fs.rmSync(path.join(dir, f), { force: true });

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Player } from '@remotion/player';
 import { Episode } from './remotion/Episode.jsx';
+import { Recipe, recipeDurationInFrames } from './remotion/Recipe.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
 import { api, followJob, fileToDataUrl, copyText } from './api.js';
 import {
@@ -599,9 +600,11 @@ function DirectorKitCard({ project, projectId, episode, busy, onRefresh }) {
 function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, onRefresh }) {
   const [lines, setLines] = useState(scene.lines);
   const [prompt, setPrompt] = useState(scene.imagePrompt);
+  const [onScreen, setOnScreen] = useState(scene.onScreen || '');
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
+    setOnScreen(scene.onScreen || '');
     setLines(scene.lines);
     setPrompt(scene.imagePrompt);
     setDirty(false);
@@ -610,7 +613,11 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
   const audioStale = scene.lines.some((l) => !l.audio);
 
   const saveText = async () => {
-    await api.patchScene(project.id, episode.number, scene.id, { lines, imagePrompt: prompt });
+    await api.patchScene(project.id, episode.number, scene.id, {
+      lines,
+      imagePrompt: prompt,
+      ...(scene.kind ? { onScreen } : {}),
+    });
     setDirty(false);
     onRefresh();
   };
@@ -702,6 +709,28 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
           ))}
         </div>
       </div>
+
+      {scene.kind ? (
+        <div className="form-field" style={{ margin: '8px 0' }}>
+          <label>
+            🍲 Texte à l'écran{scene.kind === 'etape' ? ` (étape ${scene.stepNumber || ''})` : ''}
+          </label>
+          <input
+            value={onScreen}
+            maxLength={80}
+            placeholder="6 mots maximum — lisible en grand"
+            onChange={(e) => {
+              setOnScreen(e.target.value);
+              setDirty(true);
+            }}
+          />
+          {(scene.ingredients || []).length > 0 && (
+            <p className="field-hint">
+              Ingrédients affichés : {scene.ingredients.join(' · ')}
+            </p>
+          )}
+        </div>
+      ) : null}
 
       <details className="prompt-details">
         <summary>Prompt de l'image</summary>
@@ -968,6 +997,157 @@ function ScreenshotsPanel({ project, projectId, busy, onRefresh }) {
   );
 }
 
+// Barre de création d'une vidéo de recette : liste du site (avec recherche),
+// durée, ton — et un repli manuel si la fiche n'est pas importable.
+function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
+  const [list, setList] = useState(null);
+  const [erreur, setErreur] = useState(null);
+  const [recherche, setRecherche] = useState('');
+  const [url, setUrl] = useState('');
+  const [seconds, setSeconds] = useState(project.targetSeconds || 60);
+  const [tone, setTone] = useState(project.tone || 'chaleureux');
+  const [useSiteImage, setUseSiteImage] = useState(true);
+  const [manuel, setManuel] = useState(false);
+  const [m, setM] = useState({ name: '', country: '', totalMin: '', ingredients: '', steps: '' });
+
+  useEffect(() => {
+    api
+      .recipes()
+      .then((r) => {
+        setList(r.recipes || []);
+        if ((r.recipes || []).length > 0) {
+          setUrl(r.recipes[0].url);
+        }
+      })
+      .catch((e) => setErreur(e.message));
+  }, []);
+
+  const filtres = (list || []).filter((r) =>
+    r.label.toLowerCase().includes(recherche.trim().toLowerCase()),
+  );
+
+  const lancer = async (params) => {
+    const ok = await runJob(() => api.createRecipeVideo(projectId, { seconds, tone, useSiteImage, ...params }));
+    if (ok) {
+      onCreated();
+    }
+  };
+
+  return (
+    <div className="downloads-box">
+      <div className="downloads-title">🍲 Nouvelle recette en vidéo</div>
+      {erreur && (
+        <p className="error small">
+          Le site est injoignable ({erreur}) — utilise « ✍️ Saisir la recette à la main »
+          ci-dessous, ou colle directement l'adresse d'une fiche.
+        </p>
+      )}
+      <div className="topic-bar">
+        <input
+          value={recherche}
+          placeholder="Chercher une recette (ndolé, yassa, mafé…)"
+          onChange={(e) => setRecherche(e.target.value)}
+          style={{ maxWidth: 260 }}
+        />
+        <select
+          className="season-select"
+          value={url}
+          disabled={busy || !list}
+          onChange={(e) => setUrl(e.target.value)}
+          style={{ flex: 1, minWidth: 180 }}
+        >
+          {!list && <option>Chargement des recettes…</option>}
+          {filtres.map((r) => (
+            <option key={r.slug} value={r.url}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="season-select"
+          value={seconds}
+          disabled={busy}
+          title="Durée de la vidéo"
+          onChange={(e) => setSeconds(Number(e.target.value))}
+        >
+          {[45, 60, 90].map((sec) => (
+            <option key={sec} value={sec}>
+              {sec} s
+            </option>
+          ))}
+        </select>
+        <select
+          className="season-select"
+          value={tone}
+          disabled={busy}
+          title="Ton de la narration"
+          onChange={(e) => setTone(e.target.value)}
+        >
+          <option value="chaleureux">🫕 Chaleureux</option>
+          <option value="street">🔥 Street food</option>
+          <option value="gourmand">😋 Gourmand</option>
+        </select>
+        <button
+          className="btn-primary"
+          disabled={busy || !url}
+          onClick={() => lancer({ url })}
+        >
+          ➕ Créer la vidéo
+        </button>
+      </div>
+      <p className="downloads-hint">
+        <label style={{ cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={useSiteImage}
+            onChange={(e) => setUseSiteImage(e.target.checked)}
+          />{' '}
+          Utiliser la photo du site pour le plat fini (aucun crédit d'image)
+        </label>{' '}
+        ·{' '}
+        <button className="btn-small" onClick={() => setManuel((v) => !v)}>
+          {manuel ? '↩️ Revenir à la liste' : '✍️ Saisir la recette à la main'}
+        </button>
+      </p>
+      {manuel && (
+        <div className="custom-form" style={{ marginTop: 6 }}>
+          <div className="form-field">
+            <label>Nom du plat</label>
+            <input value={m.name} maxLength={120} onChange={(e) => setM({ ...m, name: e.target.value })} />
+          </div>
+          <div className="form-field">
+            <label>Pays</label>
+            <input value={m.country} maxLength={60} onChange={(e) => setM({ ...m, country: e.target.value })} />
+          </div>
+          <div className="form-field">
+            <label>Temps total (minutes)</label>
+            <input
+              value={m.totalMin}
+              maxLength={4}
+              onChange={(e) => setM({ ...m, totalMin: e.target.value.replace(/\D/g, '') })}
+            />
+          </div>
+          <div className="form-field">
+            <label>Ingrédients (un par ligne)</label>
+            <textarea rows={5} value={m.ingredients} onChange={(e) => setM({ ...m, ingredients: e.target.value })} />
+          </div>
+          <div className="form-field">
+            <label>Étapes (une par ligne)</label>
+            <textarea rows={6} value={m.steps} onChange={(e) => setM({ ...m, steps: e.target.value })} />
+          </div>
+          <button
+            className="btn-primary"
+            disabled={busy || m.name.trim().length < 2}
+            onClick={() => lancer({ url: '', manual: m })}
+          >
+            ➕ Créer la vidéo
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProjectView({ projectId, onBack }) {
   const [project, setProject] = useState(null);
   const [epNumber, setEpNumber] = useState(1);
@@ -1033,6 +1213,7 @@ export function ProjectView({ projectId, onBack }) {
   const isChaine = project?.mode === 'chaine';
   // Une pub est une chaîne marquée kind='pub' : même mécanique, autre vocabulaire.
   const isPub = project?.kind === 'pub';
+  const isRecipe = project?.mode === 'recette';
 
   // Une chaîne peut avoir sa propre outro (sinon la marque globale s'applique).
   const effectiveStudio = useMemo(() => {
@@ -1048,8 +1229,13 @@ export function ProjectView({ projectId, onBack }) {
   }, [studio, project]);
 
   const duration = useMemo(
-    () => (episode ? episodeDurationInFrames(episode, effectiveStudio, isChaine, isPub ? project.cta || '' : '') : FPS * 3),
-    [episode, effectiveStudio, isChaine],
+    () =>
+      episode
+        ? isRecipe
+          ? recipeDurationInFrames(episode, effectiveStudio)
+          : episodeDurationInFrames(episode, effectiveStudio, isChaine, isPub ? project.cta || '' : '')
+        : FPS * 3,
+    [episode, effectiveStudio, isChaine, isPub, isRecipe, project],
   );
 
   const runJob = async (kickoff) => {
@@ -1117,7 +1303,7 @@ export function ProjectView({ projectId, onBack }) {
   const header = (
     <header className="project-header">
       <button className="btn-ghost" onClick={onBack}>
-        ← Mes dramas
+        ← {isRecipe ? 'Mes ateliers' : isChaine ? 'Mes chaînes' : 'Mes dramas'}
       </button>
       <div className="project-title">
         <h1>
@@ -1512,9 +1698,10 @@ export function ProjectView({ projectId, onBack }) {
     );
   }
 
-  const tabNumbers = isChaine
-    ? project.episodes.map((e) => e.number)
-    : Array.from({ length: totalEpisodes }, (_, i) => i + 1);
+  const tabNumbers =
+    isChaine || isRecipe
+      ? project.episodes.map((e) => e.number)
+      : Array.from({ length: totalEpisodes }, (_, i) => i + 1);
 
   const episodeTabs = (
     <nav className="episode-tabs">
@@ -1773,7 +1960,7 @@ export function ProjectView({ projectId, onBack }) {
           ⬇️ Télécharger le MP4
         </a>
       )}
-      {nextNumber && !isChaine && (
+      {nextNumber && !isChaine && !isRecipe && (
         <button
           className={`btn-primary next ${currentDone ? '' : 'secondary'}`}
           disabled={busy}
@@ -1789,7 +1976,7 @@ export function ProjectView({ projectId, onBack }) {
           🛠️ Produire l'épisode {nextNumber}
         </button>
       )}
-      {remainingCount > 1 && !isChaine && (
+      {remainingCount > 1 && !isChaine && !isRecipe && (
         <span className="batch-produce">
           <button
             className="btn-ghost"
@@ -1823,7 +2010,7 @@ export function ProjectView({ projectId, onBack }) {
           </select>
         </span>
       )}
-      {remainingCount > 0 && !isChaine && (
+      {remainingCount > 0 && !isChaine && !isRecipe && (
         <button
           className="btn-ghost"
           disabled={busy}
@@ -1898,7 +2085,7 @@ export function ProjectView({ projectId, onBack }) {
   return (
     <div className="studio project">
       {header}
-      {!isChaine && (
+      {!isChaine && !isRecipe && (
         <p className="cast-hint" style={{ margin: '4px 0 0' }}>
           Étape 3 / 3 — La production : pour chaque épisode, choisis <strong>🎬 Studio
           Director</strong> (recommandé — OpenArt tourne tout) ou <strong>🛠️ la production
@@ -1906,6 +2093,22 @@ export function ProjectView({ projectId, onBack }) {
         </p>
       )}
       {episodeTabs}
+      {isRecipe && (
+        <RecipeBar
+          projectId={projectId}
+          project={project}
+          busy={busy}
+          runJob={runJob}
+          onCreated={() =>
+            api.getProject(projectId).then((p) => {
+              setProject(p);
+              const maxN = Math.max(...(p.episodes || []).map((e) => e.number), 1);
+              setEpNumber(maxN);
+              setPlayerKey((k) => k + 1);
+            })
+          }
+        />
+      )}
       {isPub && (
         <ScreenshotsPanel
           project={project}
@@ -1926,7 +2129,7 @@ export function ProjectView({ projectId, onBack }) {
             <div className="player-frame">
               <Player
                 key={playerKey}
-                component={Episode}
+                component={isRecipe ? Recipe : Episode}
                 inputProps={{
                   episode,
                   characters: project.characters,
@@ -2005,7 +2208,7 @@ export function ProjectView({ projectId, onBack }) {
                 </button>
               </p>
             )}
-            {!isChaine && (
+            {!isChaine && !isRecipe && (
               <DirectorKitCard
                 project={project}
                 projectId={projectId}

@@ -143,7 +143,36 @@ export function tiktokHashtags(project) {
   return tags.slice(0, 12).map((t) => `#${t}`);
 }
 
+// Recette : nom du plat, pays, accroche, puis les hashtags cuisine.
+export function recipeHashtags(project, episode) {
+  const tags = [];
+  const push = (t) => {
+    const v = tagSlug(t);
+    if (v && v.length > 1 && !tags.includes(v)) {
+      tags.push(v);
+    }
+  };
+  const r = (episode && episode.recipe) || {};
+  push('recetteafricaine');
+  push('cuisineafricaine');
+  if (r.country) {
+    push(r.country);
+  }
+  push(r.name || (episode && episode.title));
+  for (const t of ['recette', 'cuisine', 'food', 'pourtoi', 'fyp']) {
+    push(t);
+  }
+  return tags.slice(0, 12).map((t) => `#${t}`);
+}
+
 export function tiktokCaption(project, episode) {
+  // Recette : « Nom du plat — Pays — accroche » + hashtags cuisine.
+  if (project.mode === 'recette') {
+    const r = episode.recipe || {};
+    const tete = [r.name || episode.title || 'Recette', r.country].filter(Boolean).join(' — ');
+    const hook = (episode.hook || '').trim();
+    return `${tete}${hook ? ` — ${hook}` : ''} ${recipeHashtags(project, episode).join(' ')}`;
+  }
   // Vidéo de chaîne : pas de numéro d'épisode, le titre suffit.
   if (project.mode === 'chaine') {
     return `${episode.title || `Vidéo ${episode.number}`} ${tiktokHashtags(project).join(' ')}`;

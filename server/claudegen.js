@@ -732,3 +732,102 @@ Contraintes STRICTES :
 - Chaque imagePrompt recopie MOT POUR MOT la description "visual" de chaque figure présente dans la scène : c'est ce qui garde le même visage d'un plan à l'autre.
 - "badge" situe le plan d'un coup d'œil (lieu, année). Utilise-le dès qu'une époque ou un lieu compte.`;
 }
+
+// ---------- Recettes (mode « recette ») ----------
+// Une vidéo = une recette du site Alohash, montrée pas à pas. Voix off du
+// narrateur uniquement, aucun personnage, aucune synchro labiale.
+
+export const RECIPE_TONES = {
+  chaleureux: 'chaleureux : voix douce et généreuse, comme une grand-mère qui transmet',
+  street: "street food énergique : rythme rapide, phrases qui claquent, ambiance marché",
+  gourmand: 'gourmand : on décrit les textures et les odeurs, ça met l\'eau à la bouche',
+};
+
+// Style culinaire commun à tous les plans : c'est lui qui donne la cohérence
+// visuelle d'un plan à l'autre.
+export const RECIPE_IMAGE_STYLE =
+  'editorial african food photography, dark moody background, warm orange side light, ' +
+  'steam and texture visible, hands cooking with FACES NEVER VISIBLE, traditional african ' +
+  'cookware, calabash and enamel dishes, shallow depth of field, appetising, 9:16 vertical, ' +
+  'no on-screen text, no letters, no logo, no watermark';
+
+// Allégations de santé INTERDITES dans tout texte généré (narration comme
+// texte à l'écran) : la loi encadre ces mentions sur les aliments, et ce
+// n'est pas le propos d'une recette. Vérifié avant le rendu.
+const HEALTH_CLAIM_WORDS = [
+  'santé', 'sain', 'saine', 'bienfait', 'bienfaits', 'digestion', 'digestif', 'digestive',
+  'vitamine', 'vitamines', 'minéraux', 'antioxydant', 'antioxydants', 'immunité', 'immunitaire',
+  'détox', 'detox', 'minceur', 'maigrir', 'amaigrissant', 'guérit', 'guérir', 'soigne',
+  'soigner', 'remède', 'thérapeutique', 'nutritif', 'nutritive', 'nutriments', 'cholestérol',
+  'diabète', 'cancer', 'énergisant', 'fortifiant', 'aphrodisiaque',
+];
+
+// Retourne les mots interdits trouvés dans un texte (avec leur forme réelle).
+export function findHealthClaims(text) {
+  const t = String(text || '');
+  const found = [];
+  for (const w of HEALTH_CLAIM_WORDS) {
+    const re = new RegExp(`(^|[^\\p{L}])(${w})([^\\p{L}]|$)`, 'iu');
+    const m = t.match(re);
+    if (m) {
+      found.push(m[2]);
+    }
+  }
+  return found;
+}
+
+export const RECIPE_SECONDS = [45, 60, 90];
+
+export function buildRecipePrompt(project, recipe, seconds, tone) {
+  const nPlans = seconds <= 45 ? '6 à 7' : seconds <= 60 ? '7 à 9' : '9 à 10';
+  const words = Math.round(seconds * 2.2);
+  const steps = recipe.steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n');
+  const ings = recipe.ingredients.map((s) => `  - ${s}`).join('\n');
+  return `Tu es monteur de vidéos culinaires verticales pour TikTok, spécialisé dans la cuisine africaine.
+Tu transformes une recette en un script de vidéo qui se regarde jusqu'au bout.
+
+RECETTE
+Nom : ${recipe.name}
+${recipe.country ? `Pays : ${recipe.country}\n` : ''}${recipe.description ? `Description du site : ${recipe.description}\n` : ''}${recipe.totalText ? `Temps total : ${recipe.totalText}\n` : ''}${recipe.servings ? `Pour : ${recipe.servings}\n` : ''}
+Ingrédients :
+${ings}
+
+Étapes :
+${steps}
+
+FORMAT : vidéo verticale de ${seconds} secondes, ${nPlans} plans, voix off d'un NARRATEUR unique.
+TON : ${RECIPE_TONES[tone] || tone || RECIPE_TONES.chaleureux}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "number": 0,
+  "title": "titre de la vidéo (le nom du plat)",
+  "hook": "la phrase d'accroche, reprise telle quelle dans la première scène",
+  "scenes": [${nPlans} scènes dans CET ORDRE : {
+  "kind": "hook | titre | ingredients | etape | final | cta",
+  "onScreen": "texte TRÈS court affiché à l'écran (6 mots maximum, lisible en grand) — pour kind=ingredients, laisse une chaîne vide",
+  "stepNumber": numéro de l'étape (1, 2, 3…) pour kind=etape, sinon null,
+  "ingredients": [pour kind=ingredients UNIQUEMENT : 4 à 7 lignes très courtes reprises des ingrédients ci-dessus (quantité + nom, rien d'autre) ; [] sinon],
+  "clip": true sur 2 ou 3 plans SEULEMENT — ceux où le mouvement compte (vapeur, sauce qui mijote, plat qu'on sert) ; false partout ailleurs,
+  "lines": [1 réplique : {"speaker": "narrator", "text": "narration en français, phrase courte et orale, 16 mots maximum"}],
+  "imagePrompt": "EN ANGLAIS : le plan culinaire précis (ce qu'on voit, cadrage, geste), terminé par : ${RECIPE_IMAGE_STYLE}"
+}],
+  "cliffhanger": ""
+}
+
+STRUCTURE OBLIGATOIRE :
+1. "hook" — le plat fini en gros plan, une phrase qui donne envie et situe le plat (ex. « Le plat que tout le Cameroun sert aux mariages »). 2 à 3 secondes.
+2. "titre" — nom du plat + pays + temps total à l'écran.
+3. "ingredients" — 1 ou 2 plans : les ingrédients posés, la liste s'affiche à l'écran. METS EN AVANT les produits rares (poivre de Penja, soumbala, feuilles de ndolé, fonio, huile de palme, attiéké…) : la narration en cite au moins un par son nom.
+4. "etape" — une étape par plan, résumée en une phrase courte à l'écran ET dans la narration. Regroupe les étapes si elles sont trop nombreuses pour la durée.
+5. "final" — le plat fini, dressé, prêt à servir.
+6. "cta" — dernière scène : « Recette complète et produits rares sur alohash.fr ».
+
+CONTRAINTES STRICTES :
+- INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, digestion, vitamines, minéraux, antioxydant, immunité, détox, minceur, nutritif, énergisant, ni aucune promesse sur le corps. On parle de goût, de texture, d'odeur, de tradition et de partage — jamais d'effets sur la santé.
+- Le texte à l'écran ("onScreen") est COURT : 6 mots maximum, lisible sur un téléphone.
+- La narration ne récite pas la liste des ingrédients : elle raconte.
+- Total des narrations ≈ ${words} mots (≈ ${seconds} secondes de voix).
+- Aucune quantité ni aucun temps de cuisson inventé : reprends ceux de la recette.
+- Les imagePrompt ne montrent JAMAIS de visage : mains, ustensiles, aliments, vapeur.`;
+}

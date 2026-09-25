@@ -30,6 +30,8 @@ import {
   createChannel,
   createChannelVideo,
   createAdProject,
+  createRecipeProject,
+  createRecipeVideo,
   saveScreenshot,
   removeScreenshot,
   suggestTopics,
@@ -79,6 +81,8 @@ import {
   prepareDirectorTest,
 } from './synctest.js';
 import { buildDirectorKit } from './director.js';
+import { listRecipes, recipeSiteUrl } from './recipes.js';
+import { RECIPE_SECONDS, RECIPE_TONES } from './claudegen.js';
 import { generateStoryboard, clearStoryboard } from './storyboard.js';
 import {
   STUDIO_DIR,
@@ -339,6 +343,71 @@ app.post('/api/projects/channel', (req, res) => {
     narratorVoice: b.narratorVoice,
   };
   const job = startJob('Création de la chaîne', (update) => createChannel(info, update));
+  res.json({ jobId: job.id });
+});
+
+// ---------- Recettes ----------
+// Liste des recettes du site (sitemap) pour la liste déroulante.
+app.get('/api/recipes', async (req, res) => {
+  try {
+    res.json(await listRecipes());
+  } catch (e) {
+    res.status(502).json({ error: e.message, base: recipeSiteUrl() });
+  }
+});
+
+app.post('/api/projects/recipe-studio', (req, res) => {
+  const b = req.body || {};
+  const title = String(b.name || '').trim().slice(0, 80);
+  if (title.length < 2) {
+    res.status(400).json({ error: 'Donne un nom à ton atelier de recettes.' });
+    return;
+  }
+  const seconds = Number(b.targetSeconds);
+  createRecipeProject({
+    title,
+    themeDesc: String(b.themeDesc || '').trim().slice(0, 300),
+    siteUrl: recipeSiteUrl(),
+    tone: RECIPE_TONES[b.tone] ? b.tone : 'chaleureux',
+    targetSeconds: RECIPE_SECONDS.includes(seconds) ? seconds : 60,
+    narratorVoice: b.narratorVoice,
+  })
+    .then((r) => res.json(r))
+    .catch((e) => res.status(500).json({ error: e.message }));
+});
+
+// Écrit la vidéo d'une recette (import par URL ou saisie manuelle).
+app.post('/api/projects/:id/recipe-videos', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  if (p.mode !== 'recette') {
+    res.status(400).json({ error: 'Réservé aux projets Recettes.' });
+    return;
+  }
+  const b = req.body || {};
+  const url = String(b.url || '').trim();
+  if (url && !/^https?:\/\//i.test(url)) {
+    res.status(400).json({ error: 'Adresse de recette invalide.' });
+    return;
+  }
+  if (!url && !b.manual) {
+    res.status(400).json({ error: 'Choisis une recette du site, ou remplis le formulaire.' });
+    return;
+  }
+  const seconds = Number(b.seconds);
+  const params = {
+    url,
+    manual: b.manual || null,
+    seconds: RECIPE_SECONDS.includes(seconds) ? seconds : p.targetSeconds || 60,
+    tone: RECIPE_TONES[b.tone] ? b.tone : p.tone || 'chaleureux',
+    useSiteImage: b.useSiteImage !== false,
+  };
+  const job = startJob('Nouvelle recette', (update) => createRecipeVideo(p, params, update), {
+    projectId: p.id,
+  });
   res.json({ jobId: job.id });
 });
 
@@ -1061,7 +1130,7 @@ function withScene(req, res, fn) {
 
 app.patch('/api/projects/:id/episodes/:n/scenes/:sceneId', (req, res) => {
   withScene(req, res, (p, ep, scene) => {
-    const { lines, imagePrompt, kenBurns, durationSec } = req.body || {};
+    const { lines, imagePrompt, kenBurns, durationSec, onScreen, ingredients } = req.body || {};
     if (Array.isArray(lines)) {
       scene.lines = lines
         .filter((l) => l && typeof l.text === 'string' && l.text.trim())
@@ -1082,6 +1151,16 @@ app.patch('/api/projects/:id/episodes/:n/scenes/:sceneId', (req, res) => {
     }
     if (typeof kenBurns === 'string') {
       scene.kenBurns = kenBurns;
+    }
+    // Recette : texte affiché à l'écran et liste d'ingrédients du plan.
+    if (typeof onScreen === 'string') {
+      scene.onScreen = onScreen.trim().slice(0, 80);
+    }
+    if (Array.isArray(ingredients)) {
+      scene.ingredients = ingredients
+        .map((x) => String(x).trim().slice(0, 60))
+        .filter(Boolean)
+        .slice(0, 8);
     }
     if (typeof durationSec === 'number' && durationSec >= 2 && durationSec <= 20) {
       scene.durationSec = durationSec;

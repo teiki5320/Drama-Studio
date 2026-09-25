@@ -708,6 +708,9 @@ function CreationProgress({ job, error, onBack }) {
 const homeMode = (p) =>
   p.kind === 'pub' ? 'pub' : p.mode === 'synchro' ? 'normal' : p.mode || 'normal';
 
+// Durées possibles d'une vidéo de recette.
+const RECIPE_SECONDS = [45, 60, 90];
+
 // Durées d'épisode du Format long — 60 s conseillé (40 s : trop court pour
 // suivre l'histoire, retour d'expérience du premier drama).
 const EP_SECONDS_CHOICES = [
@@ -744,6 +747,15 @@ function ModeGate({ onPick }) {
             Épisodes rangés dans <strong>Dramas Long</strong>.
           </span>
         </button>
+        <button className="mode-card" onClick={() => onPick('recette')}>
+          <span className="mode-emoji">🍲</span>
+          <strong>Recettes</strong>
+          <span className="mode-desc">
+            Les recettes africaines de ton site <strong>Alohash</strong> en vidéos verticales de
+            45 s à 1 min 30 : accroche, ingrédients, étapes numérotées, plat fini. Une vidéo par
+            recette, importée en un clic.
+          </span>
+        </button>
         <button className="mode-card" onClick={() => onPick('pub')}>
           <span className="mode-emoji">📣</span>
           <strong>Publicité</strong>
@@ -767,6 +779,76 @@ function ModeGate({ onPick }) {
 }
 
 // Création d'une chaîne : identité fixe (nom, genre, thème, style, durée, voix).
+// Atelier de recettes : l'identité fixe (nom, voix, durée et ton par défaut).
+// Les recettes elles-mêmes s'importent ensuite depuis le site, une par vidéo.
+function RecipeStudioCreate({ onSubmit, error, voices = VOICES }) {
+  const [name, setName] = useState('Recettes Alohash');
+  const [themeDesc, setThemeDesc] = useState('');
+  const [tone, setTone] = useState('chaleureux');
+  const [targetSeconds, setTargetSeconds] = useState(60);
+  const [narratorVoice, setNarratorVoice] = useState('XrExE9yKIg1WjnnlVkGX');
+
+  return (
+    <section className="create-card custom-form">
+      <h2>➕ Nouvel atelier de recettes</h2>
+      <p className="section-label">
+        L'atelier fixe l'identité des vidéos — leur voix, leur durée et leur ton par défaut. Tu
+        importes ensuite les recettes de ton site une par une, et chacune devient une vidéo. Le
+        nom de l'atelier devient le nom de son dossier iCloud.
+      </p>
+      <div className="form-field">
+        <label>1. 🏷️ Nom de l'atelier</label>
+        <input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="form-field">
+        <label>2. 🧭 La ligne des vidéos, en une phrase (optionnel)</label>
+        <input
+          value={themeDesc}
+          maxLength={300}
+          placeholder="Ex. : les plats africains de fête, expliqués simplement"
+          onChange={(e) => setThemeDesc(e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label>3. 🎭 Ton par défaut</label>
+        <select value={tone} onChange={(e) => setTone(e.target.value)}>
+          <option value="chaleureux">🫕 Chaleureux — comme une grand-mère qui transmet</option>
+          <option value="street">🔥 Street food — rythme rapide, ambiance marché</option>
+          <option value="gourmand">😋 Gourmand — textures et odeurs, ça met l'eau à la bouche</option>
+        </select>
+      </div>
+      <div className="form-field">
+        <label>4. ⏱️ Durée par défaut</label>
+        <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))}>
+          {RECIPE_SECONDS.map((sec) => (
+            <option key={sec} value={sec}>
+              {sec} secondes {sec === 60 ? '(recommandé)' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="form-field">
+        <label>5. 🎙️ La voix des recettes</label>
+        <select value={narratorVoice} onChange={(e) => setNarratorVoice(e.target.value)}>
+          {voices.map((v) => (
+            <option key={v.id} value={v.id}>
+              🎙️ {v.name} — {v.desc}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="error">{error}</p>}
+      <button
+        className="btn-primary"
+        disabled={name.trim().length < 2}
+        onClick={() => onSubmit({ name: name.trim(), themeDesc, tone, targetSeconds, narratorVoice })}
+      >
+        🍲 Créer l'atelier
+      </button>
+    </section>
+  );
+}
+
 // Création d'une APPLI à promouvoir : son identité commerciale (ce qu'elle
 // fait, pour qui, ce qu'elle propose, l'appel à l'action). Ensuite, dans
 // l'appli, on enchaîne autant de pubs que d'angles à tester.
@@ -1171,7 +1253,9 @@ export function App() {
               ? '🎥 Chaîne (vidéos 1-2 min, narrateur)'
               : mode === 'pub'
                 ? '📣 Publicité (mes applis)'
-                : '🎬 Drama court (voix off + images)'}
+                : mode === 'recette'
+                  ? '🍲 Recettes (Alohash)'
+                  : '🎬 Drama court (voix off + images)'}
           <button className="btn-small" onClick={() => setMode(null)}>
             ↔ Changer de format
           </button>
@@ -1265,7 +1349,13 @@ export function App() {
         </section>
       )}
 
-      {mode === 'pub' ? (
+      {mode === 'recette' ? (
+        <RecipeStudioCreate
+          error={error}
+          voices={voicesCatalog}
+          onSubmit={(info) => runCreation(() => api.createRecipeStudio(info))}
+        />
+      ) : mode === 'pub' ? (
         <AppCreate
           error={error}
           voices={voicesCatalog}
@@ -1350,7 +1440,9 @@ export function App() {
       {projects.filter((p) => homeMode(p) === mode).length > 0 && (
         <section className="library">
           <h2>
-            {mode === 'pub'
+            {mode === 'recette'
+              ? 'Mes ateliers de recettes'
+              : mode === 'pub'
               ? 'Mes applis'
               : mode === 'chaine'
                 ? 'Mes chaînes'

@@ -29,6 +29,14 @@ export const api = {
     request('/api/projects/channel', { method: 'POST', body: JSON.stringify(info) }),
   createAdProject: (info) =>
     request('/api/projects/ad', { method: 'POST', body: JSON.stringify(info) }),
+  recipes: () => request('/api/recipes'),
+  createRecipeStudio: (info) =>
+    request('/api/projects/recipe-studio', { method: 'POST', body: JSON.stringify(info) }),
+  createRecipeVideo: (id, params) =>
+    request(`/api/projects/${id}/recipe-videos`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
   uploadScreenshot: (id, dataUrl, label) =>
     request(`/api/projects/${id}/screenshots`, {
       method: 'POST',

@@ -113,3 +113,29 @@ plans animés retenus, la synchro labiale calée sur la réplique du plan. Le r�
 réplique, puis au cliffhanger, puis aux autres. Le montage enchaîne les plans en coupes
 franches (image fixe = zoom lent), et « 🎬 Refaire le storyboard » redécoupe l'épisode.
 Les épisodes produits avant cette version restent lus et montés comme avant (une scène = une image).
+
+## 🍲 Format Recettes (Alohash)
+
+Le 4ᵉ format transforme une recette du site **Alohash** en vidéo verticale de 45 s à 1 min 30.
+
+1. **Crée un atelier** (« 🍲 Recettes » sur l'écran d'accueil) : son nom, sa voix, son ton
+   (chaleureux, street food, gourmand) et sa durée par défaut. Le nom devient le dossier iCloud.
+2. **Importe une recette** : la liste déroulante est remplie depuis le `sitemap.xml` du site
+   (46 recettes) — avec recherche. L'app lit le bloc JSON-LD `schema.org/Recipe` de la fiche
+   (ingrédients, étapes, temps, photo). Un formulaire manuel sert de repli si la fiche n'est
+   pas lisible.
+3. **Claude écrit le script** en 6 à 10 plans : accroche sur le plat fini, titre (plat + pays +
+   temps), ingrédients affichés ligne par ligne (les produits rares sont mis en avant), une
+   étape par plan, plat fini, puis « Recette complète et produits rares sur alohash.fr ».
+4. **Production** identique aux autres formats : images (style culinaire sombre et chaud, mains
+   sans visage), 2-3 plans clés animés en clip si OpenArt est actif, voix off du narrateur,
+   aperçu dans le lecteur, rendu MP4. La photo du site peut servir telle quelle pour le plat
+   fini (aucun crédit).
+5. **Export** : dossier au nom de l'atelier, nom de fichier = plat + pays + accroche + hashtags
+   (`#recetteafricaine #cuisineafricaine #<pays> #<plat> #fyp #pourtoi`).
+
+**Aucune allégation de santé** n'est autorisée dans les textes générés : la consigne est dans le
+prompt, et une vérification bloque le rendu en nommant le mot fautif (santé, bienfaits, digestion,
+vitamines, détox…). On parle de goût, de texture et de tradition.
+
+Source réglable dans `.env` : `RECIPE_SITE_URL` (défaut `https://teiki5320.github.io/alohash`).
