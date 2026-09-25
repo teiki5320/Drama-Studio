@@ -34,6 +34,35 @@ function activeLineIndex(frame, scene) {
   return active;
 }
 
+// Incrustation d'une pub : situe le plan d'un coup d'œil (« Rome, -52 »).
+// Elle apparaît en fondu dès le début du plan, en haut de l'image.
+const SceneBadge = ({ text }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const opacity = interpolate(frame, [0, 0.35 * fps], [0, 1], { extrapolateRight: 'clamp' });
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'flex-start', paddingTop: 140, opacity }}>
+      <div
+        style={{
+          fontFamily: 'Helvetica, Arial, sans-serif',
+          fontWeight: 800,
+          fontSize: 54,
+          letterSpacing: 4,
+          textTransform: 'uppercase',
+          color: '#ffffff',
+          background: 'rgba(0,0,0,0.55)',
+          border: '3px solid rgba(255,255,255,0.85)',
+          borderRadius: 14,
+          padding: '14px 34px',
+          textShadow: '0 3px 18px rgba(0,0,0,0.9)',
+        }}
+      >
+        {text}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // Image fixe d'un plan : zoom lent 1,00 → 1,06 sur la durée du plan.
 const ShotStill = ({ src, durationInFrames }) => {
   const frame = useCurrentFrame();
@@ -282,6 +311,9 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
             'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 18%, rgba(0,0,0,0) 34%)',
         }}
       />
+
+      {/* Pub : incrustation qui situe le plan (lieu, année) */}
+      {scene.badge ? <SceneBadge text={scene.badge} /> : null}
 
       {/* Titre de l'épisode sur la première scène */}
       {isFirst ? (

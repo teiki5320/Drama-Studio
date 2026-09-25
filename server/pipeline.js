@@ -120,6 +120,8 @@ function normalizeEpisode(raw, number) {
       location: String(s.location || '').trim(),
       // Pub : numéro de la capture d'écran à afficher (résolu en fichier ci-après).
       screenshot: Number.isInteger(s.screenshot) ? s.screenshot : null,
+      // Pub : incrustation courte qui situe le plan (« Rome, -52 »).
+      badge: typeof s.badge === 'string' && s.badge.trim() ? s.badge.trim().slice(0, 40) : null,
       lines,
       characters,
       imagePrompt: String(s.imagePrompt || '').trim(),
@@ -1092,11 +1094,40 @@ export async function createChannelVideo(project, topic, update) {
   );
   ensureUsage(project).claudeCalls += 1;
   const episode = normalizeEpisode(raw, number);
-  // Narrateur seul : aucune autre voix, aucun personnage à l'image.
+  // Voix off uniquement : le narrateur porte toutes les répliques.
   for (const s of episode.scenes) {
-    s.characters = [];
     for (const l of s.lines) {
       l.speaker = 'narrator';
+    }
+  }
+  if (project.kind === 'pub') {
+    // Figures de la pub : elles rejoignent le casting du projet et reçoivent
+    // un portrait de référence (comme les personnages de drama) — c'est ce
+    // qui garde le même visage d'un plan à l'autre et d'une pub à l'autre.
+    const cast = project.characters || (project.characters = []);
+    for (const f of Array.isArray(raw.figures) ? raw.figures.slice(0, 4) : []) {
+      const id = String(f?.id || '').trim();
+      if (!id || !f.visual || cast.find((c) => c.id === id)) {
+        continue;
+      }
+      cast.push({
+        id,
+        name: String(f.name || id).slice(0, 60),
+        gender: 'homme',
+        age: 40,
+        role: 'figure de pub',
+        visual: String(f.visual),
+        color: SPEAKER_COLORS[cast.length % SPEAKER_COLORS.length],
+      });
+    }
+    const ids = new Set(cast.map((c) => c.id));
+    for (const s of episode.scenes) {
+      s.characters = (s.characters || []).filter((id) => ids.has(id));
+    }
+  } else {
+    // Chaîne : aucun personnage à l'image.
+    for (const s of episode.scenes) {
+      s.characters = [];
     }
   }
   // Pub : une scène qui désigne une capture d'écran l'utilise TELLE QUELLE

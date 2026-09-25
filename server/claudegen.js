@@ -687,6 +687,10 @@ export function buildAdVideoPrompt(project, angle, number) {
   const shotList = shots.length
     ? shots.map((s, i) => `  capture ${i + 1} : ${s.label || 'écran de l\'appli'}`).join('\n')
     : '  (aucune capture fournie)';
+  const known = (project.characters || [])
+    .map((c) => `  - id "${c.id}" : ${c.name} — ${c.visual}`)
+    .join('\n');
+
   return `Tu écris des publicités vidéo verticales pour une appli mobile, diffusées sur TikTok.
 ${adDesc(project)}
 
@@ -694,15 +698,22 @@ ANGLE DE CETTE PUB (n°${number}) : ${angle}
 
 CAPTURES D'ÉCRAN DISPONIBLES de l'appli (à montrer au bon moment) :
 ${shotList}
+${known ? `\nFIGURES DÉJÀ CRÉÉES pour cette appli (réutilise leur id ET leur description telle quelle si elles reviennent) :\n${known}\n` : ''}
 
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 {
   "number": ${number},
   "title": "titre court de la pub (usage interne)",
+  "figures": [0 à 4 personnages VISIBLES de cette pub (figure historique, personne d'aujourd'hui…) — [] si la pub n'en montre aucun : {
+    "id": "slug_court",
+    "name": "son nom",
+    "visual": "EN ANGLAIS : description physique très détaillée et STABLE (visage, cheveux, costume d'époque, corpulence) réutilisée à l'identique dans toutes les images où il apparaît"
+  }],
   "scenes": [${sMin} à ${sMax} scènes : {
   "lines": [1 réplique : {"speaker": "narrator", "text": "phrase courte et percutante en français, 14 mots maximum"}],
   "screenshot": ${shots.length ? `numéro de la capture à afficher (1 à ${shots.length}) SI cette scène montre l'appli, sinon null` : 'null'},
-  "characters": [],
+  "badge": "texte TRÈS court incrusté à l'écran pour situer le plan (ex. « Rome, -52 », « 1805 ») — null si inutile",
+  "characters": [ids des figures VISIBLES dans cette scène, [] si aucune],
   "imagePrompt": "EN ANGLAIS : le plan à générer (uniquement si \\"screenshot\\" vaut null ; sinon mets une chaîne vide), terminé par : ${channelImageSuffix(project)}"
 }],
   "cliffhanger": ""
@@ -715,5 +726,9 @@ Contraintes STRICTES :
 - La DERNIÈRE scène est l'appel à l'action : « ${project.cta || `Télécharge ${project.title}`} ».
 - Total des répliques ≈ ${words} mots (≈ ${seconds} secondes de voix) — phrases courtes, orales, une idée par scène.
 - Parle du BÉNÉFICE pour la personne, jamais de la technique. Pas de superlatif creux (« révolutionnaire », « incroyable »).
-- Aucune promesse mensongère, aucun faux avis, aucun chiffre inventé.`;
+- Aucune promesse mensongère, aucun faux avis, aucun chiffre inventé.
+- MISE EN SCÈNE : si l'angle s'y prête, raconte une VRAIE petite scène (un décor, un personnage, une situation qui surprend) plutôt que d'illustrer platement la voix off.
+- GROS PLANS DE RÉACTION : quand un personnage est surpris ou bouleversé, coupe sur son visage en gros plan — c'est ce qui retient le pouce.
+- Chaque imagePrompt recopie MOT POUR MOT la description "visual" de chaque figure présente dans la scène : c'est ce qui garde le même visage d'un plan à l'autre.
+- "badge" situe le plan d'un coup d'œil (lieu, année). Utilise-le dès qu'une époque ou un lieu compte.`;
 }
