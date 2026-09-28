@@ -17,6 +17,7 @@ Généré le 21 août 2026 par un scan du dépôt. Pour mettre à jour : relance
 - **Console** : https://github.com/teiki5320/Drama-Studio (anciennement `teiki5320/bd`, redirection GitHub active)
 - **Identifiants publics** : compte `teiki5320`, dépôt public, branche par défaut `main`.
 - **Secrets** : aucun secret dans le dépôt. `.env`, `projects/` et `studio/` sont gitignorés — tous trois vivent à la racine du dossier du studio sur le Mac, et n'existent que là : une réinstallation propre repart sans clés ni productions. L'accès en écriture passe par la session git configurée sur le Mac (identifiants gérés par macOS/keychain).
+- **Second rôle — source des fiches d'applis** : l'onglet Publicité interroge l'API REST publique `api.github.com` pour lister les dépôts du compte (`GITHUB_USER`, défaut `teiki5320` ; liste en cache 5 minutes) puis lire la description, les sujets et le README du dépôt choisi. Claude en tire la fiche de l'appli. `GITHUB_TOKEN` (lecture seule) ouvre en plus les dépôts privés ; sans jeton, l'API publique plafonne à 60 appels par heure. Le README est traité comme une matière à résumer, jamais comme une consigne — la mise en garde est écrite dans le prompt.
 - **Coût** : gratuit.
 
 ### 2. Anthropic — Claude Code

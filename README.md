@@ -147,3 +147,28 @@ prompt, et une vérification bloque le rendu en nommant le mot fautif (santé, b
 vitamines, détox…). On parle de goût, de texture et de tradition.
 
 Source réglable dans `.env` : `RECIPE_SITE_URL` (défaut `https://teiki5320.github.io/alohash`).
+
+## 📣 Format Publicité (mes applis)
+
+Le 3ᵉ format produit les pubs verticales de tes propres applis, de 30 s à 1 min.
+
+1. **Ajoute une appli** (« 📣 Publicité » sur l'écran d'accueil). Deux façons de remplir la
+   fiche :
+   - **Depuis GitHub** — la liste déroulante en haut du formulaire montre les dépôts du
+     compte ; tu en choisis un, Claude lit sa description, ses sujets et son README, et
+     remplit le nom, le pitch, le public, les fonctionnalités, l'appel à l'action et le lien
+     de la fiche. Il ne remplace jamais un champ que tu as déjà rempli, et n'invente aucun
+     fait : ce que le dépôt ne dit pas reste vide, et il te le signale.
+   - **À la main** — les dix questions du formulaire.
+2. **Ajoute tes captures d'écran** : elles sont insérées telles quelles dans les vidéos, donc
+   sans aucun crédit d'image.
+3. **Claude propose 8 angles** différents (gain de temps, émotion, preuve sociale…). Tu en
+   choisis un, il écrit la pub : accroche en 3 secondes, scènes mises en situation, captures
+   au bon moment, carte d'appel à l'action finale.
+4. **Figures et époques** : une pub peut mettre en scène des personnages récurrents (une figure
+   historique, par exemple) — leur description physique est réutilisée à l'identique d'un plan
+   à l'autre — et afficher un badge d'époque incrusté (« Rome, -52 »).
+
+Compte GitHub réglable dans `.env` : `GITHUB_USER` (défaut `teiki5320`). Pour voir aussi les
+dépôts privés, ajoute `GITHUB_TOKEN` (jeton à portée lecture) ; sans jeton, seuls les dépôts
+publics apparaissent et GitHub limite à 60 appels par heure.

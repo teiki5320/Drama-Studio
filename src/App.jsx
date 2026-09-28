@@ -865,6 +865,73 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
   const [targetSeconds, setTargetSeconds] = useState(30);
   const [narratorVoice, setNarratorVoice] = useState('onwK4e9ZLuTAKqWW03F9');
 
+  // Remplissage depuis un dépôt GitHub : on choisit, Claude lit le README.
+  const [repos, setRepos] = useState([]);
+  const [repo, setRepo] = useState('');
+  const [reposError, setReposError] = useState('');
+  const [briefBusy, setBriefBusy] = useState(false);
+  const [briefInfo, setBriefInfo] = useState('');
+  const [briefError, setBriefError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .githubRepos()
+      .then((d) => {
+        if (!alive) {
+          return;
+        }
+        setRepos(d.repos || []);
+        setReposError('');
+      })
+      .catch((e) => alive && setReposError(e.message));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const fillFromRepo = async () => {
+    if (!repo) {
+      return;
+    }
+    setBriefBusy(true);
+    setBriefError('');
+    setBriefInfo('');
+    try {
+      const d = await api.repoBrief(repo);
+      const f = d.fields || {};
+      // On ne remplace que ce que Claude a su remplir : ce que tu as déjà tapé reste.
+      const fill = (value, current, set) => {
+        if (value && !current.trim()) {
+          set(value);
+        }
+      };
+      fill(f.name, name, setName);
+      fill(f.pitch, pitch, setPitch);
+      fill(f.audience, audience, setAudience);
+      fill(f.features, features, setFeatures);
+      fill(f.cta, cta, setCta);
+      fill(f.storeUrl, storeUrl, setStoreUrl);
+      if (f.platform && /android/i.test(f.platform) && !/ios/i.test(f.platform)) {
+        setPlatform('Android');
+      } else if (f.platform && /ios|iphone/i.test(f.platform)) {
+        setPlatform(/android/i.test(f.platform) ? 'iOS et Android' : 'iOS');
+      }
+      setBriefInfo(
+        [
+          `✅ Fiche remplie depuis ${d.repo}.`,
+          d.hadReadme ? '' : ' (ce dépôt n’a pas de README : peu de matière)',
+          d.notes ? ` À compléter : ${d.notes}` : '',
+          ' Relis tout avant de valider.',
+        ].join(''),
+      );
+    } catch (e) {
+      setBriefError(e.message);
+    } finally {
+      setBriefBusy(false);
+    }
+  };
+
   return (
     <section className="create-card custom-form">
       <h2>➕ Nouvelle appli</h2>
@@ -873,6 +940,42 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
         tu veux, chacune sous un angle différent. Tu pourras ajouter tes captures d'écran juste
         après — elles sont insérées telles quelles dans les vidéos (aucun crédit).
       </p>
+      <div className="form-field">
+        <label>🐙 Partir d'un dépôt GitHub (raccourci)</label>
+        <p className="field-hint">
+          Choisis le dépôt de l'appli : Claude lit son README et remplit les questions
+          ci-dessous. Il ne touche pas aux champs que tu as déjà remplis, et n'invente aucun
+          chiffre — relis avant de valider.
+        </p>
+        {reposError ? (
+          <p className="field-hint">⚠️ Dépôts illisibles : {reposError} — remplis à la main.</p>
+        ) : (
+          <div className="topic-bar">
+            <select
+              className="season-select"
+              value={repo}
+              disabled={briefBusy}
+              onChange={(e) => setRepo(e.target.value)}
+            >
+              <option value="">
+                {repos.length ? '— choisis un dépôt —' : 'chargement des dépôts…'}
+              </option>
+              {repos.map((r) => (
+                <option key={r.fullName} value={r.fullName}>
+                  {r.private ? '🔒 ' : ''}
+                  {r.label}
+                  {r.description ? ` — ${r.description.slice(0, 60)}` : ''}
+                </option>
+              ))}
+            </select>
+            <button className="btn-small" disabled={!repo || briefBusy} onClick={fillFromRepo}>
+              {briefBusy ? '⏳ Lecture du README…' : '✨ Remplir la fiche'}
+            </button>
+          </div>
+        )}
+        {briefInfo && <p className="field-hint">{briefInfo}</p>}
+        {briefError && <p className="error">{briefError}</p>}
+      </div>
       <div className="form-field">
         <label>1. 📱 Nom de l'appli (obligatoire)</label>
         <input

@@ -29,6 +29,9 @@ export const api = {
     request('/api/projects/channel', { method: 'POST', body: JSON.stringify(info) }),
   createAdProject: (info) =>
     request('/api/projects/ad', { method: 'POST', body: JSON.stringify(info) }),
+  githubRepos: (fresh) => request(`/api/github/repos${fresh ? '?fresh=1' : ''}`),
+  repoBrief: (repo) =>
+    request('/api/github/repo-brief', { method: 'POST', body: JSON.stringify({ repo }) }),
   recipes: () => request('/api/recipes'),
   createRecipeStudio: (info) =>
     request('/api/projects/recipe-studio', { method: 'POST', body: JSON.stringify(info) }),

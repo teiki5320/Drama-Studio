@@ -82,7 +82,13 @@ import {
 } from './synctest.js';
 import { buildDirectorKit } from './director.js';
 import { listRecipes, recipeSiteUrl } from './recipes.js';
-import { RECIPE_SECONDS, RECIPE_TONES } from './claudegen.js';
+import { listRepos, fetchRepoBrief, githubUser } from './github.js';
+import {
+  RECIPE_SECONDS,
+  RECIPE_TONES,
+  buildRepoBriefPrompt,
+  askClaudeForJson,
+} from './claudegen.js';
 import { generateStoryboard, clearStoryboard } from './storyboard.js';
 import {
   STUDIO_DIR,
@@ -413,6 +419,56 @@ app.post('/api/projects/:id/recipe-videos', (req, res) => {
 });
 
 // ---------- Publicités d'applis ----------
+// ---------- Dépôts GitHub ----------
+// La liste déroulante de l'onglet Publicité : on choisit un dépôt plutôt que
+// de tout retaper.
+app.get('/api/github/repos', async (req, res) => {
+  try {
+    res.json(await listRepos({ fresh: req.query.fresh === '1' }));
+  } catch (e) {
+    res.status(502).json({ error: e.message, user: githubUser() });
+  }
+});
+
+// Le dépôt choisi → la fiche de l'appli, remplie par Claude d'après le README.
+app.post('/api/github/repo-brief', async (req, res) => {
+  const repo = String((req.body || {}).repo || '').trim();
+  if (!repo) {
+    res.status(400).json({ error: 'Choisis un dépôt.' });
+    return;
+  }
+  try {
+    const brief = await fetchRepoBrief(repo);
+    const data = await askClaudeForJson(buildRepoBriefPrompt(brief));
+    const line = (v, max) => String(v || '').trim().slice(0, max);
+    res.json({
+      repo: brief.fullName,
+      url: brief.url,
+      hadReadme: Boolean(brief.readme),
+      fields: {
+        name: line(data.name, 80) || brief.label,
+        pitch: line(data.pitch, 400),
+        audience: line(data.audience, 200),
+        features: String(data.features || '')
+          .split(/\r?\n/)
+          .map((f) => f.replace(/^[-•*\s]+/, '').trim())
+          .filter(Boolean)
+          .slice(0, 8)
+          .join('\n')
+          .slice(0, 800),
+        platform: line(data.platform, 60),
+        storeUrl: /^https?:\/\//i.test(String(data.storeUrl || '').trim())
+          ? line(data.storeUrl, 300)
+          : '',
+        cta: line(data.cta, 120),
+      },
+      notes: line(data.notes, 300),
+    });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
 app.post('/api/projects/ad', (req, res) => {
   const b = req.body || {};
   const title = String(b.name || '').trim().slice(0, 80);
