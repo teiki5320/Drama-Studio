@@ -18,11 +18,18 @@ function resolveExportRoot() {
       'Dramas',
     );
   }
-  // « ~/… » = dossier personnel (les chemins iCloud s'écrivent souvent ainsi).
-  if (raw.startsWith('~/')) {
-    return path.join(os.homedir(), raw.slice(2));
+  // « ~ » ou « ~/… » = dossier personnel (les chemins iCloud s'écrivent
+  // souvent ainsi). Le shell ne développe pas le tilde ici : à nous de le faire,
+  // sinon on fabrique un dossier littéralement nommé « ~ ».
+  if (raw === '~' || raw.startsWith('~/')) {
+    return path.join(os.homedir(), raw.slice(1));
   }
-  return raw || path.join(os.homedir(), 'Desktop', 'Dramas');
+  if (!raw) {
+    return path.join(os.homedir(), 'Desktop', 'Dramas');
+  }
+  // Un chemin relatif viserait le dossier courant, c'est-à-dire le dépôt
+  // lui-même : on le rattache au dossier personnel, jamais au code.
+  return path.isAbsolute(raw) ? raw : path.join(os.homedir(), raw);
 }
 
 export const EXPORT_ROOT = resolveExportRoot();
