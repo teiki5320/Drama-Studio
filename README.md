@@ -17,6 +17,14 @@ vidéo avec **Remotion**. Tu visionnes, tu retouches, tu valides — et tu produ
 
 ## Lancer le studio
 
+Double-clique **`Drama Studio.command`** : il met à jour le code, installe ce qu'il
+faut, démarre le serveur et ouvre le navigateur. Le dossier du studio peut être
+rangé n'importe où (`~/bd`, `~/apps/drama-studio`…) — le lanceur se repère tout
+seul, à condition de rester dans le dossier. Pour un raccourci sur le Bureau,
+fais un **alias** (glisser avec ⌘ + ⌥), pas une copie.
+
+En ligne de commande :
+
 ```bash
 npm install        # la première fois
 npm start          # construit l'interface et lance le serveur

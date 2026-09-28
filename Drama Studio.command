@@ -2,10 +2,16 @@
 # ──────────────────────────────────────────────
 #  🎬 Drama Studio — double-clique pour lancer
 # ──────────────────────────────────────────────
-DIR="$HOME/bd"
+# Le studio se trouve tout seul : on part du dossier qui contient ce
+# fichier. Range-le où tu veux (~/bd, ~/apps/drama-studio, ailleurs…),
+# tant que ce raccourci reste dedans, il retrouve son chemin.
+DIR="$(cd "$(dirname "$0")" && pwd -P)"
 
-if [ ! -d "$DIR" ]; then
-  echo "❌ Dossier $DIR introuvable. Modifie la ligne DIR= dans ce fichier si le projet est ailleurs."
+if [ ! -f "$DIR/package.json" ]; then
+  echo "❌ Ce raccourci doit rester DANS le dossier de Drama Studio."
+  echo "   Dossier lu : $DIR"
+  echo "   (pour un raccourci sur le Bureau, fais un alias : glisse le fichier"
+  echo "    en maintenant ⌘ + ⌥, ne le déplace pas.)"
   read -r -p "Appuie sur Entrée pour fermer…"
   exit 1
 fi
