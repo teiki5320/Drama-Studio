@@ -9,7 +9,7 @@ Généré le 21 août 2026 par un scan du dépôt. Pour mettre à jour : relance
 - **Backend** : aucun serveur distant — données en JSON local (`projects/`, gitignoré), jobs de production en mémoire, aucun compte utilisateur
 - **Distribution** : dépôt GitHub public `teiki5320/Drama-Studio`, mise à jour automatique par `git pull` à chaque lancement du raccourci
 - **IA** : Claude (scénarios, sans clé API), OpenArt via MCP (images + clips vidéo, visages constants), ElevenLabs (voix FR), fal.ai (synchro labiale, optionnel)
-- **Particularités** : 4 formats au choix (dramas, chaînes, publicités d'applis, recettes Alohash) — historiquement 3 versions (normale 10×60 s · Synchro lèvres animées · Format long 30-60×40 s) ; export auto des MP4 vers iCloud Drive avec nom de fichier = description TikTok prête
+- **Particularités** : 4 formats au choix (dramas, chaînes, publicités d'applis, recettes Keur Cook) — historiquement 3 versions (normale 10×60 s · Synchro lèvres animées · Format long 30-60×40 s) ; export auto des MP4 vers iCloud Drive avec nom de fichier = description TikTok prête
 
 ### 1. GitHub
 
@@ -63,18 +63,19 @@ Généré le 21 août 2026 par un scan du dépôt. Pour mettre à jour : relance
 
 ## Format Recettes — source des données (ajouté)
 
-- **Rôle** : le format 🍲 Recettes lit les fiches du site **Alohash** pour en faire des vidéos
-  verticales. Aucune base de données : tout est lu à la volée sur le site public.
-- **Source** : `RECIPE_SITE_URL` dans `.env` — défaut `https://teiki5320.github.io/alohash`
-  (le domaine `https://www.alohash.fr` est en maintenance et prendra le relais en changeant
-  cette seule variable).
-- **Protocole** : `GET <base>/sitemap.xml` pour lister les URL contenant `/recette/`, puis
-  `GET <base>/recette/<slug>/` dont on extrait le bloc `<script type="application/ld+json">`
-  de type `schema.org/Recipe` (name, description, image, prepTime, cookTime, recipeYield,
-  recipeCuisine, recipeIngredient[], recipeInstructions[] en HowToStep).
-- **Identifiants publics** : site public, lecture seule, aucun jeton.
+- **Rôle** : le format 🍲 Recettes lit les recettes de **Keur Cook** (`keurcook.com`) pour en
+  faire des vidéos verticales. Aucune base de données, aucun appel réseau.
+- **Source** : le **dépôt** de Keur Cook, sur le disque — `KEURCOOK_REPO` dans `.env`, défaut
+  `~/Dev/apps/keurcook`. Les recettes y sont des données typées, bien plus complètes que ce que
+  la page publiée expose.
+- **Protocole** : lecture de `src/lib/demo/recipes.ts`, `recipes-ouest.ts`, `recipes-centre.ts`,
+  `recipes-est-australe.ts` et `recipes-douceurs.ts` (46 recettes : nom, pays, région, temps,
+  parts, ingrédients avec quantité et unité, étapes dans l'ordre, conseils), des noms de pays
+  dans `src/lib/countries.ts`, et de la photo du plat dans `public/recipes/<slug>.webp`.
+  Les fichiers ne sont relus que lorsqu'ils changent de date.
+- **Identifiants** : aucun — un clone local du dépôt public suffit.
 - **Secrets** : aucun.
-- **Coût** : gratuit (GitHub Pages). Les crédits consommés restent ceux d'OpenArt (images et
-  clips) et d'ElevenLabs (voix) — la photo du plat fini peut être reprise du site, sans crédit.
+- **Coût** : gratuit. Les crédits consommés restent ceux d'OpenArt (images et clips) et
+  d'ElevenLabs (voix) — la photo de Keur Cook ouvre la vidéo telle quelle, sans crédit.
 - **Garde-fou éditorial** : aucune allégation de santé dans les textes générés (consigne dans le
   prompt Claude + vérification bloquante avant le rendu, qui nomme le mot en cause).

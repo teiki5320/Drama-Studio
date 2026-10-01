@@ -81,7 +81,8 @@ import {
   prepareDirectorTest,
 } from './synctest.js';
 import { buildDirectorKit } from './director.js';
-import { listRecipes, recipeSiteUrl } from './recipes.js';
+import { keurcookRepo } from './keurcook.js';
+import { listRecipes, RECIPE_SITE } from './recipes.js';
 import { listRepos, fetchRepoBrief, githubUser } from './github.js';
 import {
   RECIPE_SECONDS,
@@ -353,12 +354,12 @@ app.post('/api/projects/channel', (req, res) => {
 });
 
 // ---------- Recettes ----------
-// Liste des recettes du site (sitemap) pour la liste déroulante.
-app.get('/api/recipes', async (req, res) => {
+// Les recettes lues dans le dépôt de Keur Cook, pour la liste déroulante.
+app.get('/api/recipes', (req, res) => {
   try {
-    res.json(await listRecipes());
+    res.json(listRecipes());
   } catch (e) {
-    res.status(502).json({ error: e.message, base: recipeSiteUrl() });
+    res.status(502).json({ error: e.message, base: keurcookRepo() });
   }
 });
 
@@ -373,7 +374,7 @@ app.post('/api/projects/recipe-studio', (req, res) => {
   createRecipeProject({
     title,
     themeDesc: String(b.themeDesc || '').trim().slice(0, 300),
-    siteUrl: recipeSiteUrl(),
+    siteUrl: `https://${RECIPE_SITE}`,
     tone: RECIPE_TONES[b.tone] ? b.tone : 'chaleureux',
     targetSeconds: RECIPE_SECONDS.includes(seconds) ? seconds : 60,
     narratorVoice: b.narratorVoice,
@@ -394,23 +395,23 @@ app.post('/api/projects/:id/recipe-videos', (req, res) => {
     return;
   }
   const b = req.body || {};
-  const url = String(b.url || '').trim();
+  const slug = String(b.slug || '').trim();
   const text = String(b.text || '').trim().slice(0, 12000);
-  if (url && !/^https?:\/\//i.test(url)) {
-    res.status(400).json({ error: 'Adresse de recette invalide.' });
+  if (slug && !/^[a-z0-9-]{2,80}$/.test(slug)) {
+    res.status(400).json({ error: 'Recette inconnue.' });
     return;
   }
-  if (!text && !url) {
-    res.status(400).json({ error: 'Colle ta recette, ou choisis une fiche du site.' });
+  if (!text && !slug) {
+    res.status(400).json({ error: 'Colle ta recette, ou choisis-en une dans Keur Cook.' });
     return;
   }
   const seconds = Number(b.seconds);
   const params = {
-    url,
+    slug,
     text,
     seconds: RECIPE_SECONDS.includes(seconds) ? seconds : p.targetSeconds || 60,
     tone: RECIPE_TONES[b.tone] ? b.tone : p.tone || 'chaleureux',
-    useSiteImage: b.useSiteImage !== false,
+    usePhoto: b.usePhoto !== false,
   };
   const job = startJob('Nouvelle recette', (update) => createRecipeVideo(p, params, update), {
     projectId: p.id,

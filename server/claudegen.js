@@ -774,7 +774,7 @@ Contraintes STRICTES :
 }
 
 // ---------- Recettes (mode « recette ») ----------
-// Une vidéo = une recette du site Alohash, montrée pas à pas. Voix off du
+// Une vidéo = une recette de Keur Cook, montrée pas à pas. Voix off du
 // narrateur uniquement, aucun personnage, aucune synchro labiale.
 
 export const RECIPE_TONES = {
@@ -916,14 +916,20 @@ Exemple pour « casser deux œufs puis ajouter la farine » — on ne fait PAS u
   4. les mains versent la farine dans le bol
 Verbes des gestes : poser, prendre, casser, éplucher, couper, verser, saupoudrer, mélanger, pétrir, presser, remuer, retourner, égoutter, dresser.
 
-STRUCTURE :
-1. "hook" (1 plan) — le plat fini vu du dessus, les mains qui le posent sur le plan de travail, avec une phrase qui donne envie.
-2. "titre" (1 plan) — les ingrédients bruts posés à plat, nom du plat + pays + temps à l'écran.
-3. "ingredients" (1 plan) — la liste s'affiche à l'écran. METS EN AVANT les produits rares (poivre de Penja, soumbala, feuilles de ndolé, fonio, huile de palme, attiéké…) : la narration en cite au moins un par son nom.
-4. "geste" (la majorité des plans) — les gestes dans l'ordre de la recette, du premier au dernier.
-5. "final" (1 plan) — le plat fini dressé, vu du dessus.
-6. "cta" (1 plan) — les mains posent le plat, texte « Recette complète sur alohash.fr ».
+STRUCTURE — une intro rapide, puis les ingrédients, puis les étapes :
+A. L'INTRO fait DEUX plans et pas un de plus, elle doit filer :
+   1. "hook" (1 plan) — le plat fini vu du dessus, avec une phrase qui donne envie. Une seule réplique, courte.
+   2. "titre" (1 plan) — les ingrédients bruts posés à plat, nom du plat + pays + temps à l'écran.
+B. LES INGRÉDIENTS :
+   3. "ingredients" (1 plan) — la liste s'affiche à l'écran. METS EN AVANT les produits rares (poivre de Penja, soumbala, feuilles de ndolé, fonio, huile de palme, attiéké…) : la narration en cite au moins un par son nom.
+C. LES ÉTAPES :
+   4. "geste" (la majorité des plans) — les gestes dans l'ordre de la recette, du premier au dernier.
+D. LA FIN :
+   5. "final" (1 plan) — le plat fini dressé, vu du dessus.
+   6. "cta" (1 plan) — les mains posent le plat, texte « Recette complète sur keurcook.com ».
 Les DEUX DERNIERS plans de la liste sont OBLIGATOIREMENT, dans cet ordre, un plan "final" puis un plan "cta" : la vidéo ne se termine JAMAIS sur un geste de cuisson. Si la place manque, regroupe des gestes plus tôt — mais garde ces deux plans.
+
+TOUTES LES ÉTAPES DOIVENT PASSER : chaque numéro d'étape de la recette ci-dessus apparaît dans au moins un plan "geste" (champ stepNumber), du 1 jusqu'au dernier, dans l'ordre. Une étape longue se découpe en plusieurs gestes qui portent le MÊME stepNumber. Aucune étape n'est sautée, aucune n'est inventée.
 
 CONTRAINTES STRICTES :
 - INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, bien-être, digestion, vitamines, minéraux, protéines, calories, antioxydant, anti-inflammatoire, immunité, détox, minceur, brûle-graisse, ventre plat, nutritif, énergisant, ni aucune promesse sur le corps. Cela vaut AUSSI pour le nom de la recette et l'accroche. On parle de goût, de texture, d'odeur, de tradition et de partage.

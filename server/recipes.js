@@ -1,74 +1,16 @@
-import { setTimeout as delay } from 'node:timers/promises';
+import fs from 'node:fs';
 
-// ---------- Recettes Alohash ----------
-// Chaque fiche du site porte un bloc <script type="application/ld+json"> de
-// type schema.org « Recipe ». On le lit côté serveur pour remplir la recette
-// (nom, pays, temps, ingrédients, étapes) sans rien saisir à la main.
-// La base est réglable : RECIPE_SITE_URL dans .env.
+import { chargeRecettes, keurcookRepo, trouveRecette } from './keurcook.js';
 
-const DEFAULT_SITE = 'https://teiki5320.github.io/alohash';
+// ---------- Recettes Keur Cook ----------
+// La source est le DÉPÔT de Keur Cook, lu sur le disque : quantités, unités,
+// étapes dans l'ordre et photo du plat y sont complètes, là où la page
+// publiée n'en expose qu'une partie. Voir server/keurcook.js.
 
-export function recipeSiteUrl() {
-  return (process.env.RECIPE_SITE_URL || DEFAULT_SITE).trim().replace(/\/+$/, '');
-}
+export const RECIPE_SITE = 'keurcook.com';
 
-async function fetchText(url, { timeoutMs = 20000, label = 'la page' } = {}) {
-  if (!/^https?:\/\//i.test(url)) {
-    throw new Error('Adresse invalide (elle doit commencer par http:// ou https://).');
-  }
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: { 'User-Agent': 'DramaStudio/1.0 (recettes)' },
-    });
-    if (!res.ok) {
-      throw new Error(`${label} a répondu ${res.status}.`);
-    }
-    return await res.text();
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      throw new Error(`${label} n'a pas répondu à temps (${Math.round(timeoutMs / 1000)} s).`);
-    }
-    throw new Error(`${label} est injoignable : ${e.message}`);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// Jolie étiquette à partir du slug : « poulet-yassa » → « Poulet yassa ».
-function labelFromSlug(slug) {
-  const s = slug.replace(/-/g, ' ').trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-// Liste des recettes du site : les URL du sitemap qui contiennent /recette/.
-export async function listRecipes() {
-  const base = recipeSiteUrl();
-  const xml = await fetchText(`${base}/sitemap.xml`, { label: 'Le sitemap du site' });
-  const urls = [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);
-  const seen = new Set();
-  const recipes = [];
-  for (const url of urls) {
-    const m = url.match(/\/recette\/([^/?#]+)\/?$/);
-    if (!m || seen.has(m[1])) {
-      continue;
-    }
-    seen.add(m[1]);
-    recipes.push({ slug: m[1], url: url.replace(/\/?$/, '/'), label: labelFromSlug(m[1]) });
-  }
-  recipes.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
-  return { base, recipes };
-}
-
-// « PT1H55M » → 115 minutes.
-export function isoDurationToMinutes(iso) {
-  const m = String(iso || '').match(/^P(?:([\d.]+)D)?T?(?:([\d.]+)H)?(?:([\d.]+)M)?/i);
-  if (!m) {
-    return 0;
-  }
-  return Math.round((Number(m[1] || 0) * 24 + Number(m[2] || 0)) * 60 + Number(m[3] || 0));
+export function recipeUrl(slug) {
+  return `https://${RECIPE_SITE}/recette/${slug}`;
 }
 
 export function minutesToText(min) {
@@ -86,135 +28,85 @@ export function minutesToText(min) {
   return `${r} min`;
 }
 
-// Aplatit @graph / tableaux et retrouve le premier objet de type Recipe.
-function findRecipeNode(data) {
-  const stack = Array.isArray(data) ? [...data] : [data];
-  while (stack.length > 0) {
-    const node = stack.shift();
-    if (!node || typeof node !== 'object') {
-      continue;
-    }
-    if (Array.isArray(node['@graph'])) {
-      stack.push(...node['@graph']);
-    }
-    const type = node['@type'];
-    const types = Array.isArray(type) ? type : [type];
-    if (types.includes('Recipe')) {
-      return node;
-    }
-  }
-  return null;
+// « de » s'élide devant une voyelle : « 3 gousses d'ail », « 200 g de farine ».
+function de(nom) {
+  return /^[aàâeéèêëiîïoôuûüyh]/i.test(nom.normalize('NFC')) ? `d'${nom}` : `de ${nom}`;
 }
 
-function stripHtml(s) {
-  return String(s || '')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+// [200, « g », « farine »] → « 200 g de farine » ; [2, null, « oignons »] →
+// « 2 oignons » ; [null, null, « sel »] → « sel ».
+export function ingredientEnTexte({ quantity, unit, name }) {
+  const q = quantity === null || quantity === undefined ? '' : String(quantity);
+  if (!q) {
+    return name;
+  }
+  return unit ? `${q} ${unit} ${de(name)}` : `${q} ${name}`;
 }
 
-// Étapes : HowToStep, HowToSection (avec itemListElement), ou simple texte.
-function flattenInstructions(raw) {
-  const out = [];
-  const walk = (node) => {
-    if (!node) {
-      return;
-    }
-    if (Array.isArray(node)) {
-      node.forEach(walk);
-      return;
-    }
-    if (typeof node === 'string') {
-      const t = stripHtml(node);
-      if (t) {
-        out.push(t);
-      }
-      return;
-    }
-    if (typeof node === 'object') {
-      if (Array.isArray(node.itemListElement)) {
-        walk(node.itemListElement);
-        return;
-      }
-      const t = stripHtml(node.text || node.name);
-      if (t) {
-        out.push(t);
-      }
-    }
-  };
-  walk(raw);
-  return out;
-}
-
-function firstImage(img) {
-  if (!img) {
-    return '';
-  }
-  if (typeof img === 'string') {
-    return img;
-  }
-  if (Array.isArray(img)) {
-    return firstImage(img[0]);
-  }
-  if (typeof img === 'object') {
-    return firstImage(img.url || img.contentUrl);
-  }
-  return '';
-}
-
-export function normalizeRecipe(node, url) {
-  const prep = isoDurationToMinutes(node.prepTime);
-  const cook = isoDurationToMinutes(node.cookTime);
-  const total = isoDurationToMinutes(node.totalTime) || prep + cook;
-  const ingredients = (Array.isArray(node.recipeIngredient) ? node.recipeIngredient : [])
-    .map(stripHtml)
-    .filter(Boolean)
-    .slice(0, 25);
-  const steps = flattenInstructions(node.recipeInstructions).slice(0, 15);
-  if (ingredients.length === 0 || steps.length === 0) {
-    throw new Error("La fiche ne contient ni ingrédients ni étapes exploitables.");
-  }
+// Mise en forme commune : ce que la suite de la chaîne (Claude, le montage,
+// la vidéo) reçoit, quelle que soit l'origine de la recette.
+function normalise(r) {
+  const total = r.prepMinutes + r.cookMinutes;
   return {
-    url: url || '',
-    name: stripHtml(node.name) || 'Recette',
-    description: stripHtml(node.description),
-    image: firstImage(node.image),
-    country: stripHtml(node.recipeCuisine),
-    category: stripHtml(node.recipeCategory),
-    servings: stripHtml(node.recipeYield),
-    prepMin: prep,
-    cookMin: cook,
+    slug: r.slug,
+    url: recipeUrl(r.slug),
+    name: r.name,
+    description: r.shortDescription,
+    story: r.story,
+    tips: r.tips,
+    photo: r.photo, // fichier local, jamais une adresse à télécharger
+    country: r.country,
+    region: r.region,
+    category: r.course,
+    servings: r.servings ? `${r.servings} personnes` : '',
+    prepMin: r.prepMinutes,
+    cookMin: r.cookMinutes,
     totalMin: total,
     totalText: minutesToText(total),
-    ingredients,
-    steps,
+    ingredients: r.ingredients.map(ingredientEnTexte).filter(Boolean).slice(0, 25),
+    steps: r.steps.filter(Boolean).slice(0, 15),
   };
 }
 
-// Importe une recette depuis l'URL de sa fiche.
-export async function fetchRecipe(url) {
-  const html = await fetchText(url, { label: 'La fiche recette' });
-  const blocks = [...html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)];
-  if (blocks.length === 0) {
-    throw new Error("Cette page ne contient pas de fiche recette lisible (bloc JSON-LD absent).");
+// Liste pour le menu déroulant du studio.
+export function listRecipes() {
+  const recettes = chargeRecettes();
+  return {
+    base: keurcookRepo(),
+    site: RECIPE_SITE,
+    recipes: recettes.map((r) => ({
+      slug: r.slug,
+      label: r.country ? `${r.name} — ${r.country}` : r.name,
+      country: r.country,
+      course: r.course,
+    })),
+  };
+}
+
+// La recette choisie, complète.
+export function fetchRecipe(slug) {
+  const r = normalise(trouveRecette(slug));
+  if (r.ingredients.length === 0 || r.steps.length === 0) {
+    throw new Error(`La recette « ${r.name} » n'a ni ingrédients ni étapes exploitables.`);
   }
-  for (const b of blocks) {
-    let data;
-    try {
-      data = JSON.parse(b[1].trim());
-    } catch {
-      continue;
-    }
-    const node = findRecipeNode(data);
-    if (node) {
-      return normalizeRecipe(node, url);
-    }
-  }
-  throw new Error("Aucune recette (schema.org Recipe) trouvée sur cette page.");
+  return r;
+}
+
+// Le texte que lit Claude : la recette telle qu'elle est écrite dans le dépôt.
+export function recipeAsText(r) {
+  return [
+    r.name,
+    r.country ? `Pays : ${r.country}${r.region ? ` (${r.region})` : ''}` : '',
+    r.totalText ? `Temps total : ${r.totalText}` : '',
+    r.servings ? `Pour : ${r.servings}` : '',
+    r.description ? `En deux mots : ${r.description}` : '',
+    'Ingrédients :',
+    ...r.ingredients.map((i) => `- ${i}`),
+    'Étapes :',
+    ...r.steps.map((st, i) => `${i + 1}. ${st}`),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 // Repli manuel : l'auteur colle nom, pays, ingrédients et étapes.
@@ -237,11 +129,15 @@ export function manualRecipe({ name, country, ingredients, steps, description, t
   }
   const total = Number(totalMin) || 0;
   return {
+    slug: '',
     url: '',
     name: String(name).trim().slice(0, 120),
     description: String(description || '').trim().slice(0, 300),
-    image: '',
+    story: '',
+    tips: [],
+    photo: '',
     country: String(country || '').trim().slice(0, 60),
+    region: '',
     category: '',
     servings: '',
     prepMin: 0,
@@ -253,34 +149,16 @@ export function manualRecipe({ name, country, ingredients, steps, description, t
   };
 }
 
-// Télécharge la photo du plat fini (celle du JSON-LD) pour l'utiliser telle
-// quelle dans la vidéo — aucune génération d'image, donc aucun crédit.
-export async function downloadRecipeImage(url, outPath) {
-  if (!/^https?:\/\//i.test(url)) {
-    throw new Error('Photo du plat : adresse invalide.');
+// La photo du plat vient du dépôt : on la recopie telle quelle dans le projet.
+// Aucune génération, donc aucun crédit d'image consommé.
+export function copyRecipeImage(source, outPath) {
+  if (!source || !fs.existsSync(source)) {
+    throw new Error('Photo du plat : fichier introuvable dans le dépôt de Keur Cook.');
   }
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 30000);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) {
-      throw new Error(`la photo a répondu ${res.status}`);
-    }
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length < 1000) {
-      throw new Error('photo vide ou illisible');
-    }
-    const fs = await import('node:fs');
-    fs.writeFileSync(outPath, buf);
-    return buf.length;
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      throw new Error('Photo du plat : délai dépassé.');
-    }
-    throw new Error(`Photo du plat : ${e.message}`);
-  } finally {
-    clearTimeout(timer);
+  const taille = fs.statSync(source).size;
+  if (taille < 1000) {
+    throw new Error('Photo du plat : fichier vide ou illisible.');
   }
+  fs.copyFileSync(source, outPath);
+  return taille;
 }
-
-export { delay };
