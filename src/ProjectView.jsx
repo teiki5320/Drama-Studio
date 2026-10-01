@@ -999,21 +999,21 @@ function ScreenshotsPanel({ project, projectId, busy, onRefresh }) {
   );
 }
 
-// Onglet Recettes : on COLLE la recette détaillée, et Claude la découpe en
-// gestes filmés du dessus. L'import d'une fiche du site reste possible.
+// Onglet Recettes : on choisit une recette dans le dépôt de Keur Cook (ou on
+// colle la sienne), et Claude la découpe en gestes filmés du dessus.
 function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
   const [texte, setTexte] = useState('');
   const [seconds, setSeconds] = useState(project.targetSeconds || 60);
   const [tone, setTone] = useState(project.tone || 'chaleureux');
-  const [depuisSite, setDepuisSite] = useState(false);
+  const [depuisKeurcook, setDepuisKeurcook] = useState(false);
   const [list, setList] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [recherche, setRecherche] = useState('');
-  const [url, setUrl] = useState('');
-  const [useSiteImage, setUseSiteImage] = useState(true);
+  const [slug, setSlug] = useState('');
+  const [usePhoto, setUsePhoto] = useState(true);
 
   useEffect(() => {
-    if (!depuisSite || list) {
+    if (!depuisKeurcook || list) {
       return;
     }
     api
@@ -1021,11 +1021,11 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
       .then((r) => {
         setList(r.recipes || []);
         if ((r.recipes || []).length > 0) {
-          setUrl(r.recipes[0].url);
+          setSlug(r.recipes[0].slug);
         }
       })
       .catch((e) => setErreur(e.message));
-  }, [depuisSite, list]);
+  }, [depuisKeurcook, list]);
 
   const filtres = (list || []).filter((r) =>
     r.label.toLowerCase().includes(recherche.trim().toLowerCase()),
@@ -1033,7 +1033,7 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
 
   const lancer = async (params) => {
     const ok = await runJob(() =>
-      api.createRecipeVideo(projectId, { seconds, tone, useSiteImage, ...params }),
+      api.createRecipeVideo(projectId, { seconds, tone, usePhoto, ...params }),
     );
     if (ok) {
       setTexte('');
@@ -1045,13 +1045,13 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
     <div className="downloads-box">
       <div className="downloads-title">🍲 Nouvelle recette en vidéo</div>
       <p className="downloads-hint">
-        Colle ta recette complète — ingrédients et étapes. Claude la découpe en{' '}
-        <strong>gestes</strong> filmés en vue du dessus : les mains posent le bol, prennent les
-        œufs, les cassent, versent la farine… Un plan par geste, le même plan de travail et les
-        mêmes mains du début à la fin.
+        Choisis une recette de <strong>Keur Cook</strong> (ou colle la tienne). Claude la découpe
+        en <strong>gestes</strong> filmés en vue du dessus : une intro rapide, les ingrédients,
+        puis les étapes — les mains posent le bol, prennent les œufs, les cassent, versent la
+        farine… Un plan par geste, le même plan de travail et les mêmes mains du début à la fin.
       </p>
 
-      {!depuisSite ? (
+      {!depuisKeurcook ? (
         <>
           <textarea
             rows={9}
@@ -1097,8 +1097,8 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
             >
               ✂️ Découper en gestes
             </button>
-            <button className="btn-small" disabled={busy} onClick={() => setDepuisSite(true)}>
-              🌍 Prendre une recette du site
+            <button className="btn-small" disabled={busy} onClick={() => setDepuisKeurcook(true)}>
+              🥘 Choisir une recette de Keur Cook
             </button>
           </div>
         </>
@@ -1106,7 +1106,8 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
         <>
           {erreur && (
             <p className="error small">
-              Le site est injoignable ({erreur}) — reviens au collage de la recette.
+              Les recettes de Keur Cook sont illisibles ({erreur}) — reviens au collage de la
+              recette.
             </p>
           )}
           <div className="topic-bar">
@@ -1118,14 +1119,14 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
             />
             <select
               className="season-select"
-              value={url}
+              value={slug}
               disabled={busy || !list}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => setSlug(e.target.value)}
               style={{ flex: 1, minWidth: 170 }}
             >
               {!list && <option>Chargement…</option>}
               {filtres.map((r) => (
-                <option key={r.slug} value={r.url}>
+                <option key={r.slug} value={r.slug}>
                   {r.label}
                 </option>
               ))}
@@ -1142,10 +1143,14 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
                 </option>
               ))}
             </select>
-            <button className="btn-primary" disabled={busy || !url} onClick={() => lancer({ url })}>
+            <button
+              className="btn-primary"
+              disabled={busy || !slug}
+              onClick={() => lancer({ slug })}
+            >
               ✂️ Découper en gestes
             </button>
-            <button className="btn-small" disabled={busy} onClick={() => setDepuisSite(false)}>
+            <button className="btn-small" disabled={busy} onClick={() => setDepuisKeurcook(false)}>
               ↩️ Coller ma recette
             </button>
           </div>
@@ -1153,10 +1158,10 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
             <label style={{ cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={useSiteImage}
-                onChange={(e) => setUseSiteImage(e.target.checked)}
+                checked={usePhoto}
+                onChange={(e) => setUsePhoto(e.target.checked)}
               />{' '}
-              Utiliser la photo du site pour le plat fini (aucun crédit d'image)
+              Ouvrir la vidéo sur la photo de Keur Cook (aucun crédit d'image)
             </label>
           </p>
         </>

@@ -45,7 +45,7 @@ import {
   findHealthClaims,
   DRAMA_IMAGE_SUFFIX,
 } from './claudegen.js';
-import { fetchRecipe, manualRecipe, downloadRecipeImage } from './recipes.js';
+import { copyRecipeImage, fetchRecipe, manualRecipe, recipeAsText } from './recipes.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
 import {
@@ -1192,7 +1192,7 @@ export function removeScreenshot(project, index) {
 // ---------- Recettes ----------
 // Un projet « recette » est un atelier de cuisine : une identité fixe (voix du
 // narrateur, style d'images, musique), dans lequel on enchaîne les vidéos —
-// une par recette importée du site.
+// une par recette prise dans Keur Cook.
 export async function createRecipeProject(info) {
   const id = newId();
   createProjectDirs(id);
@@ -1226,7 +1226,7 @@ export async function createRecipeProject(info) {
 }
 
 // Écrit la vidéo d'une recette : l'auteur COLLE son texte (ou importe une
-// fiche du site), Claude en extrait la recette et la découpe en gestes.
+// recette de Keur Cook), Claude en extrait la fiche et la découpe en gestes.
 export async function createRecipeVideo(project, params, update) {
   if (project.mode !== 'recette') {
     throw new Error('Réservé aux projets Recettes.');
@@ -1234,26 +1234,14 @@ export async function createRecipeVideo(project, params, update) {
   const seconds = RECIPE_SECONDS.includes(params.seconds) ? params.seconds : project.targetSeconds || 60;
   const tone = params.tone || project.tone || 'chaleureux';
 
-  // Deux entrées possibles : le texte collé, ou une fiche du site.
+  // Deux entrées possibles : une recette du dépôt de Keur Cook, ou un texte
+  // collé à la main.
   let texte = String(params.text || '').trim();
   let fiche = null;
-  if (!texte && params.url) {
-    update('Import de la fiche recette…');
-    fiche = await fetchRecipe(params.url);
-    texte = [
-      fiche.name,
-      fiche.country ? `Pays : ${fiche.country}` : '',
-      fiche.totalText ? `Temps total : ${fiche.totalText}` : '',
-      fiche.servings ? `Pour : ${fiche.servings}` : '',
-      '',
-      'Ingrédients :',
-      ...fiche.ingredients.map((i) => `- ${i}`),
-      '',
-      'Étapes :',
-      ...fiche.steps.map((st, i) => `${i + 1}. ${st}`),
-    ]
-      .filter((l) => l !== null && l !== undefined)
-      .join('\n');
+  if (!texte && params.slug) {
+    update('Lecture de la recette dans le dépôt de Keur Cook…');
+    fiche = fetchRecipe(params.slug);
+    texte = recipeAsText(fiche);
   }
   if (texte.length < 40) {
     throw new Error(
@@ -1268,23 +1256,24 @@ export async function createRecipeVideo(project, params, update) {
 
   const episode = normalizeEpisode(raw, number, 20);
   // Fiche de la recette : celle que Claude a lue dans le texte, complétée
-  // par la fiche du site quand la vidéo vient d'une URL.
+  // par la fiche du dépôt quand la vidéo vient de Keur Cook.
   const r = raw.recipe && typeof raw.recipe === 'object' ? raw.recipe : {};
   const recipe = {
-    url: params.url || '',
+    slug: (fiche && fiche.slug) || '',
+    url: (fiche && fiche.url) || '',
     name: String(r.name || raw.title || 'Recette').slice(0, 120),
     country: String(r.country || (fiche && fiche.country) || '').slice(0, 60),
     totalText: String(r.totalText || (fiche && fiche.totalText) || '').slice(0, 40),
     servings: String(r.servings || (fiche && fiche.servings) || '').slice(0, 40),
     description: (fiche && fiche.description) || '',
-    image: (fiche && fiche.image) || '',
+    photo: (fiche && fiche.photo) || '',
     ingredients: Array.isArray(r.ingredients)
       ? r.ingredients.map((x) => String(x).slice(0, 80)).slice(0, 25)
       : (fiche && fiche.ingredients) || [],
     steps: Array.isArray(r.steps)
       ? r.steps.map((x) => String(x).slice(0, 300)).slice(0, 20)
       : (fiche && fiche.steps) || [],
-    source: params.url ? 'site' : 'collée',
+    source: fiche ? 'keurcook' : 'collée',
   };
   episode.title = recipe.name;
   episode.topic = recipe.name;
@@ -1328,28 +1317,28 @@ export async function createRecipeVideo(project, params, update) {
   }
   if (!episode.scenes.some((sc) => sc.kind === 'cta')) {
     addScene({
-      text: 'Recette complète et produits rares sur alohash.fr.',
+      text: 'Recette complète et produits rares sur keurcook.com.',
       image: 'Two african hands sliding the finished dish towards the camera on the worktop, seen from directly above, warm inviting light.',
-      fields: { kind: 'cta', gesture: 'présenter le plat à la caméra', onScreen: 'Recette complète sur alohash.fr' },
+      fields: { kind: 'cta', gesture: 'présenter le plat à la caméra', onScreen: 'Recette complète sur keurcook.com' },
     });
   }
 
-  // Fiche du site : sa photo peut servir telle quelle au plan du plat fini.
-  if (params.useSiteImage !== false && recipe.image) {
-    const target = [...episode.scenes].reverse().find((s) => s.kind === 'final') || episode.scenes[0];
+  // La photo du plat prise dans le dépôt de Keur Cook ouvre la vidéo : c'est
+  // le vrai plat, pas une image générée, et l'intro est donc fidèle au site.
+  if (params.usePhoto !== false && recipe.photo) {
+    const target = episode.scenes.find((s) => s.kind === 'hook') || episode.scenes[0];
     if (target) {
-      const ext = (recipe.image.match(/\.(jpe?g|png|webp)(\?|$)/i) || [])[1] || 'jpg';
-      const file = `e${number}_${target.id}_site.${ext.toLowerCase().replace('jpeg', 'jpg')}`;
+      const file = `e${number}_${target.id}_keurcook.webp`;
       try {
-        update('Récupération de la photo du plat…');
-        await downloadRecipeImage(recipe.image, path.join(assetsDir(project.id), file));
+        update('Photo du plat (intro)…');
+        copyRecipeImage(recipe.photo, path.join(assetsDir(project.id), file));
         target.image = file;
         target.imageUrl = null;
         target.fromSite = true;
         target.videoDisabled = true;
         delete target.clip;
       } catch (e) {
-        console.error('Photo du site :', e.message);
+        console.error('Photo de Keur Cook :', e.message);
       }
     }
   }
@@ -1742,7 +1731,7 @@ export async function regenerateAllImages(project, episode, update) {
   await ensureKitchenReference(project, update);
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
-    // Recette : la photo du plat venue du site est gratuite et fidèle — on la garde.
+    // Recette : la photo du plat venue de Keur Cook est gratuite et fidèle — on la garde.
     if (scene.fromSite && scene.image) {
       continue;
     }

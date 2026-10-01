@@ -17,7 +17,7 @@ import { FPS, TRANSITION_FRAMES, sceneFrames, lineOffsets, outroClipFrames } fro
 // Même squelette que les dramas (scènes enchaînées, voix off, musique,
 // marque de l'auteur) mais avec l'habillage d'une vidéo de cuisine :
 // titre du plat, liste d'ingrédients qui s'affiche ligne à ligne, numéro
-// d'étape en gros, barre de progression, carte de fin alohash.fr.
+// d'étape en gros, barre de progression, carte de fin keurcook.com.
 
 const GOLD = '#f2b544';
 const CREAM = '#fff6e6';
@@ -364,7 +364,7 @@ const PlanRecette = ({ scene, recipe, episodeTitle, assetBase, durationInFrames 
       {(kind === 'hook' || kind === 'final') && scene.onScreen ? (
         <TexteEcran texte={scene.onScreen} position="haut" />
       ) : null}
-      {kind === 'cta' ? <CarteFin texte={scene.onScreen || 'alohash.fr'} /> : null}
+      {kind === 'cta' ? <CarteFin texte={scene.onScreen || 'keurcook.com'} /> : null}
 
       {/* Voix off */}
       {lines.map((line, i) =>

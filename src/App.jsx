@@ -751,7 +751,7 @@ function ModeGate({ onPick }) {
           <span className="mode-emoji">🍲</span>
           <strong>Recettes</strong>
           <span className="mode-desc">
-            Les recettes africaines de ton site <strong>Alohash</strong> en vidéos verticales de
+            Les recettes africaines de ton site <strong>Keur Cook</strong> en vidéos verticales de
             45 s à 1 min 30 : accroche, ingrédients, étapes numérotées, plat fini. Une vidéo par
             recette, importée en un clic.
           </span>
@@ -782,7 +782,7 @@ function ModeGate({ onPick }) {
 // Atelier de recettes : l'identité fixe (nom, voix, durée et ton par défaut).
 // Les recettes elles-mêmes s'importent ensuite depuis le site, une par vidéo.
 function RecipeStudioCreate({ onSubmit, error, voices = VOICES }) {
-  const [name, setName] = useState('Recettes Alohash');
+  const [name, setName] = useState('Recettes Keur Cook');
   const [themeDesc, setThemeDesc] = useState('');
   const [tone, setTone] = useState('chaleureux');
   const [targetSeconds, setTargetSeconds] = useState(60);
@@ -1378,7 +1378,7 @@ export function App() {
               : mode === 'pub'
                 ? '📣 Publicité (mes applis)'
                 : mode === 'recette'
-                  ? '🍲 Recettes (Alohash)'
+                  ? '🍲 Recettes (Keur Cook)'
                   : '🎬 Drama court (voix off + images)'}
           <button className="btn-small" onClick={() => setMode(null)}>
             ↔ Changer de format
