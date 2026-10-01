@@ -30,7 +30,11 @@ export function createProjectDirs(id) {
 export function saveProject(project) {
   project.updatedAt = new Date().toISOString();
   const file = path.join(projectDir(project.id), 'project.json');
-  fs.writeFileSync(file, JSON.stringify(project, null, 2));
+  // Écriture atomique : on écrit à côté puis on remplace d'un coup. Si le Mac
+  // s'éteint pendant l'écriture, l'ancien project.json reste intact.
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(project, null, 2));
+  fs.renameSync(tmp, file);
   return project;
 }
 

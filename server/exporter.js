@@ -21,15 +21,21 @@ function resolveExportRoot() {
   // « ~ » ou « ~/… » = dossier personnel (les chemins iCloud s'écrivent
   // souvent ainsi). Le shell ne développe pas le tilde ici : à nous de le faire,
   // sinon on fabrique un dossier littéralement nommé « ~ ».
-  if (raw === '~' || raw.startsWith('~/')) {
-    return path.join(os.homedir(), raw.slice(1));
+  // « ~ » seul viserait le dossier personnel lui-même (et les chaînes iraient
+  // dans /Users) : on range alors dans ~/Dramas.
+  if (raw === '~' || raw === '~/') {
+    return path.join(os.homedir(), 'Dramas');
+  }
+  if (raw.startsWith('~/')) {
+    return path.resolve(os.homedir(), raw.slice(2));
   }
   if (!raw) {
     return path.join(os.homedir(), 'Desktop', 'Dramas');
   }
   // Un chemin relatif viserait le dossier courant, c'est-à-dire le dépôt
   // lui-même : on le rattache au dossier personnel, jamais au code.
-  return path.isAbsolute(raw) ? raw : path.join(os.homedir(), raw);
+  // path.resolve retire aussi le « / » final (sinon « Dramas/ Synchro »).
+  return path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(os.homedir(), raw);
 }
 
 export const EXPORT_ROOT = resolveExportRoot();
@@ -100,12 +106,15 @@ export function exportEpisode(project, episode) {
     // copie passe : le nettoyage est optionnel, la copie reste prioritaire.
     try {
       const oldPrefix = `Episode ${String(episode.number).padStart(2, '0')}`;
-      const newPrefix =
+      // Recette : le nom EXACT du plat suivi d'un séparateur de la légende
+      // (« — » ou « # ») — sinon exporter « Poulet » effacerait « Poulet yassa ».
+      const recipeName = sanitizeName((episode.recipe && episode.recipe.name) || episode.title || '');
+      const newPrefixes =
         project.mode === 'recette'
-          ? `${(episode.recipe && episode.recipe.name) || episode.title || ''} `
-          : `Épisode ${episode.number} `;
+          ? [`${recipeName} — `, `${recipeName} #`]
+          : [`Épisode ${episode.number} `];
       for (const f of fs.readdirSync(dir)) {
-        if (f.endsWith('.mp4') && (f.startsWith(oldPrefix) || f.startsWith(newPrefix))) {
+        if (f.endsWith('.mp4') && (f.startsWith(oldPrefix) || newPrefixes.some((x) => f.startsWith(x)))) {
           fs.rmSync(path.join(dir, f), { force: true });
         }
       }

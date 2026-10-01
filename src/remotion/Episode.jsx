@@ -2,13 +2,13 @@ import React from 'react';
 import {
   AbsoluteFill,
   Audio,
-  Img,
   OffthreadVideo,
   Sequence,
   interpolate,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { SafeImg } from './SafeImg.jsx';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { Scene } from './Scene.jsx';
@@ -208,7 +208,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          <Img
+          <SafeImg
             src={`${studioBase}/${studio.outro}`}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
@@ -235,7 +235,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
       {studio?.sticker ? (
         <Sequence from={0} durationInFrames={clipFrames > 0 ? mainFrames : undefined}>
           <AbsoluteFill style={{ alignItems: 'flex-end', justifyContent: 'flex-start', padding: 36 }}>
-            <Img
+            <SafeImg
               src={`${studioBase}/${studio.sticker}`}
               style={{ width: 200, opacity: 0.92 }}
             />

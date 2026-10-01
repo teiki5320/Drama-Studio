@@ -2,13 +2,13 @@ import React from 'react';
 import {
   AbsoluteFill,
   Audio,
-  Img,
   OffthreadVideo,
   Sequence,
   interpolate,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { SafeImg } from './SafeImg.jsx';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { FPS, TRANSITION_FRAMES, sceneFrames, lineOffsets, outroClipFrames } from './timing.js';
@@ -51,7 +51,7 @@ const Fond = ({ scene, assetBase, durationInFrames }) => {
   }
   if (scene.image) {
     return (
-      <Img
+      <SafeImg
         src={`${assetBase}/${scene.image}`}
         style={{
           width: '100%',
@@ -448,7 +448,7 @@ export const Recipe = ({ episode, assetBase, musicFile, studio, studioBase }) =>
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          <Img src={`${studioBase}/${studio.outro}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <SafeImg src={`${studioBase}/${studio.outro}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
       </TransitionSeries.Sequence>,
     );
@@ -476,7 +476,7 @@ export const Recipe = ({ episode, assetBase, musicFile, studio, studioBase }) =>
       {studio?.sticker ? (
         <Sequence from={0} durationInFrames={clipFrames > 0 ? mainFrames : undefined}>
           <AbsoluteFill style={{ alignItems: 'flex-end', justifyContent: 'flex-start', padding: 36 }}>
-            <Img src={`${studioBase}/${studio.sticker}`} style={{ width: 200, opacity: 0.92 }} />
+            <SafeImg src={`${studioBase}/${studio.sticker}`} style={{ width: 200, opacity: 0.92 }} />
           </AbsoluteFill>
         </Sequence>
       ) : null}

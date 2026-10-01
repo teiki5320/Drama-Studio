@@ -79,13 +79,13 @@ async function fal(prompt) {
 export async function generateImage(
   prompt,
   outPath,
-  { seed = Math.floor(Math.random() * 1e9), referenceUrls = [] } = {},
+  { seed = Math.floor(Math.random() * 1e9), referenceUrls = [], referenceKind = 'faces' } = {},
 ) {
   if (IMAGE_PROVIDER === 'manual') {
     return { ok: false, url: null, provider: 'manual' };
   }
   if (IMAGE_PROVIDER === 'openart') {
-    const { buffer, url } = await openartGenerate({ prompt, referenceUrls });
+    const { buffer, url } = await openartGenerate({ prompt, referenceUrls, referenceKind });
     fs.writeFileSync(outPath, buffer);
     return { ok: true, url, provider: 'openart' };
   }

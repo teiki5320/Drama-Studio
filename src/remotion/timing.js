@@ -25,7 +25,20 @@ export function sceneFrames(scene) {
     const total = shots.reduce((sum, sh) => sum + shotEffectiveSec(sh, scene), 0);
     return Math.max(FPS, Math.round(total * FPS));
   }
-  return Math.max(FPS, Math.round((scene.durationSec || 5) * FPS));
+  // Sans plans : la durée réglée, mais jamais moins que la fin de la dernière
+  // réplique — sinon la Sequence coupe la voix et son sous-titre en plein mot.
+  return Math.max(FPS, Math.round((scene.durationSec || 5) * FPS), linesEndFrame(scene));
+}
+
+// Fin (frames) de la dernière réplique, avec une courte respiration après.
+function linesEndFrame(scene) {
+  const lines = scene.lines || [];
+  if (lines.length === 0) {
+    return 0;
+  }
+  const offsets = lineOffsets(scene);
+  const last = lines[lines.length - 1];
+  return offsets[offsets.length - 1] + Math.round(((last.audioDurationSec || 2) + 0.3) * FPS);
 }
 
 // Position de départ (frames, relatives à la scène) de chaque plan.
@@ -37,6 +50,14 @@ export function shotOffsets(scene) {
     t += shotEffectiveSec(sh, scene);
   }
   return offsets;
+}
+
+// Durée (frames) de chaque plan, déduite des positions arrondies : les plans
+// se touchent exactement, sans frame noire entre deux plans.
+export function shotDurations(scene) {
+  const offsets = shotOffsets(scene);
+  const total = sceneFrames(scene);
+  return offsets.map((start, i) => Math.max(1, (i + 1 < offsets.length ? offsets[i + 1] : total) - start));
 }
 
 // Position de départ (en frames, relatives à la scène) de chaque réplique audio.

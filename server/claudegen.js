@@ -805,23 +805,56 @@ export const KITCHEN_REFERENCE_PROMPT =
 // Allégations de santé INTERDITES dans tout texte généré (narration comme
 // texte à l'écran) : la loi encadre ces mentions sur les aliments, et ce
 // n'est pas le propos d'une recette. Vérifié avant le rendu.
-const HEALTH_CLAIM_WORDS = [
-  'santé', 'sain', 'saine', 'bienfait', 'bienfaits', 'digestion', 'digestif', 'digestive',
-  'vitamine', 'vitamines', 'minéraux', 'antioxydant', 'antioxydants', 'immunité', 'immunitaire',
-  'détox', 'detox', 'minceur', 'maigrir', 'amaigrissant', 'guérit', 'guérir', 'soigne',
-  'soigner', 'remède', 'thérapeutique', 'nutritif', 'nutritive', 'nutriments', 'cholestérol',
-  'diabète', 'cancer', 'énergisant', 'fortifiant', 'aphrodisiaque',
-];
+// Chaque motif s'applique au texte SANS accents ni majuscules (« sante »,
+// « SANTÉ » et « santé » collé depuis macOS se valent) et doit former un mot
+// entier : « sain » attrape « saines » mais pas « Saint-Louis », « soign »
+// attrape « soigne » mais pas « soigneusement ».
+const HEALTH_CLAIM_PATTERNS = [
+  'sante', 'sain(?:e|s|es|ement)?', 'bienfaits?', 'bienfaisante?s?',
+  'digesti(?:on|ons|f|fs|ve|ves)', 'digestes?', 'vitamin\\p{L}*', 'mineraux', 'oligo-?elements?',
+  'anti-?oxyd\\p{L}*', 'immun\\p{L}*', 'detox\\p{L}*', 'mincir', 'minceur', 'amincissante?s?',
+  'maigrir', 'amaigrissante?s?', 'gueri(?:r|t|s|e|es|ssent|son|sons)?', 'soign(?:e|es|ent|er|ez|ant)',
+  'remedes?', 'therapeuti\\p{L}*', 'nutri(?:tif|tifs|tive|tives|tion|tionnel\\p{L}*|ments?)',
+  'cholesterol', 'diabet\\p{L}*', 'cancers?', 'energisante?s?', 'fortifiante?s?', 'aphrodisiaques?',
+  'calori\\p{L}*', 'glycemi\\p{L}*', 'superaliments?', 'superfoods?', 'depurati\\p{L}*',
+  'drainante?s?', 'purifiante?s?', 'brule[- ]?graisses?', 'bruler (?:les|des|vos|tes) graisses',
+  'bien[- ]?etre', '(?:perdre|perte|prise) d[eu] poids', 'ventre plat',
+  'anti-?(?:inflammatoire|age|fatigue|stress|cholesterol)s?',
+  'riches? en (?:fibres|fer|calcium|magnesium|potassium|omega\\p{L}*|vitamines?|proteines?|mineraux)',
+  'bon(?:ne)?s? pour (?:la sante|le coeur|la peau|les os|la ligne|le ventre|le corps|l.organisme)',
+].map((src) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${src})(?![\\p{L}\\p{N}])`, 'giu'));
 
-// Retourne les mots interdits trouvés dans un texte (avec leur forme réelle).
+// Texte « replié » (sans accents, en minuscules) + correspondance vers le
+// texte d'origine, pour citer le mot fautif tel qu'il est écrit.
+function foldForMatch(text) {
+  const src = String(text || '').normalize('NFC');
+  let folded = '';
+  const starts = [];
+  const ends = [];
+  for (let i = 0; i < src.length; ) {
+    const ch = String.fromCodePoint(src.codePointAt(i));
+    const f = ch.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace('œ', 'oe').replace('æ', 'ae') || ch;
+    for (let k = 0; k < f.length; k++) {
+      starts.push(i);
+      ends.push(i + ch.length);
+    }
+    folded += f;
+    i += ch.length;
+  }
+  return { src, folded, starts, ends };
+}
+
+// Retourne les allégations trouvées dans un texte (avec leur forme réelle).
 export function findHealthClaims(text) {
-  const t = String(text || '');
+  const { src, folded, starts, ends } = foldForMatch(text);
   const found = [];
-  for (const w of HEALTH_CLAIM_WORDS) {
-    const re = new RegExp(`(^|[^\\p{L}])(${w})([^\\p{L}]|$)`, 'iu');
-    const m = t.match(re);
-    if (m) {
-      found.push(m[2]);
+  for (const re of HEALTH_CLAIM_PATTERNS) {
+    re.lastIndex = 0;
+    for (const m of folded.matchAll(re)) {
+      const word = src.slice(starts[m.index], ends[m.index + m[0].length - 1]);
+      if (!found.some((w) => w.toLowerCase() === word.toLowerCase())) {
+        found.push(word);
+      }
     }
   }
   return found;
@@ -893,7 +926,7 @@ STRUCTURE :
 Les DEUX DERNIERS plans de la liste sont OBLIGATOIREMENT, dans cet ordre, un plan "final" puis un plan "cta" : la vidéo ne se termine JAMAIS sur un geste de cuisson. Si la place manque, regroupe des gestes plus tôt — mais garde ces deux plans.
 
 CONTRAINTES STRICTES :
-- INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, digestion, vitamines, minéraux, antioxydant, immunité, détox, minceur, nutritif, énergisant, ni aucune promesse sur le corps. On parle de goût, de texture, d'odeur, de tradition et de partage.
+- INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, bien-être, digestion, vitamines, minéraux, protéines, calories, antioxydant, anti-inflammatoire, immunité, détox, minceur, brûle-graisse, ventre plat, nutritif, énergisant, ni aucune promesse sur le corps. Cela vaut AUSSI pour le nom de la recette et l'accroche. On parle de goût, de texture, d'odeur, de tradition et de partage.
 - Chaque imagePrompt décrit une vue DU DESSUS avec les mains dans le cadre. Jamais de visage, jamais de personne en entier, jamais une cuisine filmée de loin.
 - Les ustensiles, bols et le plan de travail restent identiques d'un plan à l'autre : décris-les de la même façon à chaque fois.
 - Aucune quantité ni aucun temps de cuisson inventé : reprends ceux du texte de l'auteur.

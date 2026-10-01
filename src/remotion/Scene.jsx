@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   AbsoluteFill,
-  Img,
   OffthreadVideo,
   Sequence,
   Audio,
@@ -9,8 +8,8 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { FPS, SHOT_AUDIO_DELAY, sceneFrames, lineOffsets, shotOffsets } from './timing.js';
-import { shotEffectiveSec } from '../../shared/catalog.js';
+import { SafeImg } from './SafeImg.jsx';
+import { FPS, SHOT_AUDIO_DELAY, sceneFrames, lineOffsets, shotOffsets, shotDurations } from './timing.js';
 
 const KEN_BURNS = {
   'zoom-in': (p) => ({ scale: 1.05 + 0.13 * p, x: 0, y: 0 }),
@@ -68,7 +67,7 @@ const ShotStill = ({ src, durationInFrames }) => {
   const frame = useCurrentFrame();
   const p = Math.min(1, frame / Math.max(1, durationInFrames));
   return (
-    <Img
+    <SafeImg
       src={src}
       style={{
         width: '100%',
@@ -89,7 +88,7 @@ const ShotsScene = ({ scene, characters, assetBase, isFirst, episodeTitle, episo
   const offsets = shotOffsets(scene);
   const lines = scene.lines || [];
   const delay = Math.round(SHOT_AUDIO_DELAY * FPS);
-  const durations = shots.map((sh) => Math.round(shotEffectiveSec(sh, scene) * FPS));
+  const durations = shotDurations(scene);
 
   const charById = {};
   for (const c of characters || []) {
@@ -127,7 +126,7 @@ const ShotsScene = ({ scene, characters, assetBase, isFirst, episodeTitle, episo
           ) : sh.image ? (
             <ShotStill src={`${assetBase}/${sh.image}`} durationInFrames={durations[i]} />
           ) : scene.image ? (
-            <Img
+            <SafeImg
               src={`${assetBase}/${scene.image}`}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
@@ -183,7 +182,14 @@ const ShotsScene = ({ scene, characters, assetBase, isFirst, episodeTitle, episo
       {shots.map((sh, i) => {
         const line = sh.lineIndex != null ? lines[sh.lineIndex] : null;
         return line && line.audio ? (
-          <Sequence key={`shot-audio-${i}`} from={offsets[i] + delay} layout="none">
+          // Bornée à son plan : une réplique trop longue ne déborde pas sur la
+          // voix du plan suivant.
+          <Sequence
+            key={`shot-audio-${i}`}
+            from={offsets[i] + delay}
+            durationInFrames={Math.max(1, durations[i] - delay)}
+            layout="none"
+          >
             <Audio src={`${assetBase}/${line.audio}`} />
           </Sequence>
         ) : null;
@@ -279,7 +285,7 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       ) : scene.image ? (
-        <Img
+        <SafeImg
           src={`${assetBase}/${scene.image}`}
           style={{
             width: '100%',

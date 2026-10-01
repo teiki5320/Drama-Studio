@@ -43,9 +43,11 @@ function detectMcpName() {
   return mcpNamePromise;
 }
 
-function buildInstruction(prompt, referenceUrls) {
+function buildInstruction(prompt, referenceUrls, referenceKind = 'faces') {
   const refs =
-    referenceUrls.length > 0
+    referenceUrls.length > 0 && referenceKind === 'kitchen'
+      ? `\n- IMPORTANT — cohérence du décor : utilise cette image comme référence (image-to-image / références externes d'OpenArt). Le plan de travail (même bois, même lumière, même vue du dessus), la vaisselle et les MAINS (même couleur de peau, mêmes mains africaines, aucun visage ni corps) doivent être IDENTIQUES à la référence ; seuls le geste et les aliments changent :\n${referenceUrls.map((u) => `  - ${u}`).join('\n')}`
+      : referenceUrls.length > 0
       ? `\n- IMPORTANT — cohérence des visages : utilise ces images comme références de personnages (image-to-image / références externes d'OpenArt), les visages générés doivent être IDENTIQUES à ceux des références :\n${referenceUrls.map((u) => `  - ${u}`).join('\n')}`
       : '';
   return `Tu as accès aux outils MCP OpenArt. Génère UNE SEULE image via OpenArt :
@@ -155,12 +157,12 @@ export async function openartCredits() {
 }
 
 // Retourne { buffer, url } — l'URL sert de référence de visage pour les scènes suivantes.
-export async function openartGenerate({ prompt, referenceUrls = [] }) {
+export async function openartGenerate({ prompt, referenceUrls = [], referenceKind = 'faces' }) {
   const mcpName = await detectMcpName();
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const text = await runClaude(buildInstruction(prompt, referenceUrls), mcpName);
+      const text = await runClaude(buildInstruction(prompt, referenceUrls, referenceKind), mcpName);
       if (/^ERREUR\s*:/i.test(text)) {
         const cause = text.replace(/^ERREUR\s*:/i, '').trim();
         if (/credit|crédit/i.test(cause)) {

@@ -869,22 +869,25 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
   const [repos, setRepos] = useState([]);
   const [repo, setRepo] = useState('');
   const [reposError, setReposError] = useState('');
+  const [reposLoading, setReposLoading] = useState(true);
   const [briefBusy, setBriefBusy] = useState(false);
   const [briefInfo, setBriefInfo] = useState('');
   const [briefError, setBriefError] = useState('');
 
+  // fresh = true : ignore le cache du serveur (bouton « Recharger »).
+  const loadRepos = (fresh, isAlive = () => true) => {
+    setReposLoading(true);
+    setReposError('');
+    api
+      .githubRepos(fresh)
+      .then((d) => isAlive() && setRepos(d.repos || []))
+      .catch((e) => isAlive() && setReposError(e.message))
+      .finally(() => isAlive() && setReposLoading(false));
+  };
+
   useEffect(() => {
     let alive = true;
-    api
-      .githubRepos()
-      .then((d) => {
-        if (!alive) {
-          return;
-        }
-        setRepos(d.repos || []);
-        setReposError('');
-      })
-      .catch((e) => alive && setReposError(e.message));
+    loadRepos(false, () => alive);
     return () => {
       alive = false;
     };
@@ -900,18 +903,19 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
     try {
       const d = await api.repoBrief(repo);
       const f = d.fields || {};
-      // On ne remplace que ce que Claude a su remplir : ce que tu as déjà tapé reste.
-      const fill = (value, current, set) => {
-        if (value && !current.trim()) {
-          set(value);
+      // On ne remplace que ce que Claude a su remplir : ce que tu as déjà tapé
+      // reste — y compris ce que tu as tapé PENDANT la lecture du README.
+      const fill = (value, set) => {
+        if (value) {
+          set((current) => (current.trim() ? current : value));
         }
       };
-      fill(f.name, name, setName);
-      fill(f.pitch, pitch, setPitch);
-      fill(f.audience, audience, setAudience);
-      fill(f.features, features, setFeatures);
-      fill(f.cta, cta, setCta);
-      fill(f.storeUrl, storeUrl, setStoreUrl);
+      fill(f.name, setName);
+      fill(f.pitch, setPitch);
+      fill(f.audience, setAudience);
+      fill(f.features, setFeatures);
+      fill(f.cta, setCta);
+      fill(f.storeUrl, setStoreUrl);
       if (f.platform && /android/i.test(f.platform) && !/ios/i.test(f.platform)) {
         setPlatform('Android');
       } else if (f.platform && /ios|iphone/i.test(f.platform)) {
@@ -948,7 +952,12 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
           chiffre — relis avant de valider.
         </p>
         {reposError ? (
-          <p className="field-hint">⚠️ Dépôts illisibles : {reposError} — remplis à la main.</p>
+          <p className="field-hint">
+            ⚠️ Dépôts illisibles : {reposError} — remplis à la main, ou{' '}
+            <button className="btn-small" onClick={() => loadRepos(true)}>
+              🔄 Réessayer
+            </button>
+          </p>
         ) : (
           <div className="topic-bar">
             <select
@@ -958,7 +967,11 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
               onChange={(e) => setRepo(e.target.value)}
             >
               <option value="">
-                {repos.length ? '— choisis un dépôt —' : 'chargement des dépôts…'}
+                {reposLoading
+                  ? 'chargement des dépôts…'
+                  : repos.length
+                    ? '— choisis un dépôt —'
+                    : 'aucun dépôt trouvé sur ce compte'}
               </option>
               {repos.map((r) => (
                 <option key={r.fullName} value={r.fullName}>
@@ -968,6 +981,14 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
                 </option>
               ))}
             </select>
+            <button
+              className="btn-small"
+              disabled={reposLoading || briefBusy}
+              title="Recharger la liste des dépôts"
+              onClick={() => loadRepos(true)}
+            >
+              🔄
+            </button>
             <button className="btn-small" disabled={!repo || briefBusy} onClick={fillFromRepo}>
               {briefBusy ? '⏳ Lecture du README…' : '✨ Remplir la fiche'}
             </button>

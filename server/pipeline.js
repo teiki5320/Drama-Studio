@@ -40,6 +40,7 @@ import {
   buildAdVideoPrompt,
   buildRecipePrompt,
   KITCHEN_REFERENCE_PROMPT,
+  RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
   findHealthClaims,
   DRAMA_IMAGE_SUFFIX,
@@ -106,8 +107,11 @@ function countVoice(project, result) {
 const MIN_SCENE_SEC = 3.5;
 const MAX_SCENE_SEC = 16;
 
-function normalizeEpisode(raw, number) {
-  const scenes = (raw.scenes || []).slice(0, 12).map((s, i) => {
+// maxScenes : 12 pour les dramas, chaînes et pubs ; une recette de 90 s
+// compte jusqu'à 20 gestes (voir buildRecipePrompt) — les couper ferait
+// disparaître la fin de la recette.
+function normalizeEpisode(raw, number, maxScenes = 12) {
+  const scenes = (raw.scenes || []).slice(0, maxScenes).map((s, i) => {
     const lines = (s.lines || [])
       .filter((l) => l && l.text)
       .slice(0, 3)
@@ -217,8 +221,38 @@ export async function ensureKitchenReference(project, update) {
     }
   } catch (e) {
     console.error('Plan de travail de référence :', e.message);
+    k.error = e.message;
   }
   saveProject(project);
+  // Sans référence, chaque geste aurait son propre plan de travail et ses
+  // propres mains : on s'arrête AVANT de payer des images incohérentes.
+  if (!k.image || !k.imageUrl) {
+    throw new Error(
+      "Le plan de travail de référence n'a pas pu être généré" +
+        (k.error ? ` (${k.error})` : '') +
+        ". Aucun geste n'a été lancé, pour ne pas payer des images qui ne se ressemblent pas. Relance dans un instant.",
+    );
+  }
+  delete k.error;
+}
+
+// Prompt d'image d'une scène. Recette : le style « vue du dessus, mains
+// africaines, même plan de travail » est garanti par le serveur — même si
+// Claude l'a oublié ou si le prompt a été retouché à la main.
+function sceneImagePrompt(project, scene) {
+  const prompt = String(scene.imagePrompt || '').trim();
+  if (project.mode !== 'recette' || prompt.includes(RECIPE_IMAGE_STYLE)) {
+    return prompt;
+  }
+  return `${prompt.replace(/[\s.,;]+$/, '')}. ${RECIPE_IMAGE_STYLE}`;
+}
+
+// Options de génération d'une image de scène : références + leur nature.
+function sceneImageOptions(project, scene) {
+  return {
+    referenceUrls: sceneReferenceUrls(project, scene),
+    referenceKind: project.mode === 'recette' ? 'kitchen' : 'faces',
+  };
 }
 
 // Références de visages : URLs des portraits des personnages visibles dans la
@@ -487,9 +521,11 @@ async function generateEpisodeAssets(project, episode, update) {
       update(`Épisode ${episode.number} — image ${i + 1}/${scenes.length}…`, i / scenes.length);
       const file = `e${episode.number}_${scene.id}_v${scene.version}.jpg`;
       try {
-        const { ok, url, provider } = await generateImage(scene.imagePrompt, path.join(dir, file), {
-          referenceUrls: sceneReferenceUrls(project, scene),
-        });
+        const { ok, url, provider } = await generateImage(
+          sceneImagePrompt(project, scene),
+          path.join(dir, file),
+          sceneImageOptions(project, scene),
+        );
         if (ok) {
           scene.image = file;
           scene.imageUrl = url || null;
@@ -1230,7 +1266,7 @@ export async function createRecipeVideo(project, params, update) {
   const raw = await askClaudeForJson(buildRecipePrompt(project, texte, seconds, tone));
   ensureUsage(project).claudeCalls += 1;
 
-  const episode = normalizeEpisode(raw, number);
+  const episode = normalizeEpisode(raw, number, 20);
   // Fiche de la recette : celle que Claude a lue dans le texte, complétée
   // par la fiche du site quand la vidéo vient d'une URL.
   const r = raw.recipe && typeof raw.recipe === 'object' ? raw.recipe : {};
@@ -1266,8 +1302,6 @@ export async function createRecipeVideo(project, params, update) {
   }
   // Filet de sécurité : la vidéo se termine TOUJOURS sur le plat fini puis
   // l'appel à l'action — même si Claude les a oubliés en fin de liste.
-  const povSuffix = (episode.scenes[0] && episode.scenes[0].imagePrompt) || '';
-  const style = povSuffix.slice(povSuffix.indexOf('first-person POV')) || '';
   const addScene = (extra) => {
     const id = `s${episode.scenes.length + 1}`;
     episode.scenes.push({
@@ -1282,7 +1316,7 @@ export async function createRecipeVideo(project, params, update) {
       durationSec: 5,
       version: 0,
       ...extra.fields,
-      imagePrompt: `${extra.image} ${style}`.trim(),
+      imagePrompt: `${extra.image} ${RECIPE_IMAGE_STYLE}`,
     });
   };
   if (!episode.scenes.some((sc) => sc.kind === 'final')) {
@@ -1329,6 +1363,24 @@ export async function createRecipeVideo(project, params, update) {
 // Garde-fou avant le rendu : aucune allégation de santé dans la narration ni
 // dans le texte à l'écran. Bloque et nomme le mot fautif.
 export function assertNoHealthClaims(episode) {
+  // Le nom, le pays, la durée et l'accroche s'affichent sur le carton titre
+  // et partent dans la légende TikTok (nom du fichier exporté).
+  const r = episode.recipe || {};
+  const head = [
+    { where: 'le nom de la recette', text: r.name || episode.title || '' },
+    { where: 'le pays de la recette', text: r.country || '' },
+    { where: 'la durée affichée', text: r.totalText || '' },
+    { where: "l'accroche (légende TikTok)", text: episode.hook || '' },
+  ];
+  for (const piece of head) {
+    const found = findHealthClaims(piece.text);
+    if (found.length > 0) {
+      throw new Error(
+        `Allégation de santé interdite dans ${piece.where} : « ${found.join(', ')} ». ` +
+          `Corrige le texte (on parle de goût, de texture et de tradition — jamais d'effets sur la santé), puis relance le rendu.`,
+      );
+    }
+  }
   for (const [i, scene] of (episode.scenes || []).entries()) {
     const pieces = [
       ...(scene.lines || []).map((l) => ({ where: 'la narration', text: l.text })),
@@ -1559,6 +1611,7 @@ export async function retryFailedAssets(project, episode, update) {
   const failures = [];
 
   await ensureCharacterPortraits(project, update);
+  await ensureKitchenReference(project, update);
 
   // 1. Images manquantes ou en erreur
   if (provider !== 'manual') {
@@ -1572,9 +1625,9 @@ export async function retryFailedAssets(project, episode, update) {
       const file = `e${episode.number}_${scene.id}_v${scene.version}.jpg`;
       try {
         const { ok, url, provider: used } = await generateImage(
-          scene.imagePrompt,
+          sceneImagePrompt(project, scene),
           path.join(dir, file),
-          { referenceUrls: sceneReferenceUrls(project, scene) },
+          sceneImageOptions(project, scene),
         );
         if (ok) {
           scene.image = file;
@@ -1686,15 +1739,22 @@ export async function regenerateAllImages(project, episode, update) {
   const scenes = episode.scenes || [];
   const failures = [];
   await ensureCharacterPortraits(project, update);
+  await ensureKitchenReference(project, update);
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
+    // Recette : la photo du plat venue du site est gratuite et fidèle — on la garde.
+    if (scene.fromSite && scene.image) {
+      continue;
+    }
     update(`Image ${i + 1}/${scenes.length}…`, i / scenes.length);
     scene.version += 1;
     const file = `e${episode.number}_${scene.id}_v${scene.version}.jpg`;
     try {
-      const { ok, url, provider } = await generateImage(scene.imagePrompt, path.join(dir, file), {
-        referenceUrls: sceneReferenceUrls(project, scene),
-      });
+      const { ok, url, provider } = await generateImage(
+        sceneImagePrompt(project, scene),
+        path.join(dir, file),
+        sceneImageOptions(project, scene),
+      );
       if (ok) {
         scene.image = file;
         scene.imageUrl = url || null;
@@ -1717,12 +1777,13 @@ export async function regenerateAllImages(project, episode, update) {
 export async function regenerateSceneImage(project, episode, scene, update) {
   update('Génération de la nouvelle image…');
   await ensureCharacterPortraits(project, update);
+  await ensureKitchenReference(project, update);
   scene.version += 1;
   const file = `e${episode.number}_${scene.id}_v${scene.version}.jpg`;
   const { ok, url, provider } = await generateImage(
-    scene.imagePrompt,
+    sceneImagePrompt(project, scene),
     path.join(assetsDir(project.id), file),
-    { referenceUrls: sceneReferenceUrls(project, scene) },
+    sceneImageOptions(project, scene),
   );
   if (ok) {
     scene.image = file;
