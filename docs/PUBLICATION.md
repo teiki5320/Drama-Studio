@@ -10,7 +10,7 @@
 
 - **iOS / Android** : non concernés — Drama Studio n'est présent sur aucune boutique d'applications, et rien dans le dépôt ne prépare un empaquetage mobile ou desktop (pas de Capacitor, Expo, Electron ou Tauri)
 - **macOS** : outil local hors boutiques — distribué par clonage du dépôt GitHub + lanceur `Drama Studio.command` (mise à jour par `git pull` à chaque démarrage)
-- **Web** : serveur local uniquement (`localhost:4600`), accès iPad via Tailscale — aucun hébergement public
+- **Web** : serveur local uniquement (`localhost:4600`, ce Mac seulement) — aucun hébergement public
 - **Version commune** : `0.1.0` (`package.json`, nom de paquet `drama-studio`) — pas de numérotation de boutique
 - **Identifiant** : aucun identifiant de bundle — l'app n'est pas empaquetée ; dépôt <https://github.com/teiki5320/Drama-Studio>
 - **Monétisation** : aucune monétisation directe de l'outil ; à terme, récompenses créateurs sur les plateformes de diffusion (voir `docs/MARKETING.md`)
@@ -54,7 +54,7 @@ non planifiée.
 | Console | aucune (pas d'hébergeur, pas de domaine) |
 | Version publiée | sans objet |
 | Version en cours | `0.1.0` servie sur `http://localhost:4600` |
-| Distribution | serveur Express local ; accès distant privé via Tailscale (`HOST=0.0.0.0`, pilotage depuis l'iPad) |
+| Distribution | serveur Express local, accessible depuis ce Mac seulement (Tailscale abandonné) |
 
 **Ce qui bloque.** Rien à publier : l'interface web est le poste de
 pilotage de l'outil, pas un produit à héberger. Elle dépend de services

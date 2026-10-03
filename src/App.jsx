@@ -813,6 +813,7 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
   const [repo, setRepo] = useState('');
   const [reposError, setReposError] = useState('');
   const [reposLoading, setReposLoading] = useState(true);
+  const [siteUrl, setSiteUrl] = useState('');
   const [briefBusy, setBriefBusy] = useState(false);
   const [briefInfo, setBriefInfo] = useState('');
   const [briefError, setBriefError] = useState('');
@@ -836,15 +837,13 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
     };
   }, []);
 
-  const fillFromRepo = async () => {
-    if (!repo) {
-      return;
-    }
+  // fetchBrief : lecture d'un dépôt GitHub ou d'un site — même fiche en retour.
+  const fillFrom = async (fetchBrief) => {
     setBriefBusy(true);
     setBriefError('');
     setBriefInfo('');
     try {
-      const d = await api.repoBrief(repo);
+      const d = await fetchBrief();
       const f = d.fields || {};
       // On ne remplace que ce que Claude a su remplir : ce que tu as déjà tapé
       // reste — y compris ce que tu as tapé PENDANT la lecture du README.
@@ -867,7 +866,7 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
       setBriefInfo(
         [
           `✅ Fiche remplie depuis ${d.repo}.`,
-          d.hadReadme ? '' : ' (ce dépôt n’a pas de README : peu de matière)',
+          d.hadReadme ? '' : ' (peu de texte à lire : la fiche risque d’être maigre)',
           d.notes ? ` À compléter : ${d.notes}` : '',
           ' Relis tout avant de valider.',
         ].join(''),
@@ -888,10 +887,10 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
         après — elles sont insérées telles quelles dans les vidéos (aucun crédit).
       </p>
       <div className="form-field">
-        <label>🐙 Partir d'un dépôt GitHub (raccourci)</label>
+        <label>🐙 Partir d'un dépôt GitHub ou d'un site (raccourci)</label>
         <p className="field-hint">
-          Choisis le dépôt de l'appli : Claude lit son README et remplit les questions
-          ci-dessous. Il ne touche pas aux champs que tu as déjà remplis, et n'invente aucun
+          Choisis le dépôt de l'appli, ou colle l'adresse de son site : Claude le lit et
+          remplit les questions ci-dessous. Il ne touche pas aux champs que tu as déjà remplis, et n'invente aucun
           chiffre — relis avant de valider.
         </p>
         {reposError ? (
@@ -932,11 +931,31 @@ function AppCreate({ onSubmit, error, voices = VOICES }) {
             >
               🔄
             </button>
-            <button className="btn-small" disabled={!repo || briefBusy} onClick={fillFromRepo}>
-              {briefBusy ? '⏳ Lecture du README…' : '✨ Remplir la fiche'}
+            <button
+              className="btn-small"
+              disabled={!repo || briefBusy}
+              onClick={() => fillFrom(() => api.repoBrief(repo))}
+            >
+              {briefBusy ? '⏳ Lecture…' : '✨ Remplir la fiche'}
             </button>
           </div>
         )}
+        <div className="topic-bar" style={{ marginTop: 8 }}>
+          <input
+            value={siteUrl}
+            disabled={briefBusy}
+            placeholder="ou l'adresse d'un site — ex. : keurcook.com"
+            onChange={(e) => setSiteUrl(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <button
+            className="btn-small"
+            disabled={siteUrl.trim().length < 4 || briefBusy}
+            onClick={() => fillFrom(() => api.siteBrief(siteUrl.trim()))}
+          >
+            {briefBusy ? '⏳ Lecture…' : '🌐 Lire le site'}
+          </button>
+        </div>
         {briefInfo && <p className="field-hint">{briefInfo}</p>}
         {briefError && <p className="error">{briefError}</p>}
       </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player } from '@remotion/player';
 import { Episode } from './remotion/Episode.jsx';
 import { Recipe, recipeDurationInFrames } from './remotion/Recipe.jsx';
@@ -1237,6 +1237,11 @@ export function ProjectView({ projectId, onBack }) {
   // Une pub est une chaîne marquée kind='pub' : même mécanique, autre vocabulaire.
   const isPub = project?.kind === 'pub';
   const isRecipe = project?.mode === 'recette';
+  // Chaque format n'affiche que ce qui le concerne : personnages, Studio
+  // Director, saisons et cliffhangers n'existent que pour les dramas.
+  const isDrama = !isChaine && !isRecipe;
+  const unit = isDrama ? 'épisode' : 'vidéo';
+  const Unit = isDrama ? 'Épisode' : 'Vidéo';
 
   // Une chaîne peut avoir sa propre outro (sinon la marque globale s'applique).
   const effectiveStudio = useMemo(() => {
@@ -1291,6 +1296,25 @@ export function ProjectView({ projectId, onBack }) {
     }
   };
 
+  // Publicité : une appli sans pub ni idée reçoit tout de suite ses idées
+  // d'angles (Claude seulement, aucun crédit d'image ni de voix). Une seule
+  // fois par ouverture : un échec n'enchaîne pas les tentatives.
+  const autoIdeas = useRef(false);
+  useEffect(() => {
+    if (
+      !project ||
+      project.kind !== 'pub' ||
+      busy ||
+      autoIdeas.current ||
+      (project.episodes || []).length > 0 ||
+      (project.topicIdeas || []).length > 0
+    ) {
+      return;
+    }
+    autoIdeas.current = true;
+    runJob(() => api.suggestTopics(projectId));
+  }, [project, busy]);
+
   const uploadMusic = async (file) => {
     const dataUrl = await fileToDataUrl(file);
     await api.uploadMusic(projectId, dataUrl);
@@ -1325,9 +1349,11 @@ export function ProjectView({ projectId, onBack }) {
 
   const header = (
     <header className="project-header">
-      <button className="btn-ghost" onClick={onBack}>
-        ← {isRecipe ? 'Mes ateliers' : isChaine ? 'Mes chaînes' : 'Mes dramas'}
-      </button>
+      {!isRecipe && !isPub && (
+        <button className="btn-ghost" onClick={onBack}>
+          ← {isChaine ? 'Mes chaînes' : 'Mes dramas'}
+        </button>
+      )}
       <div className="project-title">
         <h1>
           {project.title}
@@ -1347,9 +1373,15 @@ export function ProjectView({ projectId, onBack }) {
           {isChaine && (
             <span
               className="scene-badge"
-              title={`Chaîne : vidéos de ${project.targetSeconds || 90} s, narrateur seul`}
+              title={
+                isPub
+                  ? `Pubs de ${project.targetSeconds || 30} s`
+                  : `Chaîne : vidéos de ${project.targetSeconds || 90} s, narrateur seul`
+              }
             >
-              🎥 Chaîne · {project.targetSeconds || 90} s
+              {isPub
+                ? `📣 Pub · ${project.targetSeconds || 30} s`
+                : `🎥 Chaîne · ${project.targetSeconds || 90} s`}
             </span>
           )}
         </h1>
@@ -1358,7 +1390,11 @@ export function ProjectView({ projectId, onBack }) {
       {isChaine && (
         <>
           <label className="btn-ghost upload" title="L'outro de cette chaîne (vidéo courte ou image), ajoutée à la fin de chaque vidéo. Sinon, l'outro globale de « Ma marque » s'applique.">
-            {project.channelOutro ? '🎞️ Changer l\'outro' : '🎞️ Outro de la chaîne'}
+            {project.channelOutro
+              ? '🎞️ Changer l\'outro'
+              : isPub
+                ? '🎞️ Outro de l\'appli'
+                : '🎞️ Outro de la chaîne'}
             <input
               type="file"
               accept="video/mp4,video/quicktime,image/png,image/jpeg,image/webp"
@@ -1391,7 +1427,7 @@ export function ProjectView({ projectId, onBack }) {
             className="video-count"
             title="Nombre de plans animés en clip vidéo par épisode. Priorité aux plans avec réplique, puis au cliffhanger, puis aux autres dans l'ordre — les plans non retenus restent en image (zoom lent). Chaque clip coûte nettement plus de crédits OpenArt qu'une image ; 0 pour tout garder en images. En Drama série, « Toutes » (le défaut) = style DramaWave."
           >
-            🎬 Plans animés/épisode
+            🎬 Plans animés/{unit}
             <select
               value={
                 project.videoScenes ?? (project.mode === 'long' ? 'all' : DEFAULT_VIDEO_SCENES)
@@ -1433,7 +1469,7 @@ export function ProjectView({ projectId, onBack }) {
               <option value="auto">Adaptée — 5 à 10 s</option>
             </select>
           </label>
-          {!isChaine && (
+          {isDrama && (
             <button
               className="btn-ghost"
               disabled={busy}
@@ -1750,11 +1786,6 @@ export function ProjectView({ projectId, onBack }) {
           </button>
         );
       })}
-      {isChaine && tabNumbers.length === 0 && (
-        <span className="cast-hint" style={{ margin: 0 }}>
-          Aucune vidéo pour l'instant — donne un sujet ci-dessous pour créer la première.
-        </span>
-      )}
     </nav>
   );
 
@@ -1801,6 +1832,12 @@ export function ProjectView({ projectId, onBack }) {
           💡 {isPub ? "Proposer des angles" : 'Proposer des sujets'}
         </button>
       </div>
+      {(project.topicIdeas || []).length > 0 && isPub && (
+        <p className="cast-hint" style={{ margin: '8px 0 0' }}>
+          💡 Idées de pubs, de la plus vendeuse à la moins vendeuse — clique sur celle qui te
+          plaît, retouche-la si tu veux, puis « ➕ Écrire la pub ».
+        </p>
+      )}
       {(project.topicIdeas || []).length > 0 && (
         <div className="topic-ideas">
           {(project.topicIdeas || []).slice(0, 10).map((t, i) => (
@@ -1881,7 +1918,7 @@ export function ProjectView({ projectId, onBack }) {
           onClick={() => {
             if (
               confirm(
-                isChaine
+                !isDrama
                   ? `Produire la vidéo ${epNumber} (images, voix, clip) ?\n\n${quote(1)}`
                   : `Produire l'épisode ${epNumber} en production interne ?\n\nSeuls les éléments manquants seront générés — l'existant n'est pas re-payé.\n\n${quote(1)}\n(C'est le maximum : une reprise coûte souvent bien moins.)`,
               )
@@ -1890,15 +1927,17 @@ export function ProjectView({ projectId, onBack }) {
             }
           }}
         >
-          {isChaine ? `▶️ Produire la vidéo ${epNumber}` : `🛠️ Produire l'épisode ${epNumber}`}
+          {!isDrama ? `▶️ Produire la vidéo ${epNumber}` : `🛠️ Produire l'épisode ${epNumber}`}
         </button>
       )}
       {justRendered === epNumber && episode?.renderedFile && (
         <div className="render-success">
-          <div className="rs-title">🎉 Épisode {episode.number} terminé !</div>
+          <div className="rs-title">
+            🎉 {Unit} {episode.number} terminé{isDrama ? '' : 'e'} !
+          </div>
           <p>
             Le MP4 est rangé automatiquement dans{' '}
-            <strong>{placeText || `le dossier ${isChaine ? project.title : 'Dramas'}`}</strong>.
+            <strong>{placeText || `le dossier ${isDrama ? 'Dramas' : project.title}`}</strong>.
           </p>
           <div className="rs-actions">
             <button className="btn-small primary" onClick={openFolder}>
@@ -1930,7 +1969,7 @@ export function ProjectView({ projectId, onBack }) {
         className="btn-ghost"
         disabled={busy}
         onClick={() => {
-          if (confirm('Régénérer toutes les images de cet épisode avec le fournisseur actuel ?')) {
+          if (confirm(`Régénérer toutes les images de ${isDrama ? 'cet épisode' : 'cette vidéo'} avec le fournisseur actuel ?`)) {
             runJob(() => api.regenAllImages(projectId, epNumber));
           }
         }}
@@ -1941,7 +1980,7 @@ export function ProjectView({ projectId, onBack }) {
         className="btn-ghost"
         disabled={busy}
         onClick={() => {
-          if (confirm('Régénérer toutes les voix de cet épisode ?')) {
+          if (confirm(isDrama ? 'Régénérer toutes les voix de cet épisode ?' : 'Régénérer toutes les voix de cette vidéo ?')) {
             runJob(() => api.regenAllAudio(projectId, epNumber));
           }
         }}
@@ -1956,9 +1995,11 @@ export function ProjectView({ projectId, onBack }) {
           onClick={() => {
             if (
               confirm(
-                `Supprimer ${isChaine ? 'cette vidéo' : `l'épisode ${episode.number}`} (scénario, images, clips, voix et MP4) ?\n\n${
-                  isChaine
-                    ? 'Son sujet retournera dans les idées de la chaîne.'
+                `Supprimer ${!isDrama ? 'cette vidéo' : `l'épisode ${episode.number}`} (scénario, images, clips, voix et MP4) ?\n\n${
+                  isRecipe
+                    ? 'Tu pourras la refaire en rechoisissant la recette.'
+                    : isChaine
+                    ? `Son ${isPub ? 'angle' : 'sujet'} retournera dans les idées.`
                     : `Il repassera en « à produire » : clique ensuite « ▶️ Produire l'épisode ${episode.number} » pour le refaire de zéro.`
                 }\n\nLes crédits déjà dépensés ne sont pas remboursés.`,
               )
@@ -1970,7 +2011,7 @@ export function ProjectView({ projectId, onBack }) {
             }
           }}
         >
-          🗑️ Supprimer {isChaine ? 'la vidéo' : `l'épisode ${episode.number}`}
+          🗑️ Supprimer {!isDrama ? 'la vidéo' : `l'épisode ${episode.number}`}
         </button>
       )}
       {episode?.renderedFile && (
@@ -2063,7 +2104,7 @@ export function ProjectView({ projectId, onBack }) {
                 download={`${tiktokCaption(project, e)}.mp4`}
                 title={`${e.title} — nom du fichier = description TikTok prête`}
               >
-                Ép. {e.number}
+                {isDrama ? `Ép. ${e.number}` : isRecipe ? e.title : `Vidéo ${e.number}`}
               </a>
             ))}
             {renderedEpisodes.length > 1 && (
@@ -2080,7 +2121,7 @@ export function ProjectView({ projectId, onBack }) {
             ) : (
               <>
                 Rangés automatiquement dans le dossier{' '}
-                <strong>{isChaine ? project.title : 'Dramas'}</strong>{' '}
+                <strong>{isDrama ? 'Dramas' : project.title}</strong>{' '}
               </>
             )}
             <button className="btn-small" onClick={openFolder} title="Ouvrir dans le Finder">
@@ -2096,7 +2137,7 @@ export function ProjectView({ projectId, onBack }) {
                 title={tiktokCaption(project, episode)}
                 onClick={() => navigator.clipboard.writeText(tiktokCaption(project, episode))}
               >
-                📋 Description TikTok (ép. {episode.number})
+                📋 Description TikTok ({isDrama ? `ép. ${episode.number}` : 'cette vidéo'})
               </button>
             )}
           </p>
@@ -2206,7 +2247,7 @@ export function ProjectView({ projectId, onBack }) {
               une scène — ou « 🔊 Régénérer les voix » — pour l'appliquer.
             </p>
             <h2>
-              {isChaine ? 'Vidéo' : 'Épisode'} {episode.number} — {episode.title}
+              {Unit} {episode.number} — {episode.title}
             </h2>
             {episode.cliffhanger && <p className="cliffhanger">Cliffhanger : « {episode.cliffhanger} »</p>}
             {episodeHasShots(episode) && (
@@ -2257,8 +2298,16 @@ export function ProjectView({ projectId, onBack }) {
         </div>
       ) : (
         <div className="centered">
-          <p>Cet épisode n'a pas encore été produit.</p>
-          {!isChaine && stage === 'production' && epNumber >= 1 && epNumber <= totalEpisodes && (
+          <p>
+            {isRecipe
+              ? 'Aucune vidéo pour l’instant — choisis une recette ci-dessus et clique « ✂️ Découper en gestes ».'
+              : isPub
+                ? 'Aucune pub pour l’instant — choisis une idée ci-dessus (ou écris ton angle) puis clique « ➕ Écrire la pub ».'
+                : isChaine
+                  ? 'Aucune vidéo pour l’instant — donne un sujet ci-dessus pour créer la première.'
+                  : 'Cet épisode n’a pas encore été produit.'}
+          </p>
+          {isDrama && stage === 'production' && epNumber >= 1 && epNumber <= totalEpisodes && (
             <>
               <button
                 className="btn-primary"

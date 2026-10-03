@@ -3,7 +3,6 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { execFile } from 'node:child_process';
-import os from 'node:os';
 import { PORT, HOST, DIST_DIR } from './config.js';
 import {
   EPISODE_COUNT,
@@ -84,11 +83,13 @@ import { buildDirectorKit } from './director.js';
 import { keurcookRepo } from './keurcook.js';
 import { listRecipes, RECIPE_SITE } from './recipes.js';
 import { listRepos, fetchRepoBrief, githubUser } from './github.js';
+import { fetchSiteBrief } from './sitebrief.js';
 import {
   RECIPE_SECONDS,
   RECIPE_TONES,
   buildRepoBriefPrompt,
   askClaudeForJson,
+  buildSiteBriefPrompt,
 } from './claudegen.js';
 import { generateStoryboard, clearStoryboard } from './storyboard.js';
 import {
@@ -103,6 +104,20 @@ import {
 } from './studio.js';
 
 const app = express();
+
+// Le studio ne répond qu'aux pages ouvertes sur ce Mac : un site malveillant
+// qui ferait pointer son propre nom vers 127.0.0.1 (« rebinding DNS ») est
+// refusé, faute du bon en-tête Host.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+app.use((req, res, next) => {
+  const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
+  if (LOCAL_HOSTS.has(host)) {
+    next();
+    return;
+  }
+  res.status(403).send('Drama Studio ne répond qu’aux pages ouvertes sur ce Mac (localhost).');
+});
+
 app.use(express.json({ limit: '60mb' }));
 
 // ---------- Santé ----------
@@ -432,6 +447,30 @@ app.get('/api/github/repos', async (req, res) => {
 });
 
 // Le dépôt choisi → la fiche de l'appli, remplie par Claude d'après le README.
+// Réponse commune des deux raccourcis (dépôt, site) : champs bornés, et
+// jamais d'adresse de boutique qui ne soit pas une vraie URL.
+function briefFields(data, fallbackName) {
+  const line = (v, max) => String(v || '').trim().slice(0, max);
+  return {
+    fields: {
+      name: line(data.name, 80) || fallbackName,
+      pitch: line(data.pitch, 400),
+      audience: line(data.audience, 200),
+      features: String(data.features || '')
+        .split(/\r?\n/)
+        .map((f) => f.replace(/^[-•*\s]+/, '').trim())
+        .filter(Boolean)
+        .slice(0, 8)
+        .join('\n')
+        .slice(0, 800),
+      platform: line(data.platform, 60),
+      storeUrl: /^https?:\/\//i.test(String(data.storeUrl || '').trim()) ? line(data.storeUrl, 300) : '',
+      cta: line(data.cta, 120),
+    },
+    notes: line(data.notes, 300),
+  };
+}
+
 app.post('/api/github/repo-brief', async (req, res) => {
   const repo = String((req.body || {}).repo || '').trim();
   if (!repo) {
@@ -439,31 +478,35 @@ app.post('/api/github/repo-brief', async (req, res) => {
     return;
   }
   try {
-    const brief = await fetchRepoBrief(repo);
+    // Seuls les dépôts du compte, ceux de la liste déroulante, sont lus.
+    const { repos } = await listRepos();
+    const known = repos.find((r) => r.fullName.toLowerCase() === repo.toLowerCase());
+    if (!known) {
+      res.status(400).json({ error: 'Ce dépôt ne fait pas partie de ton compte GitHub.' });
+      return;
+    }
+    const brief = await fetchRepoBrief(known.fullName);
     const data = await askClaudeForJson(buildRepoBriefPrompt(brief));
-    const line = (v, max) => String(v || '').trim().slice(0, max);
     res.json({
       repo: brief.fullName,
       url: brief.url,
       hadReadme: Boolean(brief.readme),
-      fields: {
-        name: line(data.name, 80) || brief.label,
-        pitch: line(data.pitch, 400),
-        audience: line(data.audience, 200),
-        features: String(data.features || '')
-          .split(/\r?\n/)
-          .map((f) => f.replace(/^[-•*\s]+/, '').trim())
-          .filter(Boolean)
-          .slice(0, 8)
-          .join('\n')
-          .slice(0, 800),
-        platform: line(data.platform, 60),
-        storeUrl: /^https?:\/\//i.test(String(data.storeUrl || '').trim())
-          ? line(data.storeUrl, 300)
-          : '',
-        cta: line(data.cta, 120),
-      },
-      notes: line(data.notes, 300),
+      ...briefFields(data, brief.label),
+    });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.post('/api/site-brief', async (req, res) => {
+  try {
+    const site = await fetchSiteBrief((req.body || {}).url);
+    const data = await askClaudeForJson(buildSiteBriefPrompt(site));
+    res.json({
+      repo: site.host,
+      url: site.url,
+      hadReadme: site.text.length > 200,
+      ...briefFields(data, site.siteName || site.host),
     });
   } catch (e) {
     res.status(502).json({ error: e.message });
@@ -1342,20 +1385,6 @@ app.listen(PORT, HOST, () => {
   console.log('');
   console.log('  🎬 Drama Studio');
   console.log(`  → http://localhost:${PORT}`);
-  // Accès distant activé (HOST=0.0.0.0) : affiche les adresses utilisables,
-  // en signalant celle du réseau privé Tailscale (plage 100.x).
-  if (HOST !== '127.0.0.1') {
-    for (const list of Object.values(os.networkInterfaces())) {
-      for (const iface of list || []) {
-        if (iface.family === 'IPv4' && !iface.internal) {
-          const tailscale = iface.address.startsWith('100.');
-          console.log(
-            `  → http://${iface.address}:${PORT}${tailscale ? '  ← Tailscale (téléphone, autre ordi)' : ''}`,
-          );
-        }
-      }
-    }
-  }
   if (!fs.existsSync(DIST_DIR)) {
     console.log('  (interface non construite : lance `npm run dev` ou `npm run build`)');
   }

@@ -32,6 +32,7 @@ export const api = {
   githubRepos: (fresh) => request(`/api/github/repos${fresh ? '?fresh=1' : ''}`),
   repoBrief: (repo) =>
     request('/api/github/repo-brief', { method: 'POST', body: JSON.stringify({ repo }) }),
+  siteBrief: (url) => request('/api/site-brief', { method: 'POST', body: JSON.stringify({ url }) }),
   recipes: () => request('/api/recipes'),
   createRecipeStudio: (info) =>
     request('/api/projects/recipe-studio', { method: 'POST', body: JSON.stringify(info) }),
