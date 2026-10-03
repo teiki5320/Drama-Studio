@@ -6,12 +6,15 @@
 // badge signé par Cloudflare (en-tête Cf-Access-Jwt-Assertion), vérifié ici.
 //
 // .env : PUBLIC_HOST, CF_ACCESS_TEAM (le « xxx » de xxx.cloudflareaccess.com)
-// et CF_ACCESS_AUD (« Application Audience (AUD) Tag » de l'application).
+// et, si possible, CF_ACCESS_AUD (« Application Audience (AUD) Tag » de
+// l'application). Sans AUD, seuls les badges signés pour l'équipe sont
+// acceptés — et l'AUD vu passe dans le journal du serveur, prêt à être noté.
 
 import crypto from 'node:crypto';
 
 const CERTS_TTL_MS = 60 * 60 * 1000;
 let certsCache = { team: null, at: 0, keys: [] };
+let loggedAud = false;
 
 export function publicHost() {
   return String(process.env.PUBLIC_HOST || '').trim().toLowerCase();
@@ -23,7 +26,7 @@ function accessConfig() {
     .toLowerCase()
     .replace(/\.cloudflareaccess\.com$/, '');
   const aud = String(process.env.CF_ACCESS_AUD || '').trim();
-  return team && aud ? { team, aud, issuer: `https://${team}.cloudflareaccess.com` } : null;
+  return team ? { team, aud, issuer: `https://${team}.cloudflareaccess.com` } : null;
 }
 
 async function signingKeys(cfg, { fresh = false } = {}) {
@@ -47,7 +50,7 @@ const b64url = (s) => Buffer.from(s, 'base64url');
 export async function verifyAccessToken(token) {
   const cfg = accessConfig();
   if (!cfg) {
-    throw new Error('Cloudflare Access non configuré (CF_ACCESS_TEAM / CF_ACCESS_AUD)');
+    throw new Error('Cloudflare Access non configuré (CF_ACCESS_TEAM)');
   }
   const parts = String(token || '').split('.');
   if (parts.length !== 3) {
@@ -77,8 +80,12 @@ export async function verifyAccessToken(token) {
   }
   const now = Math.floor(Date.now() / 1000);
   const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!auds.includes(cfg.aud)) {
+  if (cfg.aud && !auds.includes(cfg.aud)) {
     throw new Error('badge destiné à une autre application');
+  }
+  if (!cfg.aud && !loggedAud) {
+    loggedAud = true;
+    console.log(`  🔑 Cloudflare Access : AUD de l'application = ${auds.join(', ')} (à mettre dans CF_ACCESS_AUD)`);
   }
   if (payload.iss !== cfg.issuer) {
     throw new Error('émetteur inconnu');
