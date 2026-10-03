@@ -470,6 +470,19 @@ export async function newLocationLook(project, index, instructions, update) {
   await ensureLocationImages(project, update);
 }
 
+// Plans à animer en clip. Recette : ceux que Claude a marqués (vapeur, sauce
+// qui mijote, plat qu'on sert), pas une répartition par position — la
+// production ET la réparation suivent la même règle.
+function wantedClipIndexes(project, scenes) {
+  if (project.mode === 'recette') {
+    return scenes
+      .map((sc, i) => (sc.clip ? i : -1))
+      .filter((i) => i >= 0)
+      .slice(0, plannedVideoCount(project, scenes.length));
+  }
+  return plannedVideoIndexes(project, scenes.length);
+}
+
 async function generateEpisodeAssets(project, episode, update) {
   const dir = assetsDir(project.id);
   const provider = currentProvider();
@@ -628,15 +641,7 @@ async function generateEpisodeAssets(project, episode, update) {
       }
     }
   } else if (provider === 'openart' && VIDEO_SCENES) {
-    // Recette : les plans animés sont ceux que Claude a marqués (vapeur, sauce
-    // qui mijote, plat qu'on sert), pas une répartition par position.
-    const wanted =
-      project.mode === 'recette'
-        ? scenes
-            .map((sc, i) => (sc.clip ? i : -1))
-            .filter((i) => i >= 0)
-            .slice(0, plannedVideoCount(project, scenes.length))
-        : plannedVideoIndexes(project, scenes.length);
+    const wanted = wantedClipIndexes(project, scenes);
     for (let k = 0; k < wanted.length; k++) {
       const scene = scenes[wanted[k]];
       if (scene.video || scene.videoDisabled || !scene.image) {
@@ -1674,7 +1679,7 @@ export async function retryFailedAssets(project, episode, update) {
   // 3. Clips vidéo prévus mais absents, ou en erreur (les scènes parlées en
   // mode « avatar » n'ont pas de clip OpenArt : leur vidéo vient de l'étape 4)
   if (provider === 'openart' && VIDEO_SCENES) {
-    const wanted = plannedVideoIndexes(project, scenes.length);
+    const wanted = wantedClipIndexes(project, scenes);
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       const expected = wanted.includes(i) || Boolean(scene.videoError);

@@ -84,6 +84,7 @@ import { keurcookRepo } from './keurcook.js';
 import { listRecipes, RECIPE_SITE } from './recipes.js';
 import { listRepos, fetchRepoBrief, githubUser } from './github.js';
 import { fetchSiteBrief } from './sitebrief.js';
+import { publicHost, verifyAccessToken } from './cfaccess.js';
 import {
   RECIPE_SECONDS,
   RECIPE_TONES,
@@ -107,12 +108,23 @@ const app = express();
 
 // Le studio ne répond qu'aux pages ouvertes sur ce Mac : un site malveillant
 // qui ferait pointer son propre nom vers 127.0.0.1 (« rebinding DNS ») est
-// refusé, faute du bon en-tête Host.
+// refusé, faute du bon en-tête Host. Seule exception : l'adresse publique du
+// tunnel Cloudflare (PUBLIC_HOST, pour l'iPad), et seulement avec un badge
+// Cloudflare Access valide.
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 app.use((req, res, next) => {
   const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
   if (LOCAL_HOSTS.has(host)) {
     next();
+    return;
+  }
+  if (host && host === publicHost()) {
+    verifyAccessToken(req.headers['cf-access-jwt-assertion'])
+      .then(() => next())
+      .catch((e) => {
+        console.warn(`Accès refusé via ${host} : ${e.message}`);
+        res.status(403).send('Accès refusé : connecte-toi via Cloudflare Access.');
+      });
     return;
   }
   res.status(403).send('Drama Studio ne répond qu’aux pages ouvertes sur ce Mac (localhost).');

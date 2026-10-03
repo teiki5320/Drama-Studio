@@ -54,16 +54,17 @@ function buildInstruction(prompt, referenceUrls, referenceKind = 'faces') {
 - Prompt : ${prompt}
 - Format : vertical 9:16 (par exemple 1080x1920).
 - Choisis un modèle photoréaliste de qualité (Seedream, Nano Banana Pro ou équivalent disponible).${refs}
-Attends la fin de la génération. Puis réponds UNIQUEMENT avec l'URL directe du fichier image généré (une seule ligne, aucune autre phrase). Si la génération échoue, réponds "ERREUR: " suivi de la cause exacte.`;
+Attends la fin de la génération : tant qu'elle est en cours, revérifie son état avec les outils OpenArt — ne rends JAMAIS la main avant d'avoir le résultat. Puis réponds UNIQUEMENT avec l'URL directe du fichier image généré (une seule ligne, aucune autre phrase). Si la génération échoue, réponds "ERREUR: " suivi de la cause exacte.`;
 }
 
-function runClaude(instruction, mcpName, timeoutMs = TIMEOUT_MS) {
+function runClaudeSession(instruction, mcpName, timeoutMs = TIMEOUT_MS, resumeId = null) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       claudeBin(),
       [
         '-p',
         instruction,
+        ...(resumeId ? ['--resume', resumeId] : []),
         '--output-format',
         'json',
         '--allowedTools',
@@ -83,11 +84,13 @@ function runClaude(instruction, mcpName, timeoutMs = TIMEOUT_MS) {
     child.on('close', (code) => {
       clearTimeout(timer);
       let text = out;
+      let sessionId = null;
       try {
         const envelope = JSON.parse(out);
         if (typeof envelope.result === 'string') {
           text = envelope.result;
         }
+        sessionId = envelope.session_id || null;
       } catch {
         // stdout brut
       }
@@ -95,9 +98,45 @@ function runClaude(instruction, mcpName, timeoutMs = TIMEOUT_MS) {
         reject(new Error(`OpenArt via Claude a échoué (code ${code}) : ${(err || text).slice(0, 400)}`));
         return;
       }
-      resolve(text.trim());
+      resolve({ text: text.trim(), sessionId });
     });
   });
+}
+
+async function runClaude(instruction, mcpName, timeoutMs = TIMEOUT_MS) {
+  return (await runClaudeSession(instruction, mcpName, timeoutMs)).text;
+}
+
+// Il arrive que Claude rende la main pendant que la génération tourne encore
+// chez OpenArt (« Still generating, I'll check again… ») : la génération est
+// lancée — et payée. On reprend alors LA MÊME conversation pour récupérer le
+// résultat, au lieu d'en relancer une nouvelle qui serait payée deux fois.
+const PENDING_FOLLOW_UP =
+  "Ta réponse ne contient pas encore l'URL du résultat. Ne lance SURTOUT PAS de nouvelle " +
+  "génération : vérifie l'état de celle que tu as déjà lancée avec les outils OpenArt " +
+  '(revérifie autant de fois qu\'il le faut jusqu\'à ce qu\'elle soit terminée), puis réponds ' +
+  "UNIQUEMENT avec l'URL directe du fichier final — ou « ERREUR: » suivi de la cause exacte.";
+const MAX_FOLLOW_UPS = 5;
+
+const hasUrl = (text) => /https?:\/\/\S+/.test(text);
+
+async function askOpenArt(instruction, mcpName, timeoutMs) {
+  let r = await runClaudeSession(instruction, mcpName, timeoutMs);
+  for (let k = 0; k < MAX_FOLLOW_UPS && r.sessionId; k++) {
+    if (hasUrl(r.text) || /^ERREUR\s*:/i.test(r.text)) {
+      break;
+    }
+    r = await runClaudeSession(PENDING_FOLLOW_UP, mcpName, timeoutMs, r.sessionId);
+  }
+  return r.text;
+}
+
+// Erreur après laquelle on ne relance PAS de génération : le résultat existe
+// (ou la génération tourne encore) chez OpenArt, une relance serait payée deux fois.
+function noRegenerate(message) {
+  const e = new Error(message);
+  e.noRegenerate = true;
+  return e;
 }
 
 async function downloadFile(url, { minBytes = 5000, timeoutMs = 120000, label = "l'image" } = {}) {
@@ -162,7 +201,11 @@ export async function openartGenerate({ prompt, referenceUrls = [], referenceKin
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const text = await runClaude(buildInstruction(prompt, referenceUrls, referenceKind), mcpName);
+      const text = await askOpenArt(
+        buildInstruction(prompt, referenceUrls, referenceKind),
+        mcpName,
+        TIMEOUT_MS,
+      );
       if (/^ERREUR\s*:/i.test(text)) {
         const cause = text.replace(/^ERREUR\s*:/i, '').trim();
         if (/credit|crédit/i.test(cause)) {
@@ -177,10 +220,16 @@ export async function openartGenerate({ prompt, referenceUrls = [], referenceKin
       }
       const urls = [...text.matchAll(/https?:\/\/[^\s"'<>)\]]+/g)].map((m) => m[0]);
       if (urls.length === 0) {
-        throw new Error(`OpenArt : aucune URL d'image dans la réponse (« ${text.slice(0, 200)} »).`);
+        throw noRegenerate(
+          `OpenArt : aucune URL d'image dans la réponse (« ${text.slice(0, 200)} »). Rien n'a été relancé — « Réparer » réessaiera.`,
+        );
       }
       // Essaie de la dernière URL vers la première (la dernière est la réponse finale).
       for (let i = urls.length - 1; i >= 0; i--) {
+        // Une image de référence recopiée dans la réponse n'est pas le résultat.
+        if (referenceUrls.includes(urls[i])) {
+          continue;
+        }
         try {
           const buffer = await downloadImage(urls[i]);
           return { buffer, url: urls[i] };
@@ -188,11 +237,12 @@ export async function openartGenerate({ prompt, referenceUrls = [], referenceKin
           lastErr = e;
         }
       }
-      throw lastErr || new Error('OpenArt : aucune URL téléchargeable.');
+      throw noRegenerate((lastErr && lastErr.message) || 'OpenArt : aucune URL téléchargeable.');
     } catch (e) {
       lastErr = e;
-      // Les erreurs de crédits/auth ne se règlent pas en réessayant.
-      if (/crédit|authentification/.test(e.message)) {
+      // Crédits, authentification, résultat déjà payé ou délai dépassé (la
+      // génération continue chez OpenArt) : réessayer ne servirait qu'à payer deux fois.
+      if (e.noRegenerate || /crédit|authentification|délai dépassé/.test(e.message)) {
         throw e;
       }
     }
@@ -292,7 +342,7 @@ export async function openartGenerateVideo({
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const text = await runClaude(
+      const text = await askOpenArt(
         buildVideoInstruction({ prompt, imageUrl, referenceUrls, durationSec }),
         mcpName,
         VIDEO_TIMEOUT_MS,
@@ -311,7 +361,9 @@ export async function openartGenerateVideo({
       }
       const urls = [...text.matchAll(/https?:\/\/[^\s"'<>)\]]+/g)].map((m) => m[0]);
       if (urls.length === 0) {
-        throw new Error(`OpenArt : aucune URL de vidéo dans la réponse (« ${text.slice(0, 200)} »).`);
+        throw noRegenerate(
+          `OpenArt : aucune URL de vidéo dans la réponse (« ${text.slice(0, 200)} »). Rien n'a été relancé — « Réparer » réessaiera.`,
+        );
       }
       for (let i = urls.length - 1; i >= 0; i--) {
         // On ne re-télécharge pas l'image source si le modèle l'a recopiée dans sa réponse.
@@ -329,10 +381,10 @@ export async function openartGenerateVideo({
           lastErr = e;
         }
       }
-      throw lastErr || new Error('OpenArt : aucune URL de vidéo téléchargeable.');
+      throw noRegenerate((lastErr && lastErr.message) || 'OpenArt : aucune URL de vidéo téléchargeable.');
     } catch (e) {
       lastErr = e;
-      if (/crédit|authentification/.test(e.message)) {
+      if (e.noRegenerate || /crédit|authentification|délai dépassé/.test(e.message)) {
         throw e;
       }
     }
