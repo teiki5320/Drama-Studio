@@ -177,50 +177,82 @@ code {
   border-color: var(--gold-dim);
 }
 
-/* ---------- Écran d'entrée : Version normale / Version Synchro ---------- */
+/* ---------- Navigation : Dramas · Publicité · Autre ---------- */
 
-.mode-gate {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 340px));
-  gap: 20px;
-  justify-content: center;
-  margin-top: 10px;
+.nav-wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px 24px 0;
 }
 
-.mode-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 30px 26px;
-  color: var(--text);
-  cursor: pointer;
+.nav-tabs {
+  margin-top: 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  text-align: center;
-  font-size: 1rem;
+  gap: 10px;
 }
 
-.mode-card:hover {
-  border-color: var(--gold-dim);
-  background: var(--panel-2);
+.nav-sections {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
-.mode-card strong {
-  font-family: Georgia, serif;
-  font-size: 1.25rem;
-  color: var(--gold);
-}
-
-.mode-card .mode-emoji {
-  font-size: 2.6rem;
-}
-
-.mode-card .mode-desc {
+.nav-section {
+  background: transparent;
+  border: none;
   color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.5;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 22px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nav-section:hover {
+  color: var(--text);
+}
+
+.nav-section.active {
+  background: var(--panel-2);
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px var(--gold-dim);
+}
+
+.nav-subs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.nav-sub {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.nav-sub:hover {
+  color: var(--text);
+  border-color: var(--gold-dim);
+}
+
+.nav-sub.active {
+  color: var(--bg);
+  background: var(--gold);
+  border-color: var(--gold);
+  font-weight: 600;
 }
 
 .season-select {
@@ -258,16 +290,6 @@ code {
   border: 1px solid var(--border);
   background: #000;
   margin-top: 8px;
-}
-
-.mode-line {
-  margin-top: 10px;
-  color: var(--gold-dim);
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
 }
 
 /* Bandeau de réparation (images/vidéos/voix ratées) */

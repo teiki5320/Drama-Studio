@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { STYLES, MAX_STYLES, EPISODE_COUNT, VOICES } from '../shared/catalog.js';
 import { api, followJob, fileToDataUrl, copyText } from './api.js';
 import { ProjectView } from './ProjectView.jsx';
+import { NavTabs, sectionOf, loadSavedMode, saveMode } from './NavTabs.jsx';
 
 function StylePicker({ selected, onToggle }) {
   return (
@@ -720,64 +721,6 @@ const EP_SECONDS_CHOICES = [
   { v: 40, label: '40 secondes (ultra court)' },
 ];
 
-// Écran d'entrée : le Drama court (voix off + sous-titres), le Drama série
-// façon DramaWave (tout vidéo, lèvres animées), les Chaînes.
-function ModeGate({ onPick }) {
-  return (
-    <div className="page centered">
-      <header className="home-header">
-        <h1>Drama Studio</h1>
-        <p className="tagline">Choisis ton format pour cette session.</p>
-      </header>
-      <div className="mode-gate">
-        <button className="mode-card" onClick={() => onPick('normal')}>
-          <span className="mode-emoji">🎬</span>
-          <strong>Drama court</strong>
-          <span className="mode-desc">
-            10 épisodes de 60 secondes : voix off + sous-titres, bouches immobiles dans les
-            clips. Épisodes rangés dans <strong>Dramas</strong>.
-          </span>
-        </button>
-        <button className="mode-card" onClick={() => onPick('long')}>
-          <span className="mode-emoji">📺</span>
-          <strong>Drama série</strong>
-          <span className="mode-desc">
-            Le format DramaWave : épisodes de 1 à 2 minutes (durée au choix), saisons de 30 à 80
-            épisodes, <strong>tout en vidéo</strong> avec les lèvres animées sur les voix.
-            Épisodes rangés dans <strong>Dramas Long</strong>.
-          </span>
-        </button>
-        <button className="mode-card" onClick={() => onPick('recette')}>
-          <span className="mode-emoji">🍲</span>
-          <strong>Recettes</strong>
-          <span className="mode-desc">
-            Les recettes africaines de ton site <strong>Keur Cook</strong> en vidéos verticales de
-            45 s à 1 min 30 : accroche, ingrédients, étapes numérotées, plat fini. Une vidéo par
-            recette, importée en un clic.
-          </span>
-        </button>
-        <button className="mode-card" onClick={() => onPick('pub')}>
-          <span className="mode-emoji">📣</span>
-          <strong>Publicité</strong>
-          <span className="mode-desc">
-            Tes <strong>applis</strong> et leurs pubs : une appli décrite une fois, puis autant de
-            vidéos de 30 s à 1 min qu'il y a d'angles à tester. Tes captures d'écran sont
-            insérées telles quelles.
-          </span>
-        </button>
-        <button className="mode-card" onClick={() => onPick('chaine')}>
-          <span className="mode-emoji">🎥</span>
-          <strong>Chaîne</strong>
-          <span className="mode-desc">
-            Hors dramas : vidéos de 1 à 2 minutes racontées par un narrateur (storytime,
-            éducatif, tops…). Chaque chaîne a son style, sa voix et son dossier iCloud.
-          </span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // Création d'une chaîne : identité fixe (nom, genre, thème, style, durée, voix).
 // Atelier de recettes : l'identité fixe (nom, voix, durée et ton par défaut).
 // Les recettes elles-mêmes s'importent ensuite depuis le site, une par vidéo.
@@ -1215,7 +1158,9 @@ function ChannelCreate({ onSubmit, error, voices = VOICES }) {
 }
 
 export function App() {
-  const [mode, setMode] = useState(null);
+  // Sous-onglet ouvert (normal, long, pub, recette, chaine) — retenu d'une
+  // session à l'autre.
+  const [mode, setModeState] = useState(loadSavedMode);
   const [view, setView] = useState({ name: 'home' });
   const [projects, setProjects] = useState([]);
   const [health, setHealth] = useState(null);
@@ -1233,6 +1178,45 @@ export function App() {
 
   const refresh = () => api.listProjects().then(setProjects).catch(() => {});
 
+  const setMode = (m) => {
+    setModeState(m);
+    saveMode(m);
+  };
+
+  // Les applis de la Publicité : un onglet chacune.
+  const apps = projects
+    .filter((p) => homeMode(p) === 'pub')
+    .sort((a, b) => String(a.title).localeCompare(String(b.title), 'fr'));
+
+  const pickMode = (m) => {
+    setError(null);
+    setMode(m);
+    if (view.name !== 'home') {
+      refresh();
+      setView({ name: 'home' });
+    }
+  };
+
+  // Ouvre un projet et range la navigation dans sa partie (une appli ouverte
+  // depuis « Productions en cours » allume l'onglet Publicité, etc.).
+  const openProject = (id) => {
+    const p = projects.find((x) => x.id === id);
+    if (p) {
+      setMode(homeMode(p));
+    }
+    setView({ name: 'project', id });
+  };
+
+  const nav = (activeProjectId = null) => (
+    <NavTabs
+      mode={mode}
+      apps={apps}
+      activeProjectId={activeProjectId}
+      onPickMode={pickMode}
+      onOpenProject={openProject}
+    />
+  );
+
   const refreshStudio = () => api.getStudio().then(setStudio).catch(() => {});
 
   const refreshVoices = () => api.voices().then(setVoicesCatalog).catch(() => {});
@@ -1247,7 +1231,7 @@ export function App() {
 
   // Suivi des productions en cours sur l'accueil (toutes les 3 s).
   useEffect(() => {
-    if (!mode || view.name !== 'home') {
+    if (view.name !== 'home') {
       return undefined;
     }
     let prevCount = -1;
@@ -1309,19 +1293,19 @@ export function App() {
       'custom',
     );
 
-  if (!mode) {
-    return <ModeGate onPick={setMode} />;
-  }
-
   if (view.name === 'project') {
     return (
-      <ProjectView
-        projectId={view.id}
-        onBack={() => {
-          refresh();
-          setView({ name: 'home' });
-        }}
-      />
+      <>
+        <div className="nav-wrap">{nav(view.id)}</div>
+        <ProjectView
+          key={view.id}
+          projectId={view.id}
+          onBack={() => {
+            refresh();
+            setView({ name: 'home' });
+          }}
+        />
+      </>
     );
   }
 
@@ -1369,21 +1353,7 @@ export function App() {
     <div className="page">
       <header className="home-header">
         <h1>Drama Studio</h1>
-        <p className="tagline">Micro-dramas africains — 10 épisodes de 60 secondes, générés chez toi.</p>
-        <p className="mode-line">
-          {mode === 'long'
-            ? '📺 Drama série (tout vidéo + lèvres animées)'
-            : mode === 'chaine'
-              ? '🎥 Chaîne (vidéos 1-2 min, narrateur)'
-              : mode === 'pub'
-                ? '📣 Publicité (mes applis)'
-                : mode === 'recette'
-                  ? '🍲 Recettes (Keur Cook)'
-                  : '🎬 Drama court (voix off + images)'}
-          <button className="btn-small" onClick={() => setMode(null)}>
-            ↔ Changer de format
-          </button>
-        </p>
+        {nav()}
       </header>
 
       {mode === 'long' && health && !health.fal && (
@@ -1448,7 +1418,7 @@ export function App() {
               key={j.id}
               className="active-job"
               title="Cliquer pour ouvrir ce drama"
-              onClick={() => j.projectId && setView({ name: 'project', id: j.projectId })}
+              onClick={() => j.projectId && openProject(j.projectId)}
             >
               <div className="aj-head">
                 <strong>{j.projectTitle || 'Nouveau drama'}</strong>
@@ -1557,9 +1527,12 @@ export function App() {
 
       <FrenchVoicesCard voices={voicesCatalog} onChange={refreshVoices} />
 
-      <DirectorTestCard />
-
-      <SyncTestCard />
+      {sectionOf(mode).id === 'dramas' && (
+        <>
+          <DirectorTestCard />
+          <SyncTestCard />
+        </>
+      )}
 
       {projects.filter((p) => homeMode(p) === mode).length > 0 && (
         <section className="library">
@@ -1576,7 +1549,7 @@ export function App() {
           </h2>
           <div className="project-grid">
             {projects.filter((p) => homeMode(p) === mode).map((p) => (
-              <div key={p.id} className="project-card" onClick={() => setView({ name: 'project', id: p.id })}>
+              <div key={p.id} className="project-card" onClick={() => openProject(p.id)}>
                 <h3>{p.title}</h3>
                 <p className="logline">{p.logline}</p>
                 <div className="badges">
