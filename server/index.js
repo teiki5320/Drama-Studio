@@ -85,6 +85,7 @@ import { listRecipes, RECIPE_SITE } from './recipes.js';
 import { listRepos, fetchRepoBrief, githubUser } from './github.js';
 import { fetchSiteBrief } from './sitebrief.js';
 import { publicHost, verifyAccessToken } from './cfaccess.js';
+import { listQueue, addToQueue, removeFromQueue, startQueue } from './queue.js';
 import {
   RECIPE_SECONDS,
   RECIPE_TONES,
@@ -510,6 +511,62 @@ app.post('/api/github/repo-brief', async (req, res) => {
   }
 });
 
+// Onglet Publicité : un bouton par dépôt. Le premier clic sur un dépôt sans
+// campagne la prépare toute seule — Claude lit le README, remplit la fiche,
+// puis propose les angles. Les clics suivants ouvrent la campagne existante.
+const adFromRepoJobs = new Map(); // dépôt → job en cours (évite les doublons)
+
+app.post('/api/ads/from-repo', async (req, res) => {
+  const wanted = String((req.body || {}).repo || '').trim().toLowerCase();
+  const existing = listProjects().find((p) => p.kind === 'pub' && String(p.repo || '').toLowerCase() === wanted);
+  if (existing) {
+    res.json({ projectId: existing.id });
+    return;
+  }
+  const running = adFromRepoJobs.get(wanted);
+  if (running && running.status === 'running') {
+    res.json({ jobId: running.id });
+    return;
+  }
+  try {
+    const { repos } = await listRepos();
+    const known = repos.find((r) => r.fullName.toLowerCase() === wanted);
+    if (!known) {
+      res.status(400).json({ error: 'Ce dépôt ne fait pas partie de ton compte GitHub.' });
+      return;
+    }
+    const job = startJob(`Campagne ${known.label}`, async (update) => {
+      update(`Lecture du dépôt ${known.fullName}…`, 0.1);
+      const brief = await fetchRepoBrief(known.fullName);
+      update('Claude remplit la fiche de l’appli…', 0.3);
+      const { fields } = briefFields(await askClaudeForJson(buildRepoBriefPrompt(brief)), brief.label);
+      const pitch =
+        fields.pitch.length >= 10 ? fields.pitch : brief.description || `${fields.name}, l'appli à découvrir.`;
+      return createAdProject(
+        {
+          title: fields.name,
+          pitch,
+          audience: fields.audience,
+          tone: 'probleme',
+          cta: fields.cta,
+          storeUrl: fields.storeUrl,
+          visualStyle: 'photorealiste',
+          features: fields.features,
+          platform: fields.platform,
+          targetSeconds: 30,
+          narratorVoice: 'onwK4e9ZLuTAKqWW03F9',
+          repo: known.fullName,
+        },
+        update,
+      );
+    });
+    adFromRepoJobs.set(wanted, job);
+    res.json({ jobId: job.id });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
 app.post('/api/site-brief', async (req, res) => {
   try {
     const site = await fetchSiteBrief((req.body || {}).url);
@@ -550,6 +607,7 @@ app.post('/api/projects/ad', (req, res) => {
     platform: String(b.platform || '').trim().slice(0, 60),
     targetSeconds: Number.isInteger(seconds) && seconds >= 30 && seconds <= 60 ? seconds : 30,
     narratorVoice: b.narratorVoice,
+    repo: /^[\w.-]+\/[\w.-]+$/.test(String(b.repo || '')) ? String(b.repo) : '',
   };
   const job = startJob('Création de la campagne', (update) => createAdProject(info, update));
   res.json({ jobId: job.id });
@@ -1229,6 +1287,28 @@ app.post('/api/projects/:id/episodes/:n/render', (req, res) => {
   });
 });
 
+// ---------- File d'attente ----------
+app.get('/api/queue', (req, res) => {
+  res.json(listQueue());
+});
+
+app.post('/api/queue', (req, res) => {
+  try {
+    res.json(addToQueue(req.body || {}));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/queue/:id', (req, res) => {
+  try {
+    removeFromQueue(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // ---------- Scènes ----------
 function withScene(req, res, fn) {
   const p = loadProject(req.params.id);
@@ -1402,6 +1482,7 @@ app.listen(PORT, HOST, () => {
   }
   console.log('');
   // Synchronise les épisodes déjà validés vers Bureau/Dramas (rattrapage).
+  startQueue();
   setTimeout(() => {
     const copied = exportAllProjects();
     if (copied > 0) {

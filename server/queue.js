@@ -1,0 +1,197 @@
+// ---------- File d'attente de production ----------
+// On y ajoute « une pub Erea sur tel angle », « la recette du mafé en 60 s »…
+// et le studio les fabrique l'une après l'autre, jusqu'au MP4 rangé dans
+// iCloud : script, images, clips, voix, montage. Une seule à la fois — les
+// crédits et la machine ne sont jamais sollicités deux fois en parallèle.
+//
+// La file survit à un redémarrage (studio/queue.json). Une vidéo coupée en
+// plein travail par un redémarrage n'est PAS relancée d'office : ce qui était
+// fait reste dans le projet, « Réparer » puis « Monter » terminent le travail
+// sans repayer.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { STUDIO_DIR } from './studio.js';
+import { startJob } from './jobs.js';
+import { loadProject } from './projects.js';
+import { createChannelVideo, createRecipeVideo, produceEpisode } from './pipeline.js';
+import { renderEpisode } from './render.js';
+
+const FILE = path.join(STUDIO_DIR, 'queue.json');
+const KEEP_FINISHED = 30;
+
+let items = load();
+let running = false;
+
+function load() {
+  try {
+    const list = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+    return (Array.isArray(list) ? list : []).map((it) =>
+      it.status === 'running'
+        ? {
+            ...it,
+            status: 'error',
+            error:
+              'Interrompue par un redémarrage du studio — ouvre le projet, « Réparer » puis « Monter le MP4 » terminent sans repayer.',
+          }
+        : it,
+    );
+  } catch {
+    return [];
+  }
+}
+
+function save() {
+  // Les plus anciennes vidéos terminées sortent de la liste.
+  const finished = items.filter((it) => it.status === 'done' || it.status === 'error');
+  if (finished.length > KEEP_FINISHED) {
+    const drop = new Set(finished.slice(0, finished.length - KEEP_FINISHED).map((it) => it.id));
+    items = items.filter((it) => !drop.has(it.id));
+  }
+  const tmp = `${FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(items, null, 2));
+  fs.renameSync(tmp, FILE);
+}
+
+export function listQueue() {
+  return items;
+}
+
+// item : { kind: 'pub', projectId, angle } ou
+//        { kind: 'recette', projectId, slug, seconds, label }
+export function addToQueue(raw) {
+  const project = loadProject(raw.projectId);
+  if (!project) {
+    throw new Error('Projet introuvable');
+  }
+  let item;
+  if (raw.kind === 'pub') {
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const angle = String(raw.angle || '').trim().slice(0, 300);
+    if (angle.length < 5) {
+      throw new Error('Choisis un angle pour la pub.');
+    }
+    item = { kind: 'pub', angle, label: `Pub ${project.title} — « ${angle.slice(0, 70)} »` };
+  } else if (raw.kind === 'recette') {
+    if (project.mode !== 'recette') {
+      throw new Error('Ce projet n’est pas un atelier de recettes.');
+    }
+    const slug = String(raw.slug || '').trim();
+    if (!/^[a-z0-9-]{2,80}$/.test(slug)) {
+      throw new Error('Choisis une recette.');
+    }
+    const seconds = [45, 60, 90].includes(Number(raw.seconds)) ? Number(raw.seconds) : 60;
+    const name = String(raw.label || slug).slice(0, 80);
+    item = { kind: 'recette', slug, seconds, label: `Recette — ${name}, ${seconds} s` };
+  } else {
+    throw new Error('Type de vidéo inconnu.');
+  }
+  const full = {
+    id: `q_${crypto.randomBytes(5).toString('hex')}`,
+    projectId: project.id,
+    projectTitle: project.title,
+    status: 'waiting',
+    step: '',
+    progress: null,
+    error: null,
+    number: null,
+    jobId: null,
+    createdAt: new Date().toISOString(),
+    ...item,
+  };
+  items.push(full);
+  save();
+  kick();
+  return full;
+}
+
+// Retire une vidéo pas encore commencée, ou une ligne terminée.
+export function removeFromQueue(id) {
+  const it = items.find((x) => x.id === id);
+  if (!it) {
+    return;
+  }
+  if (it.status === 'running') {
+    throw new Error('Cette vidéo est en cours de fabrication : elle ne peut plus être retirée.');
+  }
+  items = items.filter((x) => x.id !== id);
+  save();
+}
+
+async function produceItem(it, update) {
+  const p = loadProject(it.projectId);
+  if (!p) {
+    throw new Error('Projet introuvable (supprimé ?)');
+  }
+  const step = (label, from, to) => (msg, prog) =>
+    update(`${label} — ${msg}`, prog == null ? from : from + (to - from) * prog);
+
+  // 1. Script
+  const { number } =
+    it.kind === 'pub'
+      ? await createChannelVideo(p, it.angle, step('Script', 0, 0.05))
+      : await createRecipeVideo(
+          p,
+          { slug: it.slug, text: '', seconds: it.seconds, tone: p.tone || 'chaleureux', usePhoto: true },
+          step('Découpage', 0, 0.05),
+        );
+  it.number = number;
+  save();
+
+  // 2. Images, clips, voix
+  await produceEpisode(p, number, step('Fabrication', 0.05, 0.85));
+
+  // 3. Montage, puis rangement dans iCloud
+  const ep = p.episodes.find((e) => e.number === number);
+  const r = await renderEpisode(p, ep, step('Montage', 0.85, 1));
+  return { number, ...r };
+}
+
+function kick() {
+  if (running) {
+    return;
+  }
+  const next = items.find((it) => it.status === 'waiting');
+  if (!next) {
+    return;
+  }
+  running = true;
+  next.status = 'running';
+  next.step = 'Démarrage…';
+  save();
+  const job = startJob(
+    next.label,
+    (update) =>
+      produceItem(next, (msg, prog) => {
+        update(msg, prog);
+        next.step = msg;
+        next.progress = prog;
+      }),
+    { projectId: next.projectId },
+  );
+  next.jobId = job.id;
+  // Le job vit sa vie ; on regarde régulièrement s'il est fini.
+  const timer = setInterval(() => {
+    if (job.status === 'running') {
+      return;
+    }
+    clearInterval(timer);
+    next.status = job.status === 'done' ? 'done' : 'error';
+    next.error = job.error;
+    next.step = job.status === 'done' ? 'Prête — rangée dans iCloud' : 'Échec';
+    next.progress = job.status === 'done' ? 1 : next.progress;
+    next.exportedTo = job.result?.exportedTo || null;
+    running = false;
+    save();
+    kick();
+  }, 2000);
+}
+
+// Au démarrage du serveur : reprend la file là où elle en était.
+export function startQueue() {
+  save();
+  kick();
+}

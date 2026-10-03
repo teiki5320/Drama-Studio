@@ -33,6 +33,10 @@ export const api = {
   repoBrief: (repo) =>
     request('/api/github/repo-brief', { method: 'POST', body: JSON.stringify({ repo }) }),
   siteBrief: (url) => request('/api/site-brief', { method: 'POST', body: JSON.stringify({ url }) }),
+  adFromRepo: (repo) => request('/api/ads/from-repo', { method: 'POST', body: JSON.stringify({ repo }) }),
+  queue: () => request('/api/queue'),
+  addToQueue: (item) => request('/api/queue', { method: 'POST', body: JSON.stringify(item) }),
+  removeFromQueue: (id) => request(`/api/queue/${id}`, { method: 'DELETE' }),
   recipes: () => request('/api/recipes'),
   createRecipeStudio: (info) =>
     request('/api/projects/recipe-studio', { method: 'POST', body: JSON.stringify(info) }),

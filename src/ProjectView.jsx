@@ -22,6 +22,7 @@ import {
   shotEffectiveSec,
 } from '../shared/catalog.js';
 import './studio-redesign.css';
+import { QueuePanel } from './QueuePanel.jsx';
 
 const STATUS_LABELS = {
   script: '📝 scénario',
@@ -1001,7 +1002,7 @@ function ScreenshotsPanel({ project, projectId, busy, onRefresh }) {
 
 // Onglet Recettes : on choisit une recette dans le dépôt de Keur Cook (ou on
 // colle la sienne), et Claude la découpe en gestes filmés du dessus.
-function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
+function RecipeBar({ projectId, project, busy, runJob, onCreated, onQueued }) {
   const [texte, setTexte] = useState('');
   const [seconds, setSeconds] = useState(project.targetSeconds || 60);
   const [tone, setTone] = useState(project.tone || 'chaleureux');
@@ -1146,10 +1147,30 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
             </select>
             <button
               className="btn-primary"
+              disabled={!slug}
+              title="La vidéo se fabrique toute seule jusqu'au MP4 rangé dans iCloud, après celles déjà en file"
+              onClick={() =>
+                api
+                  .addToQueue({
+                    kind: 'recette',
+                    projectId,
+                    slug,
+                    seconds,
+                    label: (list || []).find((r) => r.slug === slug)?.label || slug,
+                  })
+                  .then(onQueued)
+                  .catch((e) => alert(e.message))
+              }
+            >
+              🚀 Ajouter à la file
+            </button>
+            <button
+              className="btn-ghost"
               disabled={busy || !slug}
+              title="Seulement le découpage en gestes, pour relire avant de fabriquer"
               onClick={() => lancer({ slug })}
             >
-              ✂️ Découper en gestes
+              ✂️ Découper seulement
             </button>
             <button className="btn-small" disabled={busy} onClick={() => setDepuisKeurcook(false)}>
               ↩️ Coller ma recette
@@ -1299,6 +1320,7 @@ export function ProjectView({ projectId, onBack }) {
   // Publicité : une appli sans pub ni idée reçoit tout de suite ses idées
   // d'angles (Claude seulement, aucun crédit d'image ni de voix). Une seule
   // fois par ouverture : un échec n'enchaîne pas les tentatives.
+  const [queueKey, setQueueKey] = useState(0);
   const autoIdeas = useRef(false);
   useEffect(() => {
     if (
@@ -1823,6 +1845,24 @@ export function ProjectView({ projectId, onBack }) {
         >
           ➕ {isPub ? 'Écrire la pub' : 'Créer la vidéo'}
         </button>
+        {isPub && (
+          <button
+            className="btn-primary"
+            disabled={topic.trim().length < 5}
+            title="La pub se fabrique toute seule jusqu'au MP4 rangé dans iCloud, après celles déjà en file"
+            onClick={() =>
+              api
+                .addToQueue({ kind: 'pub', projectId, angle: topic.trim() })
+                .then(() => {
+                  setTopic('');
+                  setQueueKey((k) => k + 1);
+                })
+                .catch((e) => alert(e.message))
+            }
+          >
+            🚀 Ajouter à la file
+          </button>
+        )}
         <button
           className="btn-ghost"
           disabled={busy}
@@ -1835,7 +1875,8 @@ export function ProjectView({ projectId, onBack }) {
       {(project.topicIdeas || []).length > 0 && isPub && (
         <p className="cast-hint" style={{ margin: '8px 0 0' }}>
           💡 Idées de pubs, de la plus vendeuse à la moins vendeuse — clique sur celle qui te
-          plaît, retouche-la si tu veux, puis « ➕ Écrire la pub ».
+          plaît, retouche-la si tu veux, puis « 🚀 Ajouter à la file » (fabrication complète) ou
+          « ➕ Écrire la pub » (le script seulement).
         </p>
       )}
       {(project.topicIdeas || []).length > 0 && (
@@ -2171,6 +2212,7 @@ export function ProjectView({ projectId, onBack }) {
               setPlayerKey((k) => k + 1);
             })
           }
+          onQueued={() => setQueueKey((k) => k + 1)}
         />
       )}
       {isPub && (
@@ -2182,6 +2224,9 @@ export function ProjectView({ projectId, onBack }) {
         />
       )}
       {topicBar}
+      {(isPub || isRecipe) && (
+        <QueuePanel projectId={projectId} refreshKey={queueKey} onDone={refresh} />
+      )}
       {costRibbon}
       {jobBanner}
       {repairBanner}
@@ -2302,7 +2347,7 @@ export function ProjectView({ projectId, onBack }) {
             {isRecipe
               ? 'Aucune vidéo pour l’instant — choisis une recette ci-dessus et clique « ✂️ Découper en gestes ».'
               : isPub
-                ? 'Aucune pub pour l’instant — choisis une idée ci-dessus (ou écris ton angle) puis clique « ➕ Écrire la pub ».'
+                ? 'Aucune pub pour l’instant — choisis une idée ci-dessus (ou écris ton angle) puis clique « 🚀 Ajouter à la file ».'
                 : isChaine
                   ? 'Aucune vidéo pour l’instant — donne un sujet ci-dessus pour créer la première.'
                   : 'Cet épisode n’a pas encore été produit.'}

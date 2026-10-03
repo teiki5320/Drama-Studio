@@ -1135,6 +1135,9 @@ export async function createAdProject(info, update) {
     id,
     mode: 'chaine',
     kind: 'pub',
+    // Dépôt GitHub de l'appli (« teiki5320/erea ») : relie la campagne à son
+    // bouton dans l'onglet Publicité.
+    repo: info.repo || '',
     title: info.title,
     logline: info.pitch || '',
     setting: '',

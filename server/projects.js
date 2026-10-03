@@ -62,6 +62,8 @@ export function listProjects() {
           styles: p.styles,
           custom: Boolean(p.custom),
           mode: p.mode || 'normal',
+          kind: p.kind || null,
+          repo: p.repo || null,
           episodeCount: p.episodeCount || 10,
           stage: p.stage || 'production',
           createdAt: p.createdAt,
