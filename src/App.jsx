@@ -1163,6 +1163,7 @@ export function App() {
   const [mode, setModeState] = useState(loadSavedMode);
   const [view, setView] = useState({ name: 'home' });
   const [projects, setProjects] = useState([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [health, setHealth] = useState(null);
   const [credits, setCredits] = useState(null);
   const [studio, setStudio] = useState(null);
@@ -1176,7 +1177,19 @@ export function App() {
   const [voicesCatalog, setVoicesCatalog] = useState(VOICES);
   const leftCreation = useRef(false);
 
-  const refresh = () => api.listProjects().then(setProjects).catch(() => {});
+  const refresh = () =>
+    api
+      .listProjects()
+      .then((list) => {
+        setProjects(list);
+        setProjectsLoaded(true);
+      })
+      .catch(() => {});
+
+  // Recettes : pas de formulaire préalable — l'onglet ouvre directement
+  // l'atelier (et sa liste Keur Cook). S'il n'existe pas encore, il est créé
+  // avec les réglages par défaut, modifiables ensuite.
+  const recipeAtelierBusy = useRef(false);
 
   const setMode = (m) => {
     setModeState(m);
@@ -1206,6 +1219,36 @@ export function App() {
     }
     setView({ name: 'project', id });
   };
+
+  useEffect(() => {
+    if (view.name !== 'home' || mode !== 'recette' || !projectsLoaded || recipeAtelierBusy.current) {
+      return;
+    }
+    const atelier = projects.find((p) => homeMode(p) === 'recette');
+    if (atelier) {
+      openProject(atelier.id);
+      return;
+    }
+    if (error) {
+      return; // création ratée : le formulaire s'affiche, avec l'erreur
+    }
+    recipeAtelierBusy.current = true;
+    api
+      .createRecipeStudio({
+        name: 'Recettes Keur Cook',
+        tone: 'chaleureux',
+        targetSeconds: 60,
+        narratorVoice: 'XrExE9yKIg1WjnnlVkGX',
+      })
+      .then(async ({ projectId }) => {
+        await refresh();
+        setView({ name: 'project', id: projectId });
+      })
+      .catch((e) => setError(`Atelier de recettes impossible à créer : ${e.message}`))
+      .finally(() => {
+        recipeAtelierBusy.current = false;
+      });
+  }, [view.name, mode, projectsLoaded, projects, error]);
 
   const nav = (activeProjectId = null) => (
     <NavTabs
@@ -1443,7 +1486,9 @@ export function App() {
         </section>
       )}
 
-      {mode === 'recette' ? (
+      {mode === 'recette' && !error ? (
+        <p className="provider-line">⏳ Ouverture de l'atelier de recettes…</p>
+      ) : mode === 'recette' ? (
         <RecipeStudioCreate
           error={error}
           voices={voicesCatalog}

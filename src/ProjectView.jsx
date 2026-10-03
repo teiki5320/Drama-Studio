@@ -1005,7 +1005,8 @@ function RecipeBar({ projectId, project, busy, runJob, onCreated }) {
   const [texte, setTexte] = useState('');
   const [seconds, setSeconds] = useState(project.targetSeconds || 60);
   const [tone, setTone] = useState(project.tone || 'chaleureux');
-  const [depuisKeurcook, setDepuisKeurcook] = useState(false);
+  // La liste déroulante Keur Cook d'abord ; coller sa recette reste possible.
+  const [depuisKeurcook, setDepuisKeurcook] = useState(true);
   const [list, setList] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [recherche, setRecherche] = useState('');

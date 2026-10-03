@@ -55,6 +55,9 @@ export function saveMode(mode) {
 // l'appli ouverte, pour surligner son onglet.
 export function NavTabs({ mode, apps = [], activeProjectId = null, onPickMode, onOpenProject }) {
   const section = sectionOf(mode);
+  // Une appli ouverte allume son propre onglet ; tout autre projet ouvert
+  // (drama, atelier de recettes, chaîne) allume le sous-onglet de son format.
+  const appOpen = apps.some((p) => p.id === activeProjectId);
   const firstModeOf = (s) => s.subs[0].mode;
 
   return (
@@ -95,7 +98,7 @@ export function NavTabs({ mode, apps = [], activeProjectId = null, onPickMode, o
           <button
             key={x.mode}
             title={x.title}
-            className={`nav-sub${x.mode === mode && !activeProjectId ? ' active' : ''}`}
+            className={`nav-sub${x.mode === mode && !appOpen ? ' active' : ''}`}
             onClick={() => onPickMode(x.mode)}
           >
             {x.label}
