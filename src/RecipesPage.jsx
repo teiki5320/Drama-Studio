@@ -10,7 +10,7 @@ import { FPS, WIDTH, HEIGHT } from './remotion/timing.js';
 
 const fr = (n) => Number(n).toLocaleString('fr-FR');
 
-function Credits() {
+export function Credits() {
   const [c, setC] = useState(null);
   useEffect(() => {
     api.credits().then(setC).catch(() => setC({}));

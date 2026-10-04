@@ -66,15 +66,22 @@ export function addToQueue(raw) {
     throw new Error('Projet introuvable');
   }
   let item;
-  if (raw.kind === 'pub') {
-    if (project.kind !== 'pub') {
-      throw new Error('Ce projet n’est pas une campagne de pub.');
+  if (raw.kind === 'pub' || raw.kind === 'chaine') {
+    // Pub d'une appli, ou vidéo d'une chaîne : même fabrication (un sujet →
+    // un script → la vidéo), seul le libellé change.
+    if (project.mode !== 'chaine') {
+      throw new Error('Ce projet n’est ni une campagne de pub ni une chaîne.');
     }
+    const isPub = project.kind === 'pub';
     const angle = String(raw.angle || '').trim().slice(0, 300);
     if (angle.length < 5) {
-      throw new Error('Choisis un angle pour la pub.');
+      throw new Error(isPub ? 'Choisis un angle pour la pub.' : 'Donne le sujet de la vidéo.');
     }
-    item = { kind: 'pub', angle, label: `Pub ${project.title} — « ${angle.slice(0, 70)} »` };
+    item = {
+      kind: isPub ? 'pub' : 'chaine',
+      angle,
+      label: `${isPub ? 'Pub' : 'Vidéo'} ${project.title} — « ${angle.slice(0, 70)} »`,
+    };
   } else if (raw.kind === 'recette') {
     if (project.mode !== 'recette') {
       throw new Error('Ce projet n’est pas un atelier de recettes.');
@@ -131,7 +138,7 @@ async function produceItem(it, update) {
 
   // 1. Script
   const { number } =
-    it.kind === 'pub'
+    it.kind === 'pub' || it.kind === 'chaine'
       ? await createChannelVideo(p, it.angle, step('Script', 0, 0.05))
       : await createRecipeVideo(
           p,

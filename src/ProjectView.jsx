@@ -917,7 +917,7 @@ function SceneCard({ project, episode, scene, index, isAutoVideo, busy, runJob, 
 // Captures d'écran de l'appli (mode pub) : elles sont insérées TELLES QUELLES
 // dans les pubs — aucune génération d'image, donc aucun crédit. Claude en
 // reçoit la liste (avec l'étiquette) et choisit quand les montrer.
-function ScreenshotsPanel({ project, projectId, busy, onRefresh }) {
+export function ScreenshotsPanel({ project, projectId, busy, onRefresh }) {
   const [label, setLabel] = useState('');
   const [uploading, setUploading] = useState(false);
   const shots = project.screenshots || [];

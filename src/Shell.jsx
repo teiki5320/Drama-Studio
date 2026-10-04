@@ -14,6 +14,7 @@ import { BrandCard, FrenchVoicesCard, AppCreate, ChannelCreate } from './App.jsx
 import { appLook, NOT_ADVERTISED } from './apps.js';
 import { QueuePanel } from './QueuePanel.jsx';
 import { RecipesPage } from './RecipesPage.jsx';
+import { AdPage } from './AdPage.jsx';
 import './clay.css';
 
 // ---------- Adresse (#/…) ----------
@@ -367,7 +368,8 @@ export function Shell() {
     refresh();
   }, [route.page]);
 
-  const project = route.page === 'projet' ? projects.find((p) => p.id === route.arg) : null;
+  const project =
+    route.page === 'projet' || route.page === 'avance' ? projects.find((p) => p.id === route.arg) : null;
 
   // Pastille « En cours » : nombre de fabrications actives.
   useEffect(() => {
@@ -418,7 +420,7 @@ export function Shell() {
   }, [route.page, route.arg]);
 
   const active =
-    route.page === 'projet'
+    route.page === 'projet' || route.page === 'avance'
       ? sectionOfProject(project)
       : ['recettes', 'keurcook'].includes(route.page)
         ? 'pub'
@@ -439,19 +441,29 @@ export function Shell() {
         />
       </>
     );
+  } else if ((route.page === 'projet' || route.page === 'avance') && project && project.mode !== 'chaine') {
+    // Ancien drama (ou projet inconnu) : l'ancienne page de production.
+    body = <ProjectView key={route.arg} projectId={route.arg} onBack={() => go('pub')} />;
+  } else if (route.page === 'avance') {
+    // Réglages avancés d'une pub ou d'une chaîne : scènes, voix, images une par une.
+    body = <ProjectView key={route.arg} projectId={route.arg} onBack={() => go(`projet/${route.arg}`)} />;
   } else if (route.page === 'projet') {
+    const backTo = !project
+      ? 'pub'
+      : String(project.repo || '').toLowerCase() === KEURCOOK_REPO
+        ? 'keurcook'
+        : sectionOfProject(project);
+    const look = project && project.kind === 'pub' ? appLook(String(project.repo || '').split('/')[1] || '', project.title) : null;
     body = (
-      <ProjectView
-        key={route.arg}
-        projectId={route.arg}
-        onBack={() =>
-          go(
-            project?.mode === 'recette' || String(project?.repo || '').toLowerCase() === KEURCOOK_REPO
-              ? 'keurcook'
-              : sectionOfProject(project),
-          )
-        }
-      />
+      <>
+        <TopBar
+          title={project ? (look ? `${look.icon} ${project.title}` : `🎥 ${project.title}`) : 'Chargement…'}
+          onBack={() => go(backTo)}
+          theme={theme}
+          onTheme={toggleTheme}
+        />
+        <AdPage key={route.arg} projectId={route.arg} onAdvanced={() => go(`avance/${route.arg}`)} />
+      </>
     );
   } else {
     const back = route.page === 'recettes' || route.page === 'keurcook' ? () => go(route.page === 'recettes' ? 'keurcook' : 'pub') : null;
