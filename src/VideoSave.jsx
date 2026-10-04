@@ -1,0 +1,41 @@
+// Récupérer la vidéo finie. Sur le Mac, le bouton ouvre le dossier iCloud
+// dans le Finder ; depuis l'iPad (studio.keurcook.com), le Finder s'ouvrirait
+// sur l'écran du Mac : on propose donc d'enregistrer le MP4 sur l'appareil
+// (il arrive dans Fichiers → Téléchargements, prêt pour TikTok).
+import React from 'react';
+import { api } from './api.js';
+
+export const surLeMac = () => ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+
+// Lien qui force l'enregistrement du MP4 (Safari l'ouvrirait sinon dans le lecteur).
+export const lienVideo = (projectId, file, nom) =>
+  `/files/${projectId}/${file}?dl=1&name=${encodeURIComponent(`${String(nom || 'video').slice(0, 120)}.mp4`)}`;
+
+// Lieu lisible du dossier iCloud, depuis le chemin d'export de l'épisode.
+export function lieuICloud(exportedTo) {
+  if (!exportedTo || !exportedTo.includes('com~apple~CloudDocs/')) {
+    return null;
+  }
+  const dossier = exportedTo.split('com~apple~CloudDocs/')[1].split('/').slice(0, -1).join(' → ');
+  return `Fichiers → iCloud Drive → ${dossier}`;
+}
+
+export function VideoSave({ project, episode, style }) {
+  if (!episode || !episode.renderedFile) {
+    return null;
+  }
+  const lieu = lieuICloud(episode.exportedTo);
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', ...style }}>
+      {surLeMac() && (
+        <button className="clay-btn ghost small" onClick={() => api.openFolder(project.id).catch((e) => alert(e.message))}>
+          📂 Ouvrir le dossier iCloud
+        </button>
+      )}
+      <a className="clay-btn small" href={lienVideo(project.id, episode.renderedFile, episode.title)}>
+        ⬇️ Enregistrer la vidéo
+      </a>
+      {!surLeMac() && lieu && <small className="clay-muted">Aussi dans {lieu}</small>}
+    </div>
+  );
+}

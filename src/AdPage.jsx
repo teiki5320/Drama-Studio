@@ -12,6 +12,7 @@ import { api, followJob } from './api.js';
 import { Episode } from './remotion/Episode.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
 import { Credits } from './RecipesPage.jsx';
+import { VideoSave, lienVideo } from './VideoSave.jsx';
 import { ScreenshotsPanel } from './ProjectView.jsx';
 
 function Apercu({ project, episode, studio }) {
@@ -809,9 +810,8 @@ export function AdPage({ projectId, onAdvanced }) {
               {ep.renderedFile && (
                 <a
                   className="clay-btn ghost small"
-                  href={`/files/${project.id}/${ep.renderedFile}`}
-                  download={`${ep.title}.mp4`}
-                  title="Télécharger le MP4"
+                  href={lienVideo(project.id, ep.renderedFile, ep.title)}
+                  title="Enregistrer le MP4"
                   onClick={(e) => e.stopPropagation()}
                 >
                   ⬇️
@@ -830,14 +830,7 @@ export function AdPage({ projectId, onAdvanced }) {
             </div>
           ))}
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            {episodes.some((e) => e.renderedFile) && (
-              <button
-                className="clay-btn ghost small"
-                onClick={() => api.openFolder(projectId).catch((e) => alert(e.message))}
-              >
-                📂 Ouvrir le dossier iCloud
-              </button>
-            )}
+            <VideoSave project={project} episode={shown && shown.renderedFile ? shown : episodes.find((e) => e.renderedFile)} />
             <button className="clay-btn ghost small" onClick={onAdvanced} title="Scènes, voix, images une par une">
               ⚙️ Réglages avancés
             </button>

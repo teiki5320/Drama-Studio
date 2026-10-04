@@ -1553,6 +1553,12 @@ app.get('/files/:id/*', (req, res) => {
     res.status(404).end();
     return;
   }
+  // ?dl=1 : enregistrer le fichier (iPad) plutôt que l'ouvrir dans le lecteur.
+  if (req.query.dl) {
+    const nom = String(req.query.name || path.basename(resolved)).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').slice(0, 150);
+    res.download(resolved, nom);
+    return;
+  }
   res.sendFile(resolved);
 });
 

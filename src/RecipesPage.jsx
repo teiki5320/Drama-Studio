@@ -4,6 +4,7 @@
 // montage) — via la file d'attente, sans écran de script.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Player } from '@remotion/player';
+import { VideoSave, lienVideo } from './VideoSave.jsx';
 import { api } from './api.js';
 import { Recipe, recipeDurationInFrames } from './remotion/Recipe.jsx';
 import { FPS, WIDTH, HEIGHT } from './remotion/timing.js';
@@ -254,9 +255,8 @@ export function RecipesPage({ projectId }) {
               {ep.renderedFile && (
                 <a
                   className="clay-btn ghost small"
-                  href={`/files/${project.id}/${ep.renderedFile}`}
-                  download={`${ep.title}.mp4`}
-                  title="Télécharger le MP4"
+                  href={lienVideo(project.id, ep.renderedFile, ep.title)}
+                  title="Enregistrer le MP4"
                   onClick={(e) => e.stopPropagation()}
                 >
                   ⬇️
@@ -274,15 +274,11 @@ export function RecipesPage({ projectId }) {
               </button>
             </div>
           ))}
-          {episodes.some((e) => e.renderedFile) && (
-            <button
-              className="clay-btn ghost small"
-              style={{ marginTop: 10 }}
-              onClick={() => api.openFolder(projectId).catch((e) => alert(e.message))}
-            >
-              📂 Ouvrir le dossier iCloud
-            </button>
-          )}
+          <VideoSave
+            project={project}
+            episode={shown && shown.renderedFile ? shown : episodes.find((e) => e.renderedFile)}
+            style={{ marginTop: 10 }}
+          />
         </div>
       </div>
     </div>

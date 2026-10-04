@@ -3,6 +3,7 @@ import { Player } from '@remotion/player';
 import { Episode } from './remotion/Episode.jsx';
 import { Recipe, recipeDurationInFrames } from './remotion/Recipe.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
+import { surLeMac, lienVideo } from './VideoSave.jsx';
 import { api, followJob, fileToDataUrl, copyText } from './api.js';
 import {
   EPISODE_COUNT,
@@ -1981,16 +1982,17 @@ export function ProjectView({ projectId, onBack }) {
             <strong>{placeText || `le dossier ${isDrama ? 'Dramas' : project.title}`}</strong>.
           </p>
           <div className="rs-actions">
-            <button className="btn-small primary" onClick={openFolder}>
-              📂 Ouvrir le dossier
-            </button>
+            {surLeMac() && (
+              <button className="btn-small primary" onClick={openFolder}>
+                📂 Ouvrir le dossier
+              </button>
+            )}
             <a
-              className="btn-small"
-              href={`/files/${project.id}/${episode.renderedFile}`}
-              download={`${tiktokCaption(project, episode)}.mp4`}
-              title="Télécharge une copie dans le dossier Téléchargements de Safari — le nom du fichier = ta description TikTok"
+              className={surLeMac() ? 'btn-small' : 'btn-small primary'}
+              href={lienVideo(project.id, episode.renderedFile, tiktokCaption(project, episode))}
+              title="Enregistre le MP4 sur cet appareil — le nom du fichier = ta description TikTok"
             >
-              ⬇️ Télécharger une copie
+              ⬇️ Enregistrer la vidéo
             </a>
           </div>
         </div>
@@ -2058,8 +2060,7 @@ export function ProjectView({ projectId, onBack }) {
       {episode?.renderedFile && (
         <a
           className="btn-ghost"
-          href={`/files/${project.id}/${episode.renderedFile}`}
-          download={`${tiktokCaption(project, episode)}.mp4`}
+          href={lienVideo(project.id, episode.renderedFile, tiktokCaption(project, episode))}
           title="Le nom du fichier = titre + hashtags, prêt pour la description TikTok"
         >
           ⬇️ Télécharger le MP4
@@ -2141,8 +2142,7 @@ export function ProjectView({ projectId, onBack }) {
               <a
                 key={e.number}
                 className="dl-chip"
-                href={`/files/${project.id}/${e.renderedFile}`}
-                download={`${tiktokCaption(project, e)}.mp4`}
+                href={lienVideo(project.id, e.renderedFile, tiktokCaption(project, e))}
                 title={`${e.title} — nom du fichier = description TikTok prête`}
               >
                 {isDrama ? `Ép. ${e.number}` : isRecipe ? e.title : `Vidéo ${e.number}`}
@@ -2165,9 +2165,11 @@ export function ProjectView({ projectId, onBack }) {
                 <strong>{isDrama ? 'Dramas' : project.title}</strong>{' '}
               </>
             )}
-            <button className="btn-small" onClick={openFolder} title="Ouvrir dans le Finder">
-              📂 Ouvrir
-            </button>
+            {surLeMac() && (
+              <button className="btn-small" onClick={openFolder} title="Ouvrir dans le Finder">
+                📂 Ouvrir
+              </button>
+            )}
           </p>
           <p className="downloads-hint">
             🏷️ Le nom de chaque fichier = <strong>titre + hashtags</strong> : TikTok pré-remplit
