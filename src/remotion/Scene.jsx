@@ -75,6 +75,28 @@ const ereaAssets = (o, base) => ({
     : null,
 });
 
+// Clip vidéo (muet). Plus court que son plan, il est ralenti jusqu'à moitié
+// vitesse pour le couvrir, et un lent zoom continue de le faire vivre :
+// l'image ne s'arrête plus net en attendant la fin de la voix.
+const Clip = ({ src, clipSec, planFrames }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const planSec = planFrames / fps;
+  const rate = clipSec && clipSec < planSec ? Math.max(0.5, clipSec / planSec) : 1;
+  const zoom = interpolate(frame, [0, Math.max(1, planFrames)], [1, 1.08], { extrapolateRight: 'clamp' });
+  return (
+    <AbsoluteFill style={{ transform: `scale(${zoom})` }}>
+      <OffthreadVideo
+        src={src}
+        muted
+        pauseWhenBuffering
+        playbackRate={rate}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+    </AbsoluteFill>
+  );
+};
+
 // Pub Palabre : fichiers du jeu copiés dans le projet → adresses complètes.
 const palabreUrls = (jeu, base) => {
   const u = (f) => (f ? `${base}/${f}` : null);
@@ -236,12 +258,7 @@ const ShotsScene = ({ scene, characters, assetBase, isFirst, episodeTitle, episo
         <Sequence key={`shot-${i}`} from={offsets[i]} durationInFrames={durations[i]}>
           {sh.video ? (
             // Clip du plan (muet, coupé à la durée du plan par la Sequence).
-            <OffthreadVideo
-              src={`${assetBase}/${sh.video}`}
-              muted
-              pauseWhenBuffering
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+            <Clip src={`${assetBase}/${sh.video}`} clipSec={sh.videoDurationSec} planFrames={durations[i]} />
           ) : sh.image ? (
             <ShotStill src={`${assetBase}/${sh.image}`} durationInFrames={durations[i]} />
           ) : scene.image ? (
@@ -437,13 +454,7 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
     <AbsoluteFill style={{ backgroundColor: '#0c0a08', overflow: 'hidden' }}>
       {scene.video ? (
         // Clip vidéo généré par OpenArt (muet : voix off et musique par-dessus).
-        // Si la scène dure plus longtemps que le clip, la dernière image reste affichée.
-        <OffthreadVideo
-          src={`${assetBase}/${scene.video}`}
-          muted
-          pauseWhenBuffering
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        <Clip src={`${assetBase}/${scene.video}`} clipSec={scene.videoDurationSec} planFrames={total} />
       ) : scene.image ? (
         <SafeImg
           src={`${assetBase}/${scene.image}`}

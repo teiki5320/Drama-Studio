@@ -97,7 +97,7 @@ export function findFfmpeg() {
 }
 
 // music-metadata lit mal les MP4 sans piste audio : ffmpeg fait référence.
-function videoDurationSec(file) {
+export function videoDurationSec(file) {
   return new Promise((resolve, reject) => {
     const bin = findFfmpeg();
     if (!bin) {

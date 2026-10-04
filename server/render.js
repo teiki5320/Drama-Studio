@@ -2,7 +2,9 @@ import path from 'node:path';
 import { ROOT, PORT } from './config.js';
 import { rendersDir, saveProject } from './projects.js';
 import { exportEpisode } from './exporter.js';
-import { loadStudio } from './studio.js';
+import fs from 'node:fs';
+import { loadStudio, videoDurationSec } from './studio.js';
+import { assetsDir } from './projects.js';
 import { assertNoHealthClaims } from './pipeline.js';
 
 let bundlePromise = null;
@@ -69,6 +71,24 @@ export async function renderEpisode(project, episode, update) {
     assertNoHealthClaims(episode);
   }
   update('Préparation du moteur de rendu…');
+  // Durée réelle de chaque clip : un clip plus court que son plan est ralenti
+  // pour le couvrir, au lieu de se figer sur sa dernière image.
+  for (const scene of episode.scenes || []) {
+    for (const o of [scene, ...(Array.isArray(scene.shots) ? scene.shots : [])]) {
+      if (o.video && o.videoDurationFor !== o.video) {
+        const f = path.join(assetsDir(project.id), o.video);
+        if (fs.existsSync(f)) {
+          try {
+            o.videoDurationSec = await videoDurationSec(f);
+            o.videoDurationFor = o.video;
+          } catch {
+            // Durée inconnue : le clip se joue à vitesse normale.
+          }
+        }
+      }
+    }
+  }
+  saveProject(project);
   const serveUrl = await getBundle();
 
   const { renderMedia, selectComposition } = await import('@remotion/renderer');
