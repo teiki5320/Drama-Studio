@@ -111,7 +111,7 @@ export function exportEpisode(project, episode) {
       const recipeName = sanitizeName((episode.recipe && episode.recipe.name) || episode.title || '');
       const newPrefixes =
         project.mode === 'recette'
-          ? [`${recipeName} — `, `${recipeName} #`]
+          ? [`${recipeName} — `, `${recipeName} #`, `${recipeName}.mp4`]
           : [`Épisode ${episode.number} `];
       for (const f of fs.readdirSync(dir)) {
         if (f.endsWith('.mp4') && (f.startsWith(oldPrefix) || newPrefixes.some((x) => f.startsWith(x)))) {

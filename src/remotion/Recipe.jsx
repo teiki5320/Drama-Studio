@@ -71,9 +71,6 @@ const Fond = ({ scene, assetBase, durationInFrames }) => {
         padding: 80,
       }}
     >
-      <div style={{ color: '#c49a5a', fontSize: 44, fontFamily: 'Helvetica, Arial, sans-serif' }}>
-        Image manquante
-      </div>
     </AbsoluteFill>
   );
 };
@@ -87,7 +84,7 @@ const CarteTitre = ({ recipe, title }) => {
   }
   const y = interpolate(frame, [0, 0.5 * fps], [40, 0], { extrapolateRight: 'clamp' });
   const opacity = interpolate(frame, [0, 0.4 * fps], [0, 1], { extrapolateRight: 'clamp' });
-  const infos = [recipe?.country, recipe?.totalText].filter(Boolean).join(' · ');
+  const infos = [recipe?.country, recipe?.totalText, recipe?.servings].filter(Boolean).join(' · ');
   return (
     <AbsoluteFill
       style={{
@@ -137,6 +134,9 @@ const CarteTitre = ({ recipe, title }) => {
 const ListeIngredients = ({ items }) => {
   const frame = useCurrentFrame() - TRANSITION_FRAMES;
   const { fps } = useVideoConfig();
+  // Liste longue (quantités comprises) : police plus petite, apparition plus vive.
+  const size = items.length > 9 ? 36 : items.length > 6 ? 41 : 46;
+  const step = items.length > 8 ? 0.22 : 0.45;
   if (frame < 0) {
     return null;
   }
@@ -165,7 +165,7 @@ const ListeIngredients = ({ items }) => {
           Ingrédients
         </div>
         {items.map((it, i) => {
-          const start = i * 0.45 * fps;
+          const start = i * step * fps;
           const opacity = interpolate(frame, [start, start + 0.3 * fps], [0, 1], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
@@ -182,9 +182,9 @@ const ListeIngredients = ({ items }) => {
                 transform: `translateX(${x}px)`,
                 fontFamily: 'Helvetica, Arial, sans-serif',
                 fontWeight: 700,
-                fontSize: 46,
+                fontSize: size,
                 color: CREAM,
-                lineHeight: 1.45,
+                lineHeight: 1.4,
                 display: 'flex',
                 gap: 18,
               }}
@@ -214,6 +214,21 @@ const Etape = ({ numero, texte }) => {
   return (
     <AbsoluteFill style={{ alignItems: 'flex-start', justifyContent: 'flex-start', padding: 90, opacity }}>
       {numero ? (
+        <div
+          style={{
+            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontWeight: 800,
+            fontSize: 34,
+            letterSpacing: 6,
+            color: GOLD,
+            textTransform: 'uppercase',
+            textShadow: '0 3px 16px rgba(0,0,0,0.9)',
+          }}
+        >
+          Étape
+        </div>
+      ) : null}
+      {numero ? (
       <div
         style={{
           fontFamily: 'Georgia, serif',
@@ -226,7 +241,7 @@ const Etape = ({ numero, texte }) => {
           textShadow: '0 6px 30px rgba(0,0,0,0.9)',
         }}
       >
-        {String(numero).padStart(2, '0')}
+        {numero}
       </div>
       ) : null}
       {texte ? (

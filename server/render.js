@@ -26,6 +26,10 @@ async function getBundle() {
 export function buildEpisodeProps(project, episode, assetBase, studioBase) {
   // Marque de l'auteur (sticker + outro) — une chaîne peut avoir sa propre outro.
   const studio = loadStudio();
+  // Recette explicative : on finit sur le plat fini, aucune outro après.
+  if (project.mode === 'recette') {
+    studio.outro = null;
+  }
   if (project.channelOutro) {
     studio.outro = project.channelOutro;
     studio.outroIsVideo = Boolean(project.channelOutroIsVideo);

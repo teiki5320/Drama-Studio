@@ -13,6 +13,7 @@ import { ProjectView } from './ProjectView.jsx';
 import { BrandCard, FrenchVoicesCard, AppCreate, ChannelCreate } from './App.jsx';
 import { appLook, NOT_ADVERTISED } from './apps.js';
 import { QueuePanel } from './QueuePanel.jsx';
+import { RecipesPage } from './RecipesPage.jsx';
 import './clay.css';
 
 // ---------- Adresse (#/…) ----------
@@ -281,25 +282,26 @@ function ChainePage({ projects, onCreate }) {
 // ---------- Recettes : l'atelier unique, créé au premier passage ----------
 function RecettesEntry({ projects, loaded, onCreate }) {
   const started = useRef(false);
+  const atelier = projects.find((p) => p.mode === 'recette');
   useEffect(() => {
-    if (!loaded || started.current) {
+    if (!loaded || atelier || started.current) {
       return;
     }
-    const atelier = projects.find((p) => p.mode === 'recette');
     started.current = true;
-    if (atelier) {
-      go(`projet/${atelier.id}`);
-      return;
-    }
-    onCreate(() =>
-      api.createRecipeStudio({
-        name: 'Recettes Keur Cook',
-        tone: 'chaleureux',
-        targetSeconds: 60,
-        narratorVoice: 'XrExE9yKIg1WjnnlVkGX',
-      }),
+    onCreate(
+      () =>
+        api.createRecipeStudio({
+          name: 'Recettes Keur Cook',
+          tone: 'chaleureux',
+          targetSeconds: 60,
+          narratorVoice: 'XrExE9yKIg1WjnnlVkGX',
+        }),
+      'recettes',
     );
-  }, [loaded, projects]);
+  }, [loaded, atelier]);
+  if (atelier) {
+    return <RecipesPage projectId={atelier.id} />;
+  }
   return <p className="clay-content clay-muted">⏳ Ouverture de l'atelier de recettes…</p>;
 }
 
@@ -337,7 +339,7 @@ function EnCoursPage() {
 const TITLES = {
   pub: 'Publicité',
   keurcook: '🍲 Keur Cook',
-  recettes: 'Recettes',
+  recettes: '🍲 Recettes Keur Cook',
   chaine: 'Chaîne',
   encours: 'En cours',
   reglages: 'Réglages',
@@ -365,6 +367,8 @@ export function Shell() {
     refresh();
   }, [route.page]);
 
+  const project = route.page === 'projet' ? projects.find((p) => p.id === route.arg) : null;
+
   // Pastille « En cours » : nombre de fabrications actives.
   useEffect(() => {
     const tick = () =>
@@ -378,14 +382,14 @@ export function Shell() {
   }, []);
 
   // Lance un job de création, le suit, puis ouvre le projet obtenu.
-  const runCreation = async (kickoff) => {
+  const runCreation = async (kickoff, destination = null) => {
     setWaiting({ job: null, error: null });
     try {
       const r = await kickoff();
       const projectId = r.projectId || (await followJob(r.jobId, (job) => setWaiting({ job, error: null }))).result?.projectId;
       await refresh();
       setWaiting(null);
-      go(`projet/${projectId}`);
+      go(destination || `projet/${projectId}`);
     } catch (e) {
       setWaiting({ job: null, error: e.message });
     }
@@ -395,12 +399,16 @@ export function Shell() {
   const openRepo = (fullName, kickoff = null) =>
     runCreation(kickoff || (() => api.adFromRepo(fullName)));
 
-  // Ancienne adresse « Autre » (liens déjà enregistrés) → Chaîne.
+  // Ancienne adresse « Autre » (liens déjà enregistrés) → Chaîne ; un
+  // atelier de recettes s'ouvre toujours sur la page Recettes.
   useEffect(() => {
     if (route.page === 'autre') {
       window.location.replace('#/chaine');
     }
-  }, [route.page]);
+    if (route.page === 'projet' && project && project.mode === 'recette') {
+      window.location.replace('#/recettes');
+    }
+  }, [route.page, project]);
 
   useEffect(() => {
     if (route.page === 'pub' && route.arg) {
@@ -409,7 +417,6 @@ export function Shell() {
     }
   }, [route.page, route.arg]);
 
-  const project = route.page === 'projet' ? projects.find((p) => p.id === route.arg) : null;
   const active =
     route.page === 'projet'
       ? sectionOfProject(project)

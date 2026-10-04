@@ -15,7 +15,7 @@ import crypto from 'node:crypto';
 import { STUDIO_DIR } from './studio.js';
 import { startJob } from './jobs.js';
 import { loadProject } from './projects.js';
-import { createChannelVideo, createRecipeVideo, produceEpisode } from './pipeline.js';
+import { createChannelVideo, createRecipeVideo, produceEpisode, retryFailedAssets } from './pipeline.js';
 import { renderEpisode } from './render.js';
 
 const FILE = path.join(STUDIO_DIR, 'queue.json');
@@ -142,10 +142,24 @@ async function produceItem(it, update) {
   save();
 
   // 2. Images, clips, voix
-  await produceEpisode(p, number, step('Fabrication', 0.05, 0.85));
+  await produceEpisode(p, number, step('Fabrication', 0.05, 0.8));
+
+  // 2 bis. Réparation automatique : une image ou une voix ratée est refaite
+  // une fois avant le montage (l'existant n'est pas repayé). Si elle rate
+  // encore, on monte quand même : le plan reste sur fond sombre.
+  const ep = p.episodes.find((e) => e.number === number);
+  const missing = (ep.scenes || []).some(
+    (sc) => (!sc.image && !sc.videoDisabled) || sc.imageError || sc.videoError || (sc.lines || []).some((l) => !l.audio),
+  );
+  if (missing) {
+    try {
+      await retryFailedAssets(p, ep, step('Réparation', 0.8, 0.85));
+    } catch (e) {
+      console.error(`File d'attente — réparation incomplète (${it.label}) :`, e.message);
+    }
+  }
 
   // 3. Montage, puis rangement dans iCloud
-  const ep = p.episodes.find((e) => e.number === number);
   const r = await renderEpisode(p, ep, step('Montage', 0.85, 1));
   return { number, ...r };
 }

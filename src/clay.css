@@ -576,3 +576,147 @@ select,
 textarea {
   border-radius: 12px !important;
 }
+
+/* ---------- Page Recettes : vidéo à gauche, commandes à droite ---------- */
+.rp {
+  display: grid;
+  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+  gap: 28px;
+  padding: 24px 36px 60px;
+  align-items: start;
+}
+
+.rp-left {
+  position: sticky;
+  top: 20px;
+}
+
+.rp-video {
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: var(--clay);
+  display: block;
+}
+
+.rp-video-vide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--carte);
+  color: var(--c-muted);
+  text-align: center;
+  padding: 30px;
+}
+
+.rp-video-vide span {
+  font-size: 56px;
+}
+
+.rp-video-title {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.rp-right .clay-block {
+  margin: 0 0 18px;
+}
+
+.rp-credits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rp-credit {
+  background: var(--carte-2);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 0.95rem;
+}
+
+.rp-credit b {
+  color: var(--accent);
+  margin-left: 4px;
+}
+
+.rp-input {
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ligne);
+  background: var(--carte-2);
+  color: var(--texte);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.rp-generate {
+  width: 100%;
+  justify-content: center;
+  font-size: 1.1rem;
+  padding: 16px;
+  margin: 4px 0 10px;
+}
+
+.rp-generate:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rp-job {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ligne);
+}
+
+.rp-job:last-child {
+  border-bottom: 0;
+}
+
+.rp-job-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.rp-ep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.rp-ep:hover {
+  background: var(--carte-2);
+}
+
+.rp-ep.on {
+  background: var(--carte-2);
+  box-shadow: var(--clay-sm);
+}
+
+.rp-ep-title {
+  flex: 1;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .rp {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+  .rp-left {
+    position: static;
+    max-width: 380px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}

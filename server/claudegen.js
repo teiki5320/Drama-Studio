@@ -898,77 +898,55 @@ export const RECIPE_SECONDS = [45, 60, 90];
 // Une recette collée (ou importée) devient une suite de GESTES filmés en vue
 // subjective : caméra fixe au-dessus du plan de travail, on ne voit que les
 // mains. Claude lit le texte brut, en extrait la fiche, et le découpe.
-export function buildRecipePrompt(project, texte, seconds, tone) {
-  const nPlans = seconds <= 45 ? '8 à 11' : seconds <= 60 ? '11 à 15' : '15 à 20';
-  const words = Math.round(seconds * 2.1);
-  return `Tu montes des vidéos de cuisine verticales en VUE SUBJECTIVE, comme les chaînes de recettes vues du dessus.
+// Vidéo de recette EXPLICATIVE (pas une pub) : on apprend à faire le plat.
+// Environ une minute, vouvoiement, quantités dites et écrites, étapes
+// numérotées 1, 2, 3… sans doublon, et on finit sur le plat — rien après.
+// tone : conservé pour compatibilité, le ton est désormais toujours pédagogique.
+export function buildRecipePrompt(project, texte, seconds = 60) {
+  const words = Math.round(seconds * 2.3);
+  return `Tu réalises des vidéos de cuisine EXPLICATIVES, verticales, d'environ ${seconds} secondes : on apprend au spectateur à faire le plat, clairement, du début à la fin. Ce n'est PAS une publicité ni une vidéo TikTok : pas d'accroche racoleuse, pas d'appel à l'action, pas de « abonnez-vous », pas de nom de site.
 
-TOUTE la vidéo est tournée d'un SEUL point de vue : une caméra fixe juste au-dessus d'un plan de travail, qui regarde les mains cuisiner.
-On ne voit JAMAIS de visage, JAMAIS de corps, JAMAIS de cuisinier en entier — seulement DEUX MAINS AFRICAINES (peau brune), le plan de travail, les ingrédients et les ustensiles.
-Le plan de travail, les bols, la planche et les ustensiles sont LES MÊMES du premier au dernier plan.
+TOUTE la vidéo est filmée d'un SEUL point de vue : une caméra fixe juste au-dessus d'un plan de travail, qui regarde les mains cuisiner. On ne voit JAMAIS de visage ni de corps — seulement DEUX MAINS AFRICAINES (peau brune), le plan de travail, les ingrédients et les ustensiles, LES MÊMES du premier au dernier plan.
 
-RECETTE FOURNIE PAR L'AUTEUR (texte brut, à lire et à comprendre) :
+RECETTE (à suivre fidèlement) :
 """
 ${String(texte).slice(0, 12000)}
 """
 
-FORMAT : vidéo verticale de ${seconds} secondes, ${nPlans} plans, voix off d'un NARRATEUR unique.
-TON : ${RECIPE_TONES[tone] || tone || RECIPE_TONES.chaleureux}
+LA NARRATION : une voix calme et pédagogique, qui VOUVOIE (« Faites tremper… », « Ajoutez… »). Phrases simples, à l'oral. Les QUANTITÉS et les TEMPS sont dits à voix haute (« Faites tremper 200 g de feuilles pendant 30 minutes. »). Total des narrations ≈ ${words} mots (≈ ${seconds} secondes).
+
+STRUCTURE OBLIGATOIRE, dans cet ordre :
+1. UN plan "titre" — le plat fini en photo (fournie par le site). Narration : le nom du plat, son pays, et pour combien de personnes, en une ou deux phrases simples (ex. « Le ndolé aux crevettes, plat de fête du Cameroun. Pour 6 personnes. »). Pas d'accroche.
+2. UN plan "ingredients" — la liste COMPLÈTE des ingrédients avec leurs quantités s'affiche (champ ingredients, une ligne courte par ingrédient, 12 lignes au plus : regroupe les condiments si besoin, ex. « Sel, poivre de Penja »). Narration très courte : « Voici les ingrédients. »
+3. DE 6 À 8 plans "etape" — les étapes de la recette, dans l'ordre. Pour tenir la minute, REGROUPE les petites étapes voisines en une seule, sans rien oublier d'important. Chaque plan "etape" porte un numéro (stepNumber) : 1, 2, 3… qui se suivent, UN numéro par plan, jamais deux fois le même. Chaque narration explique l'étape avec ses quantités et ses temps (25 mots au plus). Le texte à l'écran (onScreen) reprend l'essentiel chiffré en 6 mots au plus (ex. « 200 g de feuilles · 30 min »).
+4. UN plan "final" — le plat fini, dressé, vu du dessus. Narration : « Bon appétit ! » (ou une phrase de service très courte). onScreen : « Bon appétit ». C'est le DERNIER plan : rien après.
 
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 {
-  "number": 0,
   "title": "nom du plat",
-  "hook": "phrase d'accroche reprise dans le premier plan",
   "recipe": {
     "name": "nom du plat",
-    "country": "pays ou région d'origine, si le texte le dit (sinon chaîne vide)",
+    "country": "pays ou région d'origine (chaîne vide si le texte ne le dit pas)",
     "totalText": "temps total tel qu'indiqué (ex. « 1 h 30 »), chaîne vide si absent",
-    "servings": "nombre de parts si indiqué, chaîne vide sinon",
-    "ingredients": [tous les ingrédients repris du texte, quantité comprise],
-    "steps": [les étapes du texte, résumées en une phrase chacune]
+    "servings": "nombre de parts (ex. « 6 personnes »), chaîne vide si absent",
+    "ingredients": [tous les ingrédients avec leur quantité, repris du texte],
+    "steps": [les étapes du texte, une phrase chacune]
   },
-  "scenes": [${nPlans} plans : {
-  "kind": "hook | titre | ingredients | geste | final | cta",
-  "gesture": "LE GESTE de ce plan, en français, 6 mots maximum (ex. « casser les œufs dans le bol »)",
-  "onScreen": "texte affiché à l'écran, 5 mots maximum — chaîne vide si le plan n'en a pas besoin",
-  "stepNumber": numéro de l'étape de la recette à laquelle ce geste appartient (1, 2, 3…), null pour hook/titre/ingredients/cta,
-  "ingredients": [pour kind=ingredients UNIQUEMENT : 4 à 7 lignes très courtes ; [] sinon],
-  "clip": true sur 2 ou 3 plans SEULEMENT — ceux où le mouvement compte le plus (on verse, on mélange, ça mijote) ; false partout ailleurs,
-  "lines": [1 réplique : {"speaker": "narrator", "text": "narration en français, phrase courte et orale, 14 mots maximum"}],
-  "imagePrompt": "EN ANGLAIS : ce que la caméra voit du dessus — ce que font les mains, ce qu'elles tiennent, ce qu'il y a sur le plan de travail — terminé par : ${RECIPE_IMAGE_STYLE}"
-}],
-  "cliffhanger": ""
+  "scenes": [{
+    "kind": "titre | ingredients | etape | final",
+    "gesture": "LE GESTE de ce plan, 6 mots maximum (ex. « verser la farine dans le bol »)",
+    "onScreen": "texte à l'écran (voir la structure), chaîne vide pour le titre",
+    "stepNumber": numéro d'étape pour kind=etape (1, 2, 3…), null sinon,
+    "ingredients": [pour kind=ingredients UNIQUEMENT ; [] sinon],
+    "clip": true sur 2 plans "etape" SEULEMENT — ceux où le mouvement compte le plus (on verse, on mélange, ça mijote) ; false ailleurs,
+    "lines": [{"speaker": "narrator", "text": "la narration du plan"}],
+    "imagePrompt": "EN ANGLAIS : ce que la caméra voit du dessus — ce que font les mains, ce qu'elles tiennent, ce qu'il y a sur le plan de travail — terminé par : ${RECIPE_IMAGE_STYLE}"
+  }]
 }
 
-UN PLAN = UN GESTE SIMPLE ET LISIBLE.
-Exemple pour « casser deux œufs puis ajouter la farine » — on ne fait PAS un seul plan, on en fait quatre :
-  1. les mains posent un bol vide sur le plan de travail
-  2. les mains prennent deux œufs
-  3. les mains cassent les œufs dans le bol
-  4. les mains versent la farine dans le bol
-Verbes des gestes : poser, prendre, casser, éplucher, couper, verser, saupoudrer, mélanger, pétrir, presser, remuer, retourner, égoutter, dresser.
-
-STRUCTURE — une intro rapide, puis les ingrédients, puis les étapes :
-A. L'INTRO fait DEUX plans et pas un de plus, elle doit filer :
-   1. "hook" (1 plan) — le plat fini vu du dessus, avec une phrase qui donne envie. Une seule réplique, courte.
-   2. "titre" (1 plan) — les ingrédients bruts posés à plat, nom du plat + pays + temps à l'écran.
-B. LES INGRÉDIENTS :
-   3. "ingredients" (1 plan) — la liste s'affiche à l'écran. METS EN AVANT les produits rares (poivre de Penja, soumbala, feuilles de ndolé, fonio, huile de palme, attiéké…) : la narration en cite au moins un par son nom.
-C. LES ÉTAPES :
-   4. "geste" (la majorité des plans) — les gestes dans l'ordre de la recette, du premier au dernier.
-D. LA FIN :
-   5. "final" (1 plan) — le plat fini dressé, vu du dessus.
-   6. "cta" (1 plan) — les mains posent le plat, texte « Recette complète sur keurcook.com ».
-Les DEUX DERNIERS plans de la liste sont OBLIGATOIREMENT, dans cet ordre, un plan "final" puis un plan "cta" : la vidéo ne se termine JAMAIS sur un geste de cuisson. Si la place manque, regroupe des gestes plus tôt — mais garde ces deux plans.
-
-TOUTES LES ÉTAPES DOIVENT PASSER : chaque numéro d'étape de la recette ci-dessus apparaît dans au moins un plan "geste" (champ stepNumber), du 1 jusqu'au dernier, dans l'ordre. Une étape longue se découpe en plusieurs gestes qui portent le MÊME stepNumber. Aucune étape n'est sautée, aucune n'est inventée.
-
 CONTRAINTES STRICTES :
-- INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, bien-être, digestion, vitamines, minéraux, protéines, calories, antioxydant, anti-inflammatoire, immunité, détox, minceur, brûle-graisse, ventre plat, nutritif, énergisant, ni aucune promesse sur le corps. Cela vaut AUSSI pour le nom de la recette et l'accroche. On parle de goût, de texture, d'odeur, de tradition et de partage.
-- Chaque imagePrompt décrit une vue DU DESSUS avec les mains dans le cadre. Jamais de visage, jamais de personne en entier, jamais une cuisine filmée de loin.
-- Les ustensiles, bols et le plan de travail restent identiques d'un plan à l'autre : décris-les de la même façon à chaque fois.
-- Aucune quantité ni aucun temps de cuisson inventé : reprends ceux du texte de l'auteur.
-- Le texte à l'écran est COURT (5 mots maximum) et lisible sur un téléphone.
-- Total des narrations ≈ ${words} mots (≈ ${seconds} secondes de voix).`;
+- INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, bien-être, digestion, vitamines, minéraux, protéines, calories, antioxydant, anti-inflammatoire, immunité, détox, minceur, brûle-graisse, ventre plat, nutritif, énergisant, ni aucune promesse sur le corps. Cela vaut aussi pour le nom de la recette. On parle de goût, de texture et de gestes.
+- Aucune quantité, aucun temps, aucun ingrédient inventé : tout vient de la recette ci-dessus.
+- Chaque imagePrompt décrit une vue DU DESSUS avec les mains dans le cadre, et les MÊMES ustensiles et le MÊME plan de travail, décrits de la même façon d'un plan à l'autre.
+- Le texte à l'écran est court et lisible sur un téléphone.`;
 }

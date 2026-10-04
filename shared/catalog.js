@@ -166,12 +166,11 @@ export function recipeHashtags(project, episode) {
 }
 
 export function tiktokCaption(project, episode) {
-  // Recette : « Nom du plat — Pays — accroche » + hashtags cuisine.
+  // Recette explicative (site, YouTube) : « Nom du plat — Pays », sans
+  // accroche ni hashtags.
   if (project.mode === 'recette') {
     const r = episode.recipe || {};
-    const tete = [r.name || episode.title || 'Recette', r.country].filter(Boolean).join(' — ');
-    const hook = (episode.hook || '').trim();
-    return `${tete}${hook ? ` — ${hook}` : ''} ${recipeHashtags(project, episode).join(' ')}`;
+    return [r.name || episode.title || 'Recette', r.country].filter(Boolean).join(' — ');
   }
   // Vidéo de chaîne : pas de numéro d'épisode, le titre suffit.
   if (project.mode === 'chaine') {

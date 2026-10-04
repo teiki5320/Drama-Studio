@@ -1235,6 +1235,63 @@ export async function createRecipeProject(info) {
 
 // Écrit la vidéo d'une recette : l'auteur COLLE son texte (ou importe une
 // recette de Keur Cook), Claude en extrait la fiche et la découpe en gestes.
+// Vidéo de recette explicative : l'ordre est garanti ici, quoi que Claude ait
+// rendu — titre (photo du site), ingrédients, étapes numérotées 1, 2, 3…
+// sans doublon, plat fini. Rien après : ni appel à l'action, ni accroche.
+function structureRecipeEpisode(episode, recipe) {
+  const blank = (kind, text, image, fields = {}) => ({
+    id: '',
+    location: '',
+    screenshot: null,
+    badge: null,
+    lines: [{ speaker: 'narrator', text, audio: null, audioDurationSec: null }],
+    characters: [],
+    image: null,
+    kenBurns: 'zoom-in',
+    durationSec: 5,
+    version: 0,
+    kind,
+    onScreen: '',
+    ingredients: [],
+    imagePrompt: `${image} ${RECIPE_IMAGE_STYLE}`,
+    ...fields,
+  });
+  const kindOf = (sc) => (sc.kind === 'geste' ? 'etape' : sc.kind === 'hook' ? 'titre' : sc.kind);
+  const scenes = (episode.scenes || []).map((sc) => ({ ...sc, kind: kindOf(sc) }));
+  const pick = (kind) => scenes.find((sc) => sc.kind === kind);
+
+  const titre =
+    pick('titre') ||
+    blank(
+      'titre',
+      [recipe.name, recipe.country ? `plat du ${recipe.country}` : '', recipe.servings ? `Pour ${recipe.servings}.` : '']
+        .filter(Boolean)
+        .join(', ')
+        .replace(/, Pour/, '. Pour'),
+      'The finished dish, beautifully plated, seen from directly above on the worktop.',
+    );
+  const ingredients =
+    pick('ingredients') ||
+    blank('ingredients', 'Voici les ingrédients.', 'All the raw ingredients neatly laid out on the worktop, seen from directly above.', {
+      ingredients: (recipe.ingredients || []).slice(0, 12),
+    });
+  if (!(ingredients.ingredients || []).length) {
+    ingredients.ingredients = (recipe.ingredients || []).slice(0, 12);
+  }
+  const etapes = scenes.filter((sc) => sc.kind === 'etape');
+  etapes.forEach((sc, i) => {
+    sc.stepNumber = i + 1;
+  });
+  const final =
+    pick('final') ||
+    blank('final', 'Bon appétit !', 'Two african hands placing the finished dish, beautifully plated, on the worktop, seen from directly above.', {
+      onScreen: 'Bon appétit',
+    });
+  titre.onScreen = '';
+  episode.scenes = [titre, ingredients, ...etapes, final].map((sc, i) => ({ ...sc, id: `s${i + 1}` }));
+  episode.hook = '';
+}
+
 export async function createRecipeVideo(project, params, update) {
   if (project.mode !== 'recette') {
     throw new Error('Réservé aux projets Recettes.');
@@ -1259,7 +1316,7 @@ export async function createRecipeVideo(project, params, update) {
 
   const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
   update('Découpage de la recette en gestes par Claude…');
-  const raw = await askClaudeForJson(buildRecipePrompt(project, texte, seconds, tone));
+  const raw = await askClaudeForJson(buildRecipePrompt(project, texte, seconds));
   ensureUsage(project).claudeCalls += 1;
 
   const episode = normalizeEpisode(raw, number, 20);
@@ -1297,57 +1354,23 @@ export async function createRecipeVideo(project, params, update) {
       l.speaker = 'narrator';
     }
   }
-  // Filet de sécurité : la vidéo se termine TOUJOURS sur le plat fini puis
-  // l'appel à l'action — même si Claude les a oubliés en fin de liste.
-  const addScene = (extra) => {
-    const id = `s${episode.scenes.length + 1}`;
-    episode.scenes.push({
-      id,
-      location: '',
-      screenshot: null,
-      badge: null,
-      lines: [{ speaker: 'narrator', text: extra.text, audio: null, audioDurationSec: null }],
-      characters: [],
-      image: null,
-      kenBurns: 'zoom-in',
-      durationSec: 5,
-      version: 0,
-      ...extra.fields,
-      imagePrompt: `${extra.image} ${RECIPE_IMAGE_STYLE}`,
-    });
-  };
-  if (!episode.scenes.some((sc) => sc.kind === 'final')) {
-    addScene({
-      text: `${recipe.name}, prêt à partager.`,
-      image: 'Two african hands placing the finished dish, beautifully plated in a traditional bowl, on the worktop, seen from directly above.',
-      fields: { kind: 'final', gesture: 'poser le plat fini sur le plan', onScreen: 'Et voilà' },
-    });
-  }
-  if (!episode.scenes.some((sc) => sc.kind === 'cta')) {
-    addScene({
-      text: 'Recette complète et produits rares sur keurcook.com.',
-      image: 'Two african hands sliding the finished dish towards the camera on the worktop, seen from directly above, warm inviting light.',
-      fields: { kind: 'cta', gesture: 'présenter le plat à la caméra', onScreen: 'Recette complète sur keurcook.com' },
-    });
-  }
+  structureRecipeEpisode(episode, recipe);
 
-  // La photo du plat prise dans le dépôt de Keur Cook ouvre la vidéo : c'est
-  // le vrai plat, pas une image générée, et l'intro est donc fidèle au site.
+  // La photo du plat prise dans le dépôt de Keur Cook ouvre la vidéo (plan
+  // titre, zoom lent) : c'est le vrai plat, sans crédit d'image.
   if (params.usePhoto !== false && recipe.photo) {
-    const target = episode.scenes.find((s) => s.kind === 'hook') || episode.scenes[0];
-    if (target) {
-      const file = `e${number}_${target.id}_keurcook.webp`;
-      try {
-        update('Photo du plat (intro)…');
-        copyRecipeImage(recipe.photo, path.join(assetsDir(project.id), file));
-        target.image = file;
-        target.imageUrl = null;
-        target.fromSite = true;
-        target.videoDisabled = true;
-        delete target.clip;
-      } catch (e) {
-        console.error('Photo de Keur Cook :', e.message);
-      }
+    const target = episode.scenes[0];
+    const file = `e${number}_${target.id}_keurcook.webp`;
+    try {
+      update('Photo du plat (ouverture)…');
+      copyRecipeImage(recipe.photo, path.join(assetsDir(project.id), file));
+      target.image = file;
+      target.imageUrl = null;
+      target.fromSite = true;
+      target.videoDisabled = true;
+      delete target.clip;
+    } catch (e) {
+      console.error('Photo de Keur Cook :', e.message);
     }
   }
   project.episodes.push(episode);
