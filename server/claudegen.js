@@ -961,7 +961,7 @@ export function buildKeurCookAdPrompt({ pays, recette, produit, seconds = 45, fi
   const nScenes = seconds <= 45 ? '8 à 10' : '10 à 13';
   const appel =
     fin === 'produit'
-      ? `l'ingrédient introuvable est sur keurcook.com (le ${produit.name})`
+      ? `tout savoir sur le ${produit.name} (d'où il vient, comment l'utiliser) sur keurcook.com`
       : `la recette pas à pas du ${recette.name} est sur keurcook.com`;
   return `Tu es monteur de pubs TikTok pour Keur Cook, le site des recettes africaines et des produits rares (keurcook.com). Tu fais une pub de ${seconds} secondes, verticale, qui fait voyager le spectateur dans UN pays.
 
@@ -986,7 +986,7 @@ DÉROULÉ OBLIGATOIRE :
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 {
   "title": "titre court de la pub (usage interne)",
-  "cta": "la phrase de fin affichée sur le carton final, 8 mots maximum (ex. « La recette pas à pas sur keurcook.com »)",
+  "cta": "la phrase de fin affichée sur le carton final, 8 mots maximum (ex. « La recette pas à pas sur keurcook.com », « Tout sur cet ingrédient sur keurcook.com »)",
   "scenes": [${nScenes} plans : {
     "kind": "pays | plat | produit | mains | fin",
     "badge": "texte TRÈS court à l'écran, 4 mots maximum (ex. « 🇨🇲 Cameroun », « Le ndolé », « Poivre de Penja »)",
@@ -999,6 +999,7 @@ CONTRAINTES STRICTES :
 - Total des narrations ≈ ${words} mots (≈ ${seconds} secondes).
 - INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, bien-être, digestion, vitamines, minéraux, protéines, calories, antioxydant, anti-inflammatoire, immunité, détox, minceur, brûle-graisse, ventre plat, nutritif, énergisant, ni aucune promesse sur le corps. On parle de goût, d'odeur, de voyage, de tradition.
 - N'INVENTE RIEN : histoire, origine et usage viennent des textes ci-dessus. Aucun prix.
+- Le site ne VEND RIEN lui-même : jamais « disponible », « en vente », « achète », « achetez », « commande », « en stock », « livré », ni aucun prix. On invite à DÉCOUVRIR (la recette, l'idée, l'histoire), jamais à acheter.
 - Plans "mains" : jamais de visage ni de corps entier, seulement les mains, vue du dessus.`;
 }
 
@@ -1014,7 +1015,8 @@ ${article.description}
 Pièce(s) : ${article.pieces.join(', ') || '—'} · matières : ${article.matieres.join(', ') || '—'}
 Description de la photo : ${article.imageAlt}`;
   const commun = `Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour).
-CONTRAINTES : n'invente aucun prix ni aucune promesse ; tout le texte en français, sauf les imagePrompt et motionPrompt en anglais.`;
+CONTRAINTES : n'invente aucun prix ni aucune promesse ; tout le texte en français, sauf les imagePrompt et motionPrompt en anglais.
+- Le site ne VEND RIEN lui-même : jamais « disponible », « en vente », « achète », « achetez », « commande », « en stock », « livré », ni aucun prix. On invite à DÉCOUVRIR (la recette, l'idée, l'histoire), jamais à acheter.`;
   if (format === 'ambiance') {
     const n = Math.max(4, Math.round(seconds / 6));
     return `Tu réalises une pub TikTok d'AMBIANCE pour Keur Déco, le site de décoration africaine (keurdeco.com) : ${seconds} secondes, verticale, SANS VOIX, apaisante et « satisfaisante » à regarder.
@@ -1044,13 +1046,13 @@ Objets repérés sur la photo : ${objets.map((o, i) => `${i + 1}. ${o.nom}`).joi
 ${commun}
 {
   "title": "titre court (usage interne)",
-  "cta": "phrase du carton final, 10 mots maximum (ex. « Tous les objets sur keurdeco.com »)",
+  "cta": "phrase du carton final, 10 mots maximum (ex. « Toute l'idée déco sur keurdeco.com »)",
   "avant": "EN ANGLAIS : la MÊME pièce que la description de la photo, même cadrage et même architecture, mais vide et banale : murs blancs nus, aucune décoration, aucun meuble décoratif, lumière froide ; photo réaliste ; no text",
   "scenes": [
     {"kind": "avant", "badge": "Avant", "lines": [{"speaker": "narrator", "text": "phrase courte, 14 mots maximum"}]},
     {"kind": "apres", "badge": "Après", "lines": [{"speaker": "narrator", "text": "…"}]},
     ${objets.map((o, i) => `{"kind": "objet", "objet": ${i + 1}, "badge": "nom court de l'objet, 4 mots maximum", "lines": [{"speaker": "narrator", "text": "…"}]}`).join(',\n    ')},
-    {"kind": "fin", "badge": "keurdeco.com", "lines": [{"speaker": "narrator", "text": "invite à retrouver tous les objets sur keurdeco.com et à épingler l'idée sur Pinterest"}]}
+    {"kind": "fin", "badge": "keurdeco.com", "lines": [{"speaker": "narrator", "text": "invite à découvrir cette idée déco sur keurdeco.com et à l'épingler sur Pinterest"}]}
   ]
 }
 Total des narrations ≈ ${Math.round(seconds * 2.2)} mots.`;
@@ -1065,12 +1067,52 @@ Objets repérés sur la photo, dans l'ordre de la visite : ${objets.map((o, i) =
 ${commun}
 {
   "title": "titre court (usage interne)",
-  "cta": "phrase du carton final, 10 mots maximum (ex. « Tous les objets sur keurdeco.com »)",
+  "cta": "phrase du carton final, 10 mots maximum (ex. « Toute l'idée déco sur keurdeco.com »)",
   "scenes": [
     {"kind": "piece", "badge": "le nom de l'ambiance, 5 mots maximum", "lines": [{"speaker": "narrator", "text": "accroche douce qui donne envie, 14 mots maximum"}]},
     ${objets.map((o, i) => `{"kind": "objet", "objet": ${i + 1}, "badge": "nom court de l'objet, 4 mots maximum", "lines": [{"speaker": "narrator", "text": "ce que cet objet apporte à la pièce, 14 mots maximum"}]}`).join(',\n    ')},
-    {"kind": "fin", "badge": "keurdeco.com", "lines": [{"speaker": "narrator", "text": "invite à retrouver tous les objets sur keurdeco.com et à épingler l'idée sur Pinterest"}]}
+    {"kind": "fin", "badge": "keurdeco.com", "lines": [{"speaker": "narrator", "text": "invite à découvrir cette idée déco sur keurdeco.com et à l'épingler sur Pinterest"}]}
   ]
 }
 Total des narrations ≈ ${Math.round(seconds * 2.2)} mots.`;
+}
+
+// ---------- Pub Keurbook : « Le livre en 30 s » ----------
+// Un livre raconté comme une bande-annonce : une accroche sur son thème,
+// l'histoire en quelques images, deux ou trois raisons de le lire. Voix posée
+// et littéraire, au vouvoiement. Fin : la pile à lire de keurbook.com.
+export function buildKeurbookAdPrompt({ livre, seconds = 30 }) {
+  return `Tu réalises une pub TikTok « LE LIVRE EN ${seconds} SECONDES » pour Keurbook (keurbook.com), le site qui fait découvrir les livres des auteurs d'Afrique subsaharienne. Verticale, ${seconds} secondes, comme la bande-annonce d'un film.
+
+LE LIVRE : « ${livre.titre} »${livre.kind === 'bd' ? ' (bande dessinée)' : ''} — ${livre.auteur}${livre.pays ? `, ${livre.pays}` : ''}${livre.annee ? `, ${livre.annee}` : ''}
+Genre : ${livre.genre} · thèmes : ${livre.themes.join(', ')}
+Résumé (du site) : ${livre.resume}
+Pourquoi le lire (du site) : ${livre.raisons.join(' / ')}
+${livre.prix.length ? `Distinctions : ${livre.prix.join(', ')}` : ''}
+
+VOIX : posée, littéraire, chaleureuse, qui VOUVOIE (comme une émission de lecture). Phrases courtes, évocatrices.
+
+DÉROULÉ :
+1. "accroche" (1 plan) — une question ou une image forte tirée du thème (ex. « Que perd-on en gagnant un autre savoir ? »). L'illustration du livre est utilisée (imagePrompt vide).
+2. "histoire" (3 plans) — l'histoire racontée comme un teaser, sans dévoiler la fin. Images générées : des scènes évocatrices du décor et de l'époque du livre.
+3. "pourquoi" (1 plan) — une ou deux raisons de le lire, reprises du site. L'illustration du livre est utilisée (imagePrompt vide).
+4. "fin" (1 plan, le DERNIER) — le titre et l'auteur, puis l'invitation à l'ajouter à votre pile à lire sur keurbook.com. L'illustration du livre est utilisée (imagePrompt vide).
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "title": "titre court (usage interne)",
+  "cta": "la phrase du carton final : « Ajoutez-le à votre pile à lire sur keurbook.com » (ou très proche, 10 mots maximum)",
+  "scenes": [{
+    "kind": "accroche | histoire | pourquoi | fin",
+    "badge": "texte très court à l'écran, 5 mots maximum (ex. le titre, le pays, une époque)",
+    "lines": [{"speaker": "narrator", "text": "phrase courte, 16 mots maximum"}],
+    "imagePrompt": "EN ANGLAIS, pour les plans histoire uniquement (chaîne vide sinon) : une scène évocatrice du livre, illustration peinte cinématographique, couleurs chaudes, vertical 9:16, aucun visage reconnaissable de personne réelle, no text, no letters, no logo, no watermark"
+  }]
+}
+
+CONTRAINTES STRICTES :
+- Total des narrations ≈ ${Math.round(seconds * 2.3)} mots (≈ ${seconds} secondes).
+- N'INVENTE RIEN sur le livre : tout vient du résumé et des raisons ci-dessus. Ne dévoile pas la fin.
+- Ne cite AUCUN extrait du livre (droits d'auteur) : tu racontes avec tes mots.
+- Le site ne VEND RIEN lui-même : jamais « disponible », « en vente », « achetez », « commandez », ni aucun prix. On invite à DÉCOUVRIR le livre et à l'ajouter à sa pile à lire.`;
 }

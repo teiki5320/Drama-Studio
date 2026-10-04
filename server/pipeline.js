@@ -41,6 +41,7 @@ import {
   buildRecipePrompt,
   buildKeurCookAdPrompt,
   buildKeurDecoAdPrompt,
+  buildKeurbookAdPrompt,
   KITCHEN_REFERENCE_PROMPT,
   RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
@@ -51,6 +52,7 @@ import { copyRecipeImage, fetchRecipe, manualRecipe, recipeAsText } from './reci
 import { tourAfrique, logoKeurCook } from './keurcook.js';
 import { chargeArticles, logoKeurDeco, VUES } from './keurdeco.js';
 import { composeMusic } from './music.js';
+import { chargeLivres, logoKeurbook } from './keurbook.js';
 import { applyVoicePreset } from './voicepresets.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -1480,7 +1482,7 @@ export async function createKeurCookAd(project, { pays = '', seconds = 45 } = {}
     throw new Error('Aucun pays exploitable dans les recettes de Keur Cook.');
   }
   const fin = state.count % 2 === 0 ? 'recette' : 'produit';
-  const secs = [45, 60].includes(Number(seconds)) ? Number(seconds) : 45;
+  const secs = 45; // durée fixée (on ne la demande plus)
   const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
 
   update(`Script de la pub « ${entry.pays} » par Claude…`);
@@ -1525,7 +1527,7 @@ export async function createKeurCookAd(project, { pays = '', seconds = 45 } = {}
   episode.topic = `${entry.pays} — ${entry.recette.name} + ${entry.produit.name}`;
   episode.title = raw.title || episode.topic;
   episode.cta = String(
-    raw.cta || (fin === 'produit' ? "L'ingrédient introuvable sur keurcook.com" : 'La recette pas à pas sur keurcook.com'),
+    raw.cta || (fin === 'produit' ? 'Tout sur cet ingrédient sur keurcook.com' : 'La recette pas à pas sur keurcook.com'),
   ).slice(0, 80);
   episode.kcPays = entry.pays;
   episode.cliffhanger = '';
@@ -1586,7 +1588,7 @@ export async function createKeurDecoAd(project, { format = 'ambiance', article =
     throw new Error(`L'article « ${a.titre} » n'a pas assez d'objets repérés sur sa photo pour ce format.`);
   }
   const laVue = vue || VUES[state.count % VUES.length];
-  const secs = [30, 45].includes(Number(seconds)) ? Number(seconds) : 30;
+  const secs = 30; // durée fixée (on ne la demande plus)
   const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
   const dir = assetsDir(project.id);
 
@@ -1698,7 +1700,7 @@ export async function createKeurDecoAd(project, { format = 'ambiance', article =
     pill: '#A3472A',
     pillInk: '#ffffff',
   };
-  episode.cta = `${String(raw.cta || 'Tous les objets sur keurdeco.com').slice(0, 70)}\nÉpinglez l'idée sur Pinterest`;
+  episode.cta = `${String(raw.cta || "Toute l'idée déco sur keurdeco.com").slice(0, 70)}\nÉpinglez l'idée sur Pinterest`;
 
   project.episodes.push(episode);
   project.episodes.sort((x, y) => x.number - y.number);
@@ -1710,6 +1712,83 @@ export async function createKeurDecoAd(project, { format = 'ambiance', article =
     state.done = [];
   }
   state.count += 1;
+  saveProject(project);
+  return { number };
+}
+
+// ---------- Pub Keurbook : « Le livre en 30 s » ----------
+export async function keurbookAdPlan(project) {
+  const livres = await chargeLivres();
+  const state = project.kbTour || { done: [] };
+  const next = livres.find((l) => !state.done.includes(l.slug)) || livres[0] || null;
+  return {
+    next: next && next.slug,
+    livres: livres.map((l) => ({
+      slug: l.slug,
+      titre: l.titre,
+      auteur: l.auteur,
+      pays: l.pays,
+      fait: state.done.includes(l.slug),
+    })),
+  };
+}
+
+export async function createKeurbookAd(project, { livre = '' } = {}, update) {
+  if (project.kind !== 'pub') {
+    throw new Error('Réservé à la campagne de pub Keurbook.');
+  }
+  applyVoicePreset(project);
+  const livres = await chargeLivres();
+  const state = project.kbTour || (project.kbTour = { done: [] });
+  const l = livres.find((x) => x.slug === livre) || livres.find((x) => !state.done.includes(x.slug)) || livres[0];
+  if (!l) {
+    throw new Error('Aucun livre lisible dans le dépôt de Keurbook.');
+  }
+  const secs = 30; // durée fixée (on ne la demande plus)
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  const dir = assetsDir(project.id);
+
+  update(`Script de la pub « ${l.titre} » par Claude…`);
+  const raw = await askClaudeForJson(buildKeurbookAdPrompt({ livre: l, seconds: secs }));
+  ensureUsage(project).claudeCalls += 1;
+  const episode = normalizeEpisode(raw, number, 8);
+  // L'illustration Keurbook du livre (propriété du site) sur l'accroche, le
+  // « pourquoi » et la fin ; les plans « histoire » sont générés.
+  const illu = `e${number}_illustration.webp`;
+  copyRecipeImage(l.illustration, path.join(dir, illu));
+  const mouvements = { accroche: 'zoom-in', pourquoi: 'pan-up', fin: 'zoom-out' };
+  for (const sc of episode.scenes) {
+    sc.characters = [];
+    for (const line of sc.lines) {
+      line.speaker = 'narrator';
+    }
+    if (sc.kind !== 'histoire' || !sc.imagePrompt) {
+      sc.image = illu;
+      sc.imageUrl = null;
+      sc.imagePrompt = '';
+      sc.fromSite = true;
+      sc.videoDisabled = true;
+      sc.kenBurns = mouvements[sc.kind] || 'zoom-in';
+    }
+  }
+  const logo = logoKeurbook();
+  if (logo && !project.ctaLogo) {
+    project.ctaLogo = `keurbook-logo${path.extname(logo)}`;
+    copyRecipeImage(logo, path.join(dir, project.ctaLogo));
+  }
+  episode.topic = `${l.titre} — ${l.auteur}`;
+  episode.title = raw.title || episode.topic;
+  episode.cta = String(raw.cta || 'Ajoutez-le à votre pile à lire sur keurbook.com').slice(0, 80);
+  episode.cliffhanger = '';
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  if (!state.done.includes(l.slug)) {
+    state.done.push(l.slug);
+  }
+  if (state.done.length >= livres.length) {
+    state.done = [];
+  }
   saveProject(project);
   return { number };
 }

@@ -18,6 +18,11 @@ export const VOICE_PRESETS = {
     narratorVoice: '6vTyAgAT8PncODBcLjRf', // Claire
     voiceSettings: { stability: 0.6, similarity_boost: 0.8, style: 0.25, speed: 0.93 },
   },
+  // Pub Keurbook : posée et littéraire, au vouvoiement.
+  'teiki5320/keurbook': {
+    narratorVoice: 'aQROLel5sQbj1vuIVi6B', // Nicolas (narrateur parisien)
+    voiceSettings: { stability: 0.55, similarity_boost: 0.8, style: 0.25, speed: 0.97 },
+  },
 };
 
 export function applyVoicePreset(project) {

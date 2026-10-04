@@ -31,6 +31,7 @@ import {
   createAdProject,
   keurCookAdPlan,
   keurDecoAdPlan,
+  keurbookAdPlan,
   createRecipeProject,
   createRecipeVideo,
   saveScreenshot,
@@ -1311,6 +1312,19 @@ app.get('/api/keurdeco/ad-plan/:id', (req, res) => {
   }
   try {
     res.json(keurDecoAdPlan(p));
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.get('/api/keurbook/ad-plan/:id', async (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  try {
+    res.json(await keurbookAdPlan(p));
   } catch (e) {
     res.status(502).json({ error: e.message });
   }

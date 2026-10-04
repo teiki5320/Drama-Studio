@@ -22,6 +22,7 @@ import {
   keurCookAdPlan,
   createKeurDecoAd,
   KEURDECO_FORMATS,
+  createKeurbookAd,
   produceEpisode,
   retryFailedAssets,
 } from './pipeline.js';
@@ -118,6 +119,13 @@ export function addToQueue(raw) {
       seconds,
       label: `Pub Keur Déco — ${KEURDECO_FORMATS[format].split(' — ')[0]}, ${seconds} s`,
     };
+  } else if (raw.kind === 'keurbook') {
+    // Pub Keurbook : « Le livre en 30 s ».
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const livre = String(raw.livre || '').trim().slice(0, 120);
+    item = { kind: 'keurbook', livre, label: `Pub Keurbook — ${String(raw.label || livre || 'prochain livre').slice(0, 70)}` };
   } else if (raw.kind === 'recette') {
     if (project.mode !== 'recette') {
       throw new Error('Ce projet n’est pas un atelier de recettes.');
@@ -174,7 +182,9 @@ async function produceItem(it, update) {
 
   // 1. Script
   const { number } =
-    it.kind === 'keurdeco'
+    it.kind === 'keurbook'
+      ? await createKeurbookAd(p, { livre: it.livre }, step('Script', 0, 0.05))
+      : it.kind === 'keurdeco'
       ? await createKeurDecoAd(
           p,
           { format: it.format, article: it.article, vue: it.vue, seconds: it.seconds },

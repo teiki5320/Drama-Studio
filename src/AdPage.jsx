@@ -72,7 +72,7 @@ function Apercu({ project, episode, studio }) {
 function KeurCookAdControls({ projectId, onQueued }) {
   const [plan, setPlan] = useState(null);
   const [pays, setPays] = useState('');
-  const [seconds, setSeconds] = useState(45);
+  const seconds = 45;
   const [error, setError] = useState('');
   const load = () =>
     api
@@ -104,13 +104,9 @@ function KeurCookAdControls({ projectId, onQueued }) {
           {choisi && (
             <p className="clay-muted small">
               Plat : <b>{choisi.recette}</b> · ingrédient secret : <b>{choisi.produit}</b> · fin :{' '}
-              <b>{plan.fin === 'produit' ? "l'ingrédient sur keurcook.com" : 'la recette sur keurcook.com'}</b>
+              <b>{plan.fin === 'produit' ? "tout sur l'ingrédient, sur keurcook.com" : 'la recette, sur keurcook.com'}</b>
             </p>
           )}
-          <select className="rp-input" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>
-            <option value={45}>45 secondes</option>
-            <option value={60}>60 secondes</option>
-          </select>
           <button
             className="clay-btn rp-generate"
             disabled={!pays}
@@ -141,7 +137,7 @@ function KeurDecoAdControls({ projectId, onQueued }) {
   const [format, setFormat] = useState('ambiance');
   const [article, setArticle] = useState('');
   const [vue, setVue] = useState('');
-  const [seconds, setSeconds] = useState(30);
+  const seconds = 30;
   const [error, setError] = useState('');
   const load = () =>
     api
@@ -187,10 +183,6 @@ function KeurDecoAdControls({ projectId, onQueued }) {
               ))}
             </select>
           )}
-          <select className="rp-input" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>
-            <option value={30}>30 secondes</option>
-            <option value={45}>45 secondes</option>
-          </select>
           <p className="clay-muted small">
             {format === 'ambiance'
               ? 'Sans voix, tout en clips lents, musique composée par ElevenLabs (≈ 200 à 300 crédits OpenArt).'
@@ -207,6 +199,79 @@ function KeurDecoAdControls({ projectId, onQueued }) {
                 .then(() => {
                   setArticle('');
                   setVue('');
+                  onQueued();
+                  return load();
+                })
+                .catch((e) => setError(e.message))
+            }
+          >
+            🎬 Générer la pub
+          </button>
+        </>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
+// Keurbook : « Le livre en 30 s » — le prochain livre est proposé ; on peut
+// en chercher un autre parmi tous ceux du site.
+function KeurbookAdControls({ projectId, onQueued }) {
+  const [plan, setPlan] = useState(null);
+  const [search, setSearch] = useState('');
+  const [livre, setLivre] = useState('');
+  const [error, setError] = useState('');
+  const load = () =>
+    api
+      .keurbookPlan(projectId)
+      .then((p) => {
+        setPlan(p);
+        setLivre((cur) => cur || p.next || '');
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, [projectId]);
+  const q = search.trim().toLowerCase();
+  const liste = (plan?.livres || []).filter(
+    (l) => !q || `${l.titre} ${l.auteur} ${l.pays}`.toLowerCase().includes(q) || l.slug === livre,
+  );
+  const choisi = (plan?.livres || []).find((l) => l.slug === livre);
+  return (
+    <div className="clay-block">
+      <h3>📚 Nouvelle pub — Le livre en 30 s</h3>
+      {!plan && !error && <p className="clay-muted small">Chargement des livres…</p>}
+      {plan && (
+        <>
+          <input
+            className="rp-input"
+            value={search}
+            placeholder={`Chercher parmi ${plan.livres.length} livres : titre, auteur, pays…`}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select className="rp-input" value={livre} onChange={(e) => setLivre(e.target.value)}>
+            {liste.slice(0, 300).map((l) => (
+              <option key={l.slug} value={l.slug}>
+                {l.fait ? '✓ ' : ''}
+                {l.titre} — {l.auteur}
+                {l.pays ? ` (${l.pays})` : ''}
+                {l.slug === plan.next ? ' · prochain' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="clay-muted small">
+            Une bande-annonce du livre : son illustration Keurbook, l'histoire en quelques images, pourquoi le lire —
+            voix posée de Nicolas, fin vers la pile à lire de keurbook.com.
+          </p>
+          <button
+            className="clay-btn rp-generate"
+            disabled={!livre}
+            onClick={() =>
+              api
+                .addToQueue({ kind: 'keurbook', projectId, livre, label: choisi ? choisi.titre : livre })
+                .then(() => {
+                  setLivre('');
+                  setSearch('');
                   onQueued();
                   return load();
                 })
@@ -289,7 +354,7 @@ export function AdPage({ projectId, onAdvanced }) {
     if (
       project &&
       project.kind === 'pub' &&
-      !['teiki5320/keurcook', 'teiki5320/keurdeco'].includes(String(project.repo || '').toLowerCase()) &&
+      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook'].includes(String(project.repo || '').toLowerCase()) &&
       !(project.episodes || []).length &&
       !ideas.length &&
       !ideasBusy
@@ -306,6 +371,7 @@ export function AdPage({ projectId, onAdvanced }) {
   const repoKey = String(project.repo || '').toLowerCase();
   const isKeurCook = repoKey === 'teiki5320/keurcook';
   const isKeurDeco = repoKey === 'teiki5320/keurdeco';
+  const isKeurbook = repoKey === 'teiki5320/keurbook';
   const episodes = [...(project.episodes || [])].sort((a, b) => b.number - a.number);
   const shown =
     episodes.find((e) => e.number === selected) || episodes.find((e) => e.renderedFile) || episodes[0] || null;
@@ -358,9 +424,9 @@ export function AdPage({ projectId, onAdvanced }) {
           <Credits />
         </div>
 
-        {isKeurCook || isKeurDeco ? (
+        {isKeurCook || isKeurDeco || isKeurbook ? (
           (() => {
-            const Controls = isKeurCook ? KeurCookAdControls : KeurDecoAdControls;
+            const Controls = isKeurCook ? KeurCookAdControls : isKeurDeco ? KeurDecoAdControls : KeurbookAdControls;
             return (
               <Controls
                 projectId={projectId}
