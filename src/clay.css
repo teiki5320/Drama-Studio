@@ -319,6 +319,14 @@ body {
   transition: transform 0.15s;
 }
 
+button.clay-big {
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-items: flex-start;
+}
+
 .clay-big:hover {
   transform: translateY(-2px);
 }

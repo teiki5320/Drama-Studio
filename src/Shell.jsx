@@ -1,10 +1,11 @@
 // Ossature du studio, aux couleurs du Dashboard : une barre latérale
-// (Publicité, Autre, En cours, Réglages) et une page par adresse (#/…).
+// (Publicité, Chaîne, En cours, Réglages) et une page par adresse (#/…).
 // Les adresses servent aussi de liens depuis le Dashboard :
 //   #/pub            → les boutons des applis
 //   #/pub/erea       → la campagne d'Erea (préparée au premier clic)
-//   #/autre          → Recettes, Chaîne
+//   #/keurcook       → Keur Cook : Recettes ou Publicité
 //   #/recettes, #/chaine, #/encours, #/reglages, #/projet/<id>
+// (#/autre, l'ancienne entrée, renvoie vers #/chaine.)
 import React, { useEffect, useRef, useState } from 'react';
 import { VOICES } from '../shared/catalog.js';
 import { api, followJob } from './api.js';
@@ -60,13 +61,16 @@ function useTheme() {
   return [theme, () => setTheme((t) => (t === 'clair' ? 'sombre' : 'clair'))];
 }
 
-// Une campagne de pub ou un atelier de recettes ? Sert à allumer la bonne
-// entrée de la barre latérale quand un projet est ouvert.
-const sectionOfProject = (p) => (p && p.kind === 'pub' ? 'pub' : 'autre');
+// Entrée de la barre latérale à allumer quand un projet est ouvert : les
+// campagnes et les recettes (Keur Cook) relèvent de Publicité.
+const sectionOfProject = (p) => (p && p.mode === 'chaine' && p.kind !== 'pub' ? 'chaine' : 'pub');
+
+// Keur Cook a deux usages : ses recettes en vidéo, et sa pub.
+const KEURCOOK_REPO = 'teiki5320/keurcook';
 
 const NAV = [
   { id: 'pub', icon: '📣', label: 'Publicité', path: 'pub' },
-  { id: 'autre', icon: '✨', label: 'Autre', path: 'autre' },
+  { id: 'chaine', icon: '🎥', label: 'Chaîne', path: 'chaine' },
   { id: 'sep' },
   { id: 'encours', icon: '🏭', label: 'En cours', path: 'encours' },
   { id: 'reglages', icon: '⚙️', label: 'Réglages', path: 'reglages' },
@@ -75,7 +79,7 @@ const NAV = [
 function Sidebar({ active, running }) {
   return (
     <aside className="clay-side">
-      <div className="clay-logo" title="Drama Studio">🎬</div>
+      <div className="clay-logo" title="Studio">🎬</div>
       {NAV.map((n) =>
         n.id === 'sep' ? (
           <div key="sep" className="clay-sep" />
@@ -181,7 +185,13 @@ function PubPage({ projects, onOpenRepo }) {
           const look = appLook(r.name, r.label);
           const p = byRepo(r.fullName);
           return (
-            <button key={r.fullName} className="clay-tile" onClick={() => onOpenRepo(r.fullName)}>
+            <button
+              key={r.fullName}
+              className="clay-tile"
+              onClick={() =>
+                r.fullName.toLowerCase() === KEURCOOK_REPO ? go('keurcook') : onOpenRepo(r.fullName)
+              }
+            >
               <span className="clay-tile-ic">{look.icon}</span>
               <b>{look.name}</b>
               {badge(count(p))}
@@ -207,22 +217,31 @@ function PubPage({ projects, onOpenRepo }) {
   );
 }
 
-// ---------- Autre : Recettes, Chaîne ----------
-function AutrePage() {
+// ---------- Keur Cook : ses recettes en vidéo, ou sa pub ----------
+function KeurCookPage({ projects, onOpenRepo }) {
+  const recettes = projects.find((p) => p.mode === 'recette');
+  const pub = projects.find((p) => p.kind === 'pub' && String(p.repo || '').toLowerCase() === KEURCOOK_REPO);
+  const n = (p) => (p ? (p.episodes || []).length : 0);
   return (
     <div className="clay-content">
-      <p className="clay-sub">Les vidéos qui ne sont pas des pubs.</p>
+      <p className="clay-sub">Que veux-tu faire pour Keur Cook ?</p>
       <div className="clay-two">
         <a className="clay-big" href="#/recettes">
           <span className="clay-big-ic">🍲</span>
           <b>Recettes</b>
-          <span>Les recettes Keur Cook en vidéos, vue du dessus, les mains qui cuisinent.</span>
+          <span>
+            Les recettes du site en vidéos, vue du dessus, les mains qui cuisinent
+            {n(recettes) ? ` — ${n(recettes)} vidéo${n(recettes) > 1 ? 's' : ''}` : ''}.
+          </span>
         </a>
-        <a className="clay-big" href="#/chaine">
-          <span className="clay-big-ic">🎥</span>
-          <b>Chaîne</b>
-          <span>Vidéos racontées par un narrateur : histoires, tops, éducatif.</span>
-        </a>
+        <button className="clay-big" onClick={() => onOpenRepo(KEURCOOK_REPO)}>
+          <span className="clay-big-ic">📣</span>
+          <b>Publicité</b>
+          <span>
+            Des pubs pour faire connaître le site Keur Cook
+            {n(pub) ? ` — ${n(pub)} pub${n(pub) > 1 ? 's' : ''}` : ''}.
+          </span>
+        </button>
       </div>
     </div>
   );
@@ -317,7 +336,7 @@ function EnCoursPage() {
 
 const TITLES = {
   pub: 'Publicité',
-  autre: 'Autre',
+  keurcook: '🍲 Keur Cook',
   recettes: 'Recettes',
   chaine: 'Chaîne',
   encours: 'En cours',
@@ -376,6 +395,13 @@ export function Shell() {
   const openRepo = (fullName, kickoff = null) =>
     runCreation(kickoff || (() => api.adFromRepo(fullName)));
 
+  // Ancienne adresse « Autre » (liens déjà enregistrés) → Chaîne.
+  useEffect(() => {
+    if (route.page === 'autre') {
+      window.location.replace('#/chaine');
+    }
+  }, [route.page]);
+
   useEffect(() => {
     if (route.page === 'pub' && route.arg) {
       const full = route.arg.includes('/') ? route.arg : `teiki5320/${route.arg}`;
@@ -387,8 +413,8 @@ export function Shell() {
   const active =
     route.page === 'projet'
       ? sectionOfProject(project)
-      : ['recettes', 'chaine'].includes(route.page)
-        ? 'autre'
+      : ['recettes', 'keurcook'].includes(route.page)
+        ? 'pub'
         : route.page;
 
   let body;
@@ -401,7 +427,7 @@ export function Shell() {
           error={waiting.error}
           onBack={() => {
             setWaiting(null);
-            go(active === 'autre' ? 'autre' : 'pub');
+            go(active === 'chaine' ? 'chaine' : 'pub');
           }}
         />
       </>
@@ -411,16 +437,22 @@ export function Shell() {
       <ProjectView
         key={route.arg}
         projectId={route.arg}
-        onBack={() => go(sectionOfProject(project) === 'pub' ? 'pub' : project?.mode === 'recette' ? 'autre' : 'chaine')}
+        onBack={() =>
+          go(
+            project?.mode === 'recette' || String(project?.repo || '').toLowerCase() === KEURCOOK_REPO
+              ? 'keurcook'
+              : sectionOfProject(project),
+          )
+        }
       />
     );
   } else {
-    const back = route.page === 'recettes' || route.page === 'chaine' ? () => go('autre') : null;
+    const back = route.page === 'recettes' || route.page === 'keurcook' ? () => go(route.page === 'recettes' ? 'keurcook' : 'pub') : null;
     body = (
       <>
         <TopBar title={TITLES[route.page] || 'Publicité'} onBack={back} theme={theme} onTheme={toggleTheme} />
-        {route.page === 'autre' ? (
-          <AutrePage />
+        {route.page === 'keurcook' ? (
+          <KeurCookPage projects={projects} onOpenRepo={openRepo} />
         ) : route.page === 'recettes' ? (
           <RecettesEntry projects={projects} loaded={loaded} onCreate={runCreation} />
         ) : route.page === 'chaine' ? (
