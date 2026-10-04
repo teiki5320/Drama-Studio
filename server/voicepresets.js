@@ -33,6 +33,11 @@ export const VOICE_PRESETS = {
     narratorVoice: 'AfbuxQ9DVtS4azaxN1W7', // Léo
     voiceSettings: { stability: 0.38, similarity_boost: 0.8, style: 0.45, speed: 1.05 },
   },
+  // Pub Palabre : narrateur posé, sobre et sec, au vouvoiement.
+  'teiki5320/palabre': {
+    narratorVoice: 'aQROLel5sQbj1vuIVi6B', // Nicolas (narrateur parisien)
+    voiceSettings: { stability: 0.6, similarity_boost: 0.8, style: 0.2, speed: 0.98 },
+  },
   // Pub Kultiva : jeune et joyeuse, esprit kawaii, au tutoiement.
   'teiki5320/kultiva': {
     narratorVoice: 'FvmvwvObRqIHojkEGh5N', // Adina

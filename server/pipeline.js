@@ -45,6 +45,7 @@ import {
   buildOptiledAdPrompt,
   buildEreaAdPrompt,
   buildKultivaAdPrompt,
+  buildPalabreAdPrompt,
   KITCHEN_REFERENCE_PROMPT,
   RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
@@ -58,6 +59,7 @@ import { composeMusic } from './music.js';
 import { chargeLivres, logoKeurbook } from './keurbook.js';
 import { chargeCultures, optiledRepo } from './optiled.js';
 import { decorEpoque, iconeErea, evenementsCelebres, fichiersFrise } from './erea.js';
+import { cartesJouables, carteSerment, finsDuJeu, palais, fichiersPalabre, sonDeLaReponse, applique, JAUGES, palabreRepo } from './palabre.js';
 import { chargeEspeces, aSemer, tamassi, fondPastel, iconeKultiva, REGIONS, MOIS } from './kultiva.js';
 import { applyVoicePreset } from './voicepresets.js';
 import { generateImage, currentProvider } from './images.js';
@@ -555,7 +557,7 @@ async function generateEpisodeAssets(project, episode, update) {
   } else if (provider !== 'manual') {
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
-      if (scene.image) {
+      if (scene.image || dessineeParLeStudio(scene)) {
         continue;
       }
       update(`Épisode ${episode.number} — image ${i + 1}/${scenes.length}…`, i / scenes.length);
@@ -2252,6 +2254,317 @@ export async function createKultivaAd(project, { format = 'mois', region = 'fran
   return { number };
 }
 
+// ---------- Pub Palabre ----------
+export const PALABRE_FORMATS = {
+  question: '🤔 Et vous, que feriez-vous ?',
+  mandat: '⏱️ 100 jours en 30 secondes',
+  palais: '🏛️ Le palais',
+};
+
+export function palabreAdPlan(project) {
+  const state = project.paTour || { cartes: [] };
+  return {
+    formats: Object.entries(PALABRE_FORMATS).map(([id, label]) => ({ id, label })),
+    cartes: cartesJouables()
+      .filter((c) => !c.texte.includes('{nom}') && c.id !== carteSerment().id)
+      .map((c) => ({
+        id: c.id,
+        titre: c.titrePersonnage,
+        resume: (() => {
+          const t = c.texte.replaceAll('{titre}', 'Monsieur le Président');
+          return `${t.slice(0, 70)}${t.length > 70 ? '…' : ''}`;
+        })(),
+        gauche: c.gauche.libelle,
+        droite: c.droite.libelle,
+        fait: (state.cartes || []).includes(c.id),
+      })),
+  };
+}
+
+export async function createPalabreAd(project, { format = 'question', carte: carteId = '' } = {}, update) {
+  if (project.kind !== 'pub') {
+    throw new Error('Réservé à la campagne de pub Palabre.');
+  }
+  applyVoicePreset(project);
+  const fmt = PALABRE_FORMATS[format] ? format : 'question';
+  const state = project.paTour || (project.paTour = { cartes: [] });
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  const dir = assetsDir(project.id);
+  const copie = (src, nom) => {
+    if (!src) {
+      return null;
+    }
+    const dest = path.join(dir, nom);
+    if (!fs.existsSync(dest)) {
+      fs.copyFileSync(src, dest);
+    }
+    return nom;
+  };
+  const f = fichiersPalabre();
+  const fonts = {
+    titre: copie(f.fonts.titre, 'palabre-bricolage-extrabold.ttf'),
+    titreBold: copie(f.fonts.titreBold, 'palabre-bricolage-bold.ttf'),
+    corps: copie(f.fonts.corps, 'palabre-publicsans.ttf'),
+    corpsSemi: copie(f.fonts.corpsSemi, 'palabre-publicsans-semibold.ttf'),
+    corpsBold: copie(f.fonts.corpsBold, 'palabre-publicsans-bold.ttf'),
+  };
+  const son = (nom) => copie(f.sons[nom], `palabre-son-${nom}.mp3`);
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const melange = (l) => [...l].sort(() => Math.random() - 0.5);
+  // Le titre que les cartes donnent au joueur ({titre}).
+  const titreJoueur = Math.random() < 0.5 ? 'Monsieur le Président' : 'Madame la Présidente';
+  const habille = (t) => t.replaceAll('{titre}', titreJoueur);
+  const vueCarte = (c) => ({
+    portrait: copie(c.portrait, `palabre-${path.basename(c.portrait)}`),
+    titre: c.titrePersonnage,
+    texte: habille(c.texte),
+    gauche: { libelle: c.gauche.libelle, effets: c.gauche.effets || {}, style: c.gauche.style || 0 },
+    droite: { libelle: c.droite.libelle, effets: c.droite.effets || {}, style: c.droite.style || 0 },
+  });
+  const pool = cartesJouables().filter((c) => !c.texte.includes('{nom}') && c.id !== carteSerment().id);
+  const neuves = (l) => [...melange(l.filter((c) => !state.cartes.includes(c.id))), ...melange(l.filter((c) => state.cartes.includes(c.id)))];
+
+  // Les plans : chaque plan = un écran du jeu + la consigne de voix.
+  const plans = [];
+  const plan = (id, decrit, consigne, scene) => plans.push({ id, decrit, consigne, scene });
+  const SWIPE = 0.3; // début du geste dans un plan « on glisse »
+  const swipe = (base, cote) => ({
+    palabre: { ...base, geste: cote, debut: SWIPE },
+    durationSec: SWIPE + 1.76 + 0.5,
+    sfx: [{ file: son(sonDeLaReponse(base.carte[cote].effets)), at: SWIPE + 1.5 + 0.26 }],
+  });
+  let musique = f.musiqueBureau;
+  let cartesUtilisees = [];
+
+  if (fmt === 'question') {
+    const c = pool.find((x) => x.id === carteId) || neuves(pool)[0];
+    cartesUtilisees = [c.id];
+    // Une partie en cours, une jauge au bord : la décision pèse.
+    const jauges = { peuple: rnd(35, 65), armee: rnd(35, 65), caisses: rnd(35, 65), presse: rnd(35, 65) };
+    const touchee = Object.keys({ ...c.gauche.effets, ...c.droite.effets })[0] || 'peuple';
+    jauges[touchee] = Math.random() < 0.5 ? rnd(16, 22) : rnd(78, 84);
+    const jour = rnd(14, 78);
+    const base = { ecran: 'carte', jour, mandat: 1, style: rnd(40, 60), jauges, carte: vueCarte(c) };
+    const effetsTxt = (r) =>
+      Object.entries(r.effets || {})
+        .map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`)
+        .join(', ');
+    plan('carte', `la carte du jour ${jour} : « ${c.titrePersonnage} » dit « ${habille(c.texte)} »`, "accroche (vous êtes président), puis l'enjeu de la carte, 26 mots maximum", {
+      palabre: { ...base, geste: null },
+      durationSec: 4,
+    });
+    plan(
+      'question',
+      `le joueur hésite, la carte penche à gauche (« ${c.gauche.libelle} ») puis à droite (« ${c.droite.libelle} »)`,
+      `demande au spectateur ce qu'il ferait, cite les deux réponses, invite à répondre en commentaire, 20 mots maximum`,
+      { palabre: { ...base, geste: 'hesite', debut: 0.3 }, durationSec: 4.2 },
+    );
+    plan('gauche', `il glisse à gauche : « ${c.gauche.libelle} » (effets : ${effetsTxt(c.gauche)})`, 'très court, 6 mots maximum (ex. « Vous auditez. »)', swipe(base, 'gauche'));
+    plan(
+      'journal_gauche',
+      `la radio du lendemain : « ${c.gauche.journal} »`,
+      'la conséquence, sèche et ironique, inspirée du journal, 16 mots maximum',
+      { palabre: { ecran: 'quotidien', jour: jour + 1, ligne: c.gauche.journal }, durationSec: 3.5 },
+    );
+    plan('droite', `on rembobine, il glisse à droite : « ${c.droite.libelle} » (effets : ${effetsTxt(c.droite)})`, 'très court, 8 mots maximum (ex. « Ou bien… vous laissez faire. »)', swipe(base, 'droite'));
+    plan(
+      'journal_droite',
+      `la radio du lendemain : « ${c.droite.journal} »`,
+      'la conséquence, sèche et ironique, inspirée du journal, 16 mots maximum',
+      { palabre: { ecran: 'quotidien', jour: jour + 1, ligne: c.droite.journal }, durationSec: 3.5 },
+    );
+  } else if (fmt === 'mandat') {
+    // La fin d'abord : réélu, ou renversé par une jauge au bout.
+    const fins = finsDuJeu();
+    const reelu = Math.random() < 0.4;
+    let fin;
+    let derniere;
+    let coteFinal;
+    const choisies = neuves(pool);
+    if (!reelu) {
+      // Une carte dont une réponse pousse une jauge vers son bord.
+      for (const c of choisies) {
+        for (const cote of ['gauche', 'droite']) {
+          for (const [j, v] of Object.entries(c[cote].effets || {})) {
+            const ff = fins.find((x) => x.jauge === j && x.vers_le_haut === v > 0);
+            if (!fin && ff && Math.abs(v) >= 6) {
+              fin = ff;
+              derniere = c;
+              coteFinal = cote;
+            }
+          }
+        }
+        if (fin) {
+          break;
+        }
+      }
+    }
+    if (!fin) {
+      fin = fins.find((x) => x.id === 'election_gagnee');
+      derniere = choisies[0];
+      coteFinal = Math.random() < 0.5 ? 'gauche' : 'droite';
+    }
+    const jaugeFin = fin.jauge;
+    const milieu = choisies.filter((c) => c.id !== derniere.id && c.personnage !== derniere.personnage);
+    const vues = [];
+    for (const c of milieu) {
+      if (vues.length < 2 && !vues.some((v) => v.personnage === c.personnage)) {
+        vues.push(c);
+      }
+    }
+    const jours = fin.jauge ? [1, rnd(12, 20), rnd(30, 42), rnd(52, 66)] : [1, rnd(18, 30), rnd(44, 60), 99];
+    const serment = carteSerment();
+    const suite = [serment, ...vues, derniere];
+    cartesUtilisees = suite.slice(1).map((c) => c.id);
+    // Les jauges dérivent vers le bord fatal (ou restent tenues si réélu).
+    let jauges = { peuple: 50, armee: 50, caisses: 50, presse: 50 };
+    const bord = (fin.vers_le_haut ? 100 : 0);
+    const vEffet = jaugeFin ? derniere[coteFinal].effets[jaugeFin] : 0;
+    const avantFin = jaugeFin ? Math.max(0, Math.min(100, bord - vEffet)) : null;
+    suite.forEach((c, i) => {
+      const cote = i === suite.length - 1 ? coteFinal : Math.random() < 0.5 ? 'gauche' : 'droite';
+      if (i > 0) {
+        // Le temps passe entre deux cartes montrées.
+        const k = i / (suite.length - 1);
+        for (const j of JAUGES) {
+          jauges[j] = Math.max(8, Math.min(92, jauges[j] + rnd(-9, 9)));
+        }
+        if (jaugeFin) {
+          jauges[jaugeFin] = Math.round(50 + (avantFin - 50) * k);
+        }
+      }
+      const base = { ecran: 'carte', jour: jours[i], mandat: 1, style: 50, jauges: { ...jauges }, carte: vueCarte(c) };
+      plan(
+        `jour${jours[i]}`,
+        `jour ${jours[i]} : « ${c.titrePersonnage} » dit « ${habille(c.texte)} » ; le joueur répond « ${c[cote].libelle} »${i === suite.length - 1 && jaugeFin ? ` — et la jauge ${jaugeFin} touche le bord` : ''}`,
+        i === 0 ? 'accroche : un mandat entier en trente secondes, puis le serment, 16 mots maximum' : 'une phrase sèche sur ce jour-là, 12 mots maximum',
+        swipe(base, cote),
+      );
+      plans[plans.length - 1].scene.durationSec = SWIPE + 1.76 + 0.3;
+      jauges = applique(jauges, c[cote].effets);
+    });
+    const joursTenus = jaugeFin ? jours[jours.length - 1] : 100;
+    plan('fin', `l'écran de fin : « ${fin.titre} » — ${fin.texte} (tenu ${joursTenus} jours)`, 'le dénouement, sobre, 14 mots maximum', {
+      palabre: {
+        ecran: 'fin',
+        fin: { gagnee: !jaugeFin, titre: fin.titre, texte: fin.texte, image: copie(fin.image, `palabre-fin-${path.basename(fin.image)}`), jours: joursTenus },
+      },
+      durationSec: 4.5,
+      sfx: [{ file: son(jaugeFin ? 'battu' : 'reelu'), at: 0.2 }],
+    });
+  } else {
+    // Le palais : le balcon, puis trois pièces qui s'enrichissent.
+    const pieces = palais();
+    let caisses = rnd(58, 72);
+    const carteMur = copie(path.join(palabreRepo(), 'assets/images/palais/carte/jour.jpg'), 'palabre-carte-jour.jpg');
+    const imgs = (e, id) => e.images.map((src, k) => copie(src, `palabre-${id}-${path.basename(path.dirname(src))}-${path.basename(src)}`.replace(/-pieces-/, '-')));
+    const balcon = pieces.find((p) => p.id === 'balcon');
+    if (balcon) {
+      const e = balcon.etapes[0];
+      plan('balcon', `le balcon du palais, l'avenue en bas (« ${e.nom} »)`, "accroche : vous êtes président, et le palais s'achète avec l'argent de l'État, 18 mots maximum", {
+        palabre: {
+          ecran: 'palais',
+          piece: { id: 'balcon', nom: balcon.nom },
+          etapes: [{ nom: e.nom, images: imgs(e, 'balcon') }],
+          caisses,
+          resume: `${balcon.objets.length} objets · à partir de ${Math.min(...balcon.objets.map((o) => o.prix))}`,
+        },
+        durationSec: 4,
+      });
+    }
+    for (const id of ['bureau', 'garage', 'piscine']) {
+      const p = pieces.find((x) => x.id === id);
+      if (!p || p.etapes.length < 2) {
+        continue;
+      }
+      const o = melange(p.objets)[0];
+      const avant = p.etapes[0];
+      const apres = p.etapes[rnd(1, p.etapes.length - 1)];
+      plan(
+        id,
+        `${p.nom} : « ${avant.nom} », on achète « ${o.nom} » (${o.prix} points de caisses : « ${o.description} »), la pièce devient « ${apres.nom} »`,
+        "l'achat, avec l'ironie de la description, 18 mots maximum",
+        {
+          palabre: {
+            ecran: 'palais',
+            piece: { id, nom: p.nom },
+            etapes: [
+              { nom: avant.nom, images: imgs(avant, id) },
+              { nom: apres.nom, images: imgs(apres, id) },
+            ],
+            objet: { nom: o.nom, description: o.description, prix: o.prix },
+            caisses,
+            achat: 2.2,
+            carteMur: id === 'bureau' ? carteMur : null,
+          },
+          durationSec: 5,
+          sfx: [{ file: son('caisses'), at: 2.2 }],
+        },
+      );
+      caisses -= o.prix;
+    }
+  }
+
+  update('Voix off de la pub par Claude…');
+  const raw = await askClaudeForJson(buildPalabreAdPrompt({ format: fmt, plans }));
+  ensureUsage(project).claudeCalls += 1;
+  const voix = raw.voix || {};
+  const scenes = plans.map((p, i) => ({
+    id: `s${i + 1}`,
+    location: '',
+    screenshot: null,
+    characters: [],
+    image: null,
+    imageUrl: null,
+    kenBurns: 'zoom-in',
+    version: 0,
+    imagePrompt: '',
+    videoDisabled: true,
+    palabreFonts: fonts,
+    ...p.scene,
+    lines:
+      typeof voix[p.id] === 'string' && voix[p.id].trim()
+        ? [{ speaker: 'narrator', text: voix[p.id].trim().slice(0, 300), audio: null, audioDurationSec: null }]
+        : [],
+  }));
+  const episode = {
+    number,
+    title: String(raw.title || PALABRE_FORMATS[fmt]).slice(0, 120),
+    topic: PALABRE_FORMATS[fmt],
+    locations: {},
+    cliffhanger: '',
+    status: 'script',
+    renderedFile: null,
+    scenes,
+    cta: String(raw.cta || 'Cent jours. Tiendrez-vous ?').slice(0, 60),
+  };
+  if (musique) {
+    episode.musicFile = copie(musique, 'palabre-musique-bureau.mp3');
+    episode.musicVolume = fmt === 'palais' ? 0.5 : 0.28;
+  }
+  if (!project.ctaLogo && f.logo) {
+    project.ctaLogo = copie(f.logo, `palabre-logo${path.extname(f.logo)}`);
+  }
+  // Nuit et or, les couleurs du jeu.
+  project.ctaTheme = {
+    bg: 'radial-gradient(ellipse at 50% 0%, #241F2C 0%, #14131A 62%)',
+    ink: '#F6EFE4',
+    pill: '#E9B44C',
+    pillInk: '#14131A',
+    withName: true,
+  };
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  for (const id of cartesUtilisees) {
+    if (!state.cartes.includes(id)) {
+      state.cartes.push(id);
+    }
+  }
+  saveProject(project);
+  return { number };
+}
+
 export async function createChannelVideo(project, topic, update) {
   if (project.mode !== 'chaine') {
     throw new Error('Réservé aux chaînes.');
@@ -2446,6 +2759,10 @@ export async function ensureEpisodeScript(project, number, update) {
   return episode;
 }
 
+// Écrans dessinés par le studio lui-même (frise d'Erea, écrans de Palabre) :
+// aucune image à générer, donc aucun crédit dépensé.
+const dessineeParLeStudio = (scene) => Boolean(scene.frise || scene.palabre);
+
 export async function produceEpisode(project, number, update) {
   const episode = await ensureEpisodeScript(project, number, update);
   await generateEpisodeAssets(project, episode, update);
@@ -2469,7 +2786,7 @@ export async function retryFailedAssets(project, episode, update) {
   if (provider !== 'manual') {
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
-      if (scene.image && !scene.imageError) {
+      if ((scene.image && !scene.imageError) || dessineeParLeStudio(scene)) {
         continue;
       }
       update(`Image de la scène ${i + 1}…`);
@@ -2595,7 +2912,7 @@ export async function regenerateAllImages(project, episode, update) {
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
     // Recette : la photo du plat venue de Keur Cook est gratuite et fidèle — on la garde.
-    if (scene.fromSite && scene.image) {
+    if ((scene.fromSite && scene.image) || dessineeParLeStudio(scene)) {
       continue;
     }
     update(`Image ${i + 1}/${scenes.length}…`, i / scenes.length);

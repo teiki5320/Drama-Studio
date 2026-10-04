@@ -27,6 +27,8 @@ import {
   OPTILED_FORMATS,
   createKultivaAd,
   KULTIVA_FORMATS,
+  createPalabreAd,
+  PALABRE_FORMATS,
   createEreaAd,
   produceEpisode,
   retryFailedAssets,
@@ -144,6 +146,19 @@ export function addToQueue(raw) {
       culture,
       label: `Pub OptiLED — ${OPTILED_FORMATS[format].split(' — ')[0]}${raw.label ? `, ${String(raw.label).slice(0, 40)}` : ''}`,
     };
+  } else if (raw.kind === 'palabre') {
+    // Pub Palabre : la question, le mandat en accéléré, ou le palais.
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const format = PALABRE_FORMATS[raw.format] ? raw.format : 'question';
+    const carte = format === 'question' ? String(raw.carte || '').trim().slice(0, 80) : '';
+    item = {
+      kind: 'palabre',
+      format,
+      carte,
+      label: `Pub Palabre — ${PALABRE_FORMATS[format].replace(/^\S+\s/, '')}${raw.label ? `, ${String(raw.label).slice(0, 40)}` : ''}`,
+    };
   } else if (raw.kind === 'kultiva') {
     // Pub Kultiva : semis du mois, graine → assiette, famille, time-lapse.
     if (project.kind !== 'pub') {
@@ -224,6 +239,8 @@ async function produceItem(it, update) {
   const { number } =
     it.kind === 'erea'
       ? await createEreaAd(p, { personnage: it.personnage }, step('Script', 0, 0.05))
+      : it.kind === 'palabre'
+      ? await createPalabreAd(p, { format: it.format, carte: it.carte }, step('Script', 0, 0.05))
       : it.kind === 'kultiva'
       ? await createKultivaAd(p, { format: it.format, region: it.region, espece: it.espece }, step('Script', 0, 0.05))
       : it.kind === 'optiled'

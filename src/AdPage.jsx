@@ -451,6 +451,75 @@ function KultivaAdControls({ projectId, onQueued }) {
   );
 }
 
+// Palabre : les vrais écrans du jeu — une carte posée au spectateur, un
+// mandat en accéléré, ou le palais qui s'achète pièce par pièce.
+const PALABRE_AIDE = {
+  question: 'Une vraie carte du jeu : le joueur hésite, « Et vous ? », puis ce que donne chaque réponse (la radio du lendemain).',
+  mandat: 'Un mandat entier en accéléré : le serment, trois jours, puis la fin — réélu ou renversé.',
+  palais: 'Le balcon, puis le bureau, la cour et la piscine qui s’enrichissent à chaque achat. Musique du jeu.',
+};
+function PalabreAdControls({ projectId, onQueued }) {
+  const [plan, setPlan] = useState(null);
+  const [format, setFormat] = useState('question');
+  const [carte, setCarte] = useState('');
+  const [error, setError] = useState('');
+  const load = () =>
+    api
+      .palabrePlan(projectId)
+      .then(setPlan)
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, [projectId]);
+  const choisie = (plan?.cartes || []).find((c) => c.id === carte);
+  return (
+    <div className="clay-block">
+      <h3>🃏 Nouvelle pub Palabre</h3>
+      {!plan && !error && <p className="clay-muted small">Chargement des cartes…</p>}
+      {plan && (
+        <>
+          <select className="rp-input" value={format} onChange={(e) => setFormat(e.target.value)}>
+            {plan.formats.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          {format === 'question' && (
+            <select className="rp-input" value={carte} onChange={(e) => setCarte(e.target.value)}>
+              <option value="">Une carte au hasard</option>
+              {plan.cartes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.fait ? '✓ ' : ''}
+                  {c.titre} — {c.gauche} / {c.droite}
+                </option>
+              ))}
+            </select>
+          )}
+          {format === 'question' && choisie && <p className="clay-muted small">« {choisie.resume} »</p>}
+          <p className="clay-muted small">{PALABRE_AIDE[format]} Aucune image générée : presque gratuit.</p>
+          <button
+            className="clay-btn rp-generate"
+            onClick={() =>
+              api
+                .addToQueue({ kind: 'palabre', projectId, format, carte: format === 'question' ? carte : '', label: choisie ? choisie.titre : '' })
+                .then(() => {
+                  setCarte('');
+                  onQueued();
+                  return load();
+                })
+                .catch((e) => setError(e.message))
+            }
+          >
+            🎬 Générer la pub
+          </button>
+        </>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
 // Erea : l'anachronisme — un personnage projeté dans une mauvaise époque.
 function EreaAdControls({ projectId, project, onQueued }) {
   const [personnage, setPersonnage] = useState('');
@@ -556,7 +625,7 @@ export function AdPage({ projectId, onAdvanced }) {
     if (
       project &&
       project.kind === 'pub' &&
-      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook', 'teiki5320/optiled', 'teiki5320/erea', 'teiki5320/kultiva'].includes(
+      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook', 'teiki5320/optiled', 'teiki5320/erea', 'teiki5320/kultiva', 'teiki5320/palabre'].includes(
         String(project.repo || '').toLowerCase(),
       ) &&
       !(project.episodes || []).length &&
@@ -579,6 +648,7 @@ export function AdPage({ projectId, onAdvanced }) {
   const isOptiled = repoKey === 'teiki5320/optiled';
   const isErea = repoKey === 'teiki5320/erea';
   const isKultiva = repoKey === 'teiki5320/kultiva';
+  const isPalabre = repoKey === 'teiki5320/palabre';
   const episodes = [...(project.episodes || [])].sort((a, b) => b.number - a.number);
   const shown =
     episodes.find((e) => e.number === selected) || episodes.find((e) => e.renderedFile) || episodes[0] || null;
@@ -639,7 +709,7 @@ export function AdPage({ projectId, onAdvanced }) {
               api.queue().then((list) => setQueue(list.filter((it) => it.projectId === projectId)))
             }
           />
-        ) : isKeurCook || isKeurDeco || isKeurbook || isOptiled || isKultiva ? (
+        ) : isKeurCook || isKeurDeco || isKeurbook || isOptiled || isKultiva || isPalabre ? (
           (() => {
             const Controls = isKeurCook
               ? KeurCookAdControls
@@ -649,7 +719,9 @@ export function AdPage({ projectId, onAdvanced }) {
                   ? KeurbookAdControls
                   : isOptiled
                     ? OptiledAdControls
-                    : KultivaAdControls;
+                    : isKultiva
+                      ? KultivaAdControls
+                      : PalabreAdControls;
             return (
               <Controls
                 projectId={projectId}

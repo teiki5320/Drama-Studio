@@ -11,6 +11,7 @@ import {
 } from 'remotion';
 import { SafeImg } from './SafeImg.jsx';
 import { EreaFrise, EreaQuestion } from './EreaFrise.jsx';
+import { PalabreJeu } from './PalabreJeu.jsx';
 import { FPS, SHOT_AUDIO_DELAY, sceneFrames, lineOffsets, shotOffsets, shotDurations } from './timing.js';
 
 const KEN_BURNS = {
@@ -73,6 +74,19 @@ const ereaAssets = (o, base) => ({
     ? { baloo: `${base}/${o.fonts.baloo}`, nunito: `${base}/${o.fonts.nunito}`, nunitoBlack: `${base}/${o.fonts.nunitoBlack}` }
     : null,
 });
+
+// Pub Palabre : fichiers du jeu copiés dans le projet → adresses complètes.
+const palabreUrls = (jeu, base) => {
+  const u = (f) => (f ? `${base}/${f}` : null);
+  return {
+    ...jeu,
+    carte: jeu.carte ? { ...jeu.carte, portrait: u(jeu.carte.portrait) } : undefined,
+    fin: jeu.fin ? { ...jeu.fin, image: u(jeu.fin.image) } : undefined,
+    etapes: (jeu.etapes || []).map((e) => ({ ...e, images: (e.images || []).map(u) })),
+    carteMur: u(jeu.carteMur),
+  };
+};
+const palabreFonts = (f, base) => (f ? Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v ? `${base}/${v}` : null])) : null);
 
 // Illustration détourée de l'appli (légume, Tamassi…) posée sur le fond,
 // avec un léger rebond kawaii.
@@ -381,6 +395,27 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
         extrapolateRight: 'clamp',
       })
     : 0;
+
+  // Pub Palabre : un écran du jeu, avec ses sons.
+  if (scene.palabre) {
+    return (
+      <AbsoluteFill>
+        <PalabreJeu jeu={palabreUrls(scene.palabre, assetBase)} fonts={palabreFonts(scene.palabreFonts, assetBase)} />
+        {(scene.sfx || []).map((x, i) => (
+          <Sequence key={`sfx-${i}`} from={Math.round((x.at || 0) * fps)} layout="none">
+            <Audio src={`${assetBase}/${x.file}`} volume={x.volume ?? 0.8} />
+          </Sequence>
+        ))}
+        {lines.map((line, i) =>
+          line.audio ? (
+            <Sequence key={`pa-${i}`} from={offsets[i]} layout="none">
+              <Audio src={`${assetBase}/${line.audio}`} />
+            </Sequence>
+          ) : null,
+        )}
+      </AbsoluteFill>
+    );
+  }
 
   // Pub Erea : la frise du jeu qui défile jusqu'à la (mauvaise) époque.
   if (scene.frise) {

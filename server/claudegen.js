@@ -1280,3 +1280,30 @@ ${voix}
 ${json(`[5 plans dans l'ordre : {"kind": "graine | pousse | plante | recolte | assiette", "badge": "texte très court à l'écran, 4 mots maximum", "lines": [{"speaker": "narrator", "text": "phrase courte, 14 mots maximum, avec un conseil tiré de la fiche"}], "imagePrompt": "EN ANGLAIS : ce stade du ${e ? e.nom.toLowerCase() : 'légume'}, terminé par : ${KULTIVA_STYLE}"}]`)}
 ${regles}`;
 }
+
+// ---------- Pub Palabre (jeu de cartes « Président pour 100 jours ») ----------
+// Le studio monte les vrais écrans du jeu ; Claude n'écrit que la voix off,
+// une phrase par plan, et le carton final.
+export function buildPalabreAdPrompt({ format, plans, seconds = 30 }) {
+  const jeu = `Palabre — « Président pour 100 jours » : un jeu de cartes à glisser façon Reigns. On est président d'un pays d'Afrique de l'Ouest IMAGINAIRE ; chaque jour une carte, on glisse à gauche ou à droite ; quatre jauges (peuple, armée, caisses, presse) tuent à 0 comme à 100 ; élection au jour 100. Rien de réel n'y est nommé.`;
+  const voix = `VOIX : narrateur posé, sobre, sec, un peu ironique ; il VOUVOIE le spectateur (« vous êtes président ») ; phrases courtes, à dire à voix haute. Pas de caricature, pas de folklore, pas d'emoji.`;
+  const regles = `RÈGLES : aucune phrase de vente (ni « disponible », ni « télécharge », ni prix) ; n'invente aucun pays, ville, monnaie ou personne réels ; respecte les faits fournis (cartes, effets, journal) ; jamais de romance.`;
+  const titre = {
+    question: '« ET VOUS, QUE FERIEZ-VOUS ? » : une vraie carte posée au spectateur, puis ce que donne chaque réponse',
+    mandat: '« 100 JOURS EN 30 SECONDES » : un mandat entier en accéléré, jusqu\'à la fin',
+    palais: '« LE PALAIS » : on achète le palais pièce par pièce avec l\'argent de l\'État',
+  }[format];
+  return `Tu écris la voix off d'une pub TikTok verticale de ${seconds} secondes environ pour ${jeu}
+FORMAT : ${titre}.
+${voix}
+LES PLANS (montés par le studio avec les vrais écrans du jeu) :
+${plans.map((p) => `- ${p.id} : ${p.decrit} → ${p.consigne}`).join('\n')}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "title": "titre court (usage interne)",
+  "cta": "phrase du carton final, 6 mots maximum, qui donne envie de jouer (ex. « Cent jours. Tiendrez-vous ? »)",
+  "voix": {${plans.map((p) => `"${p.id}": "…"`).join(', ')}}
+}
+${regles}`;
+}
