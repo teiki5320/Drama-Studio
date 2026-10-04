@@ -10,6 +10,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { SafeImg } from './SafeImg.jsx';
+import { EreaFrise, EreaQuestion } from './EreaFrise.jsx';
 import { FPS, SHOT_AUDIO_DELAY, sceneFrames, lineOffsets, shotOffsets, shotDurations } from './timing.js';
 
 const KEN_BURNS = {
@@ -62,6 +63,16 @@ const SceneBadge = ({ text }) => {
     </AbsoluteFill>
   );
 };
+
+// Pub Erea : fichiers de l'appli (décors, personnages, polices) copiés dans
+// le projet → adresses complètes.
+const ereaAssets = (o, base) => ({
+  bg: (o.bg || []).map((f) => (f ? `${base}/${f}` : null)),
+  anim: (o.anim || []).map((f) => (f ? `${base}/${f}` : null)),
+  fonts: o.fonts
+    ? { baloo: `${base}/${o.fonts.baloo}`, nunito: `${base}/${o.fonts.nunito}`, nunitoBlack: `${base}/${o.fonts.nunitoBlack}` }
+    : null,
+});
 
 // Pub « chiffres » (OptiLED) : un vrai chiffre du site, en très grand, qui
 // compte jusqu'à sa valeur (« 25 W »), et ce qu'il veut dire dessous.
@@ -354,6 +365,22 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
       })
     : 0;
 
+  // Pub Erea : la frise du jeu qui défile jusqu'à la (mauvaise) époque.
+  if (scene.frise) {
+    return (
+      <AbsoluteFill>
+        <EreaFrise depart={scene.frise.depart} arrivee={scene.frise.arrivee} assets={ereaAssets(scene.frise, assetBase)} />
+        {lines.map((line, i) =>
+          line.audio ? (
+            <Sequence key={`fa-${i}`} from={offsets[i]} layout="none">
+              <Audio src={`${assetBase}/${line.audio}`} />
+            </Sequence>
+          ) : null,
+        )}
+      </AbsoluteFill>
+    );
+  }
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#0c0a08', overflow: 'hidden' }}>
       {scene.video ? (
@@ -403,6 +430,9 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
 
       {/* Pub : incrustation qui situe le plan (lieu, année) */}
       {scene.stat && scene.stat.valeur ? <StatOverlay valeur={scene.stat.valeur} label={scene.stat.label} /> : null}
+      {scene.question ? (
+        <EreaQuestion titre={scene.question.titre} texte={scene.question.texte} fonts={ereaAssets(scene.question, assetBase).fonts} />
+      ) : null}
       {scene.badge ? (
         scene.badgeStyle === 'doux' ? <SoftCaption text={scene.badge} /> : <SceneBadge text={scene.badge} />
       ) : null}

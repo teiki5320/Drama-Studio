@@ -43,6 +43,7 @@ import {
   buildKeurDecoAdPrompt,
   buildKeurbookAdPrompt,
   buildOptiledAdPrompt,
+  buildEreaAdPrompt,
   KITCHEN_REFERENCE_PROMPT,
   RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
@@ -55,6 +56,7 @@ import { chargeArticles, logoKeurDeco, VUES } from './keurdeco.js';
 import { composeMusic } from './music.js';
 import { chargeLivres, logoKeurbook } from './keurbook.js';
 import { chargeCultures, optiledRepo } from './optiled.js';
+import { decorEpoque, iconeErea, evenementsCelebres, fichiersFrise } from './erea.js';
 import { applyVoicePreset } from './voicepresets.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -1929,6 +1931,142 @@ export async function createOptiledAd(project, { format = 'calcul', culture = ''
   if (state.done.length >= cultures.length) {
     state.done = [];
   }
+  saveProject(project);
+  return { number };
+}
+
+// ---------- Pub Erea : l'anachronisme ----------
+export function ereaAdPlan(project) {
+  const deja = (project.ereaTour && project.ereaTour.deja) || [];
+  return { deja };
+}
+
+export async function createEreaAd(project, { personnage = '' } = {}, update) {
+  if (project.kind !== 'pub') {
+    throw new Error('Réservé à la campagne de pub Erea.');
+  }
+  applyVoicePreset(project);
+  const state = project.ereaTour || (project.ereaTour = { deja: [] });
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  const dir = assetsDir(project.id);
+
+  update('Claude imagine l’anachronisme…');
+  const raw = await askClaudeForJson(
+    buildEreaAdPrompt({ personnage: String(personnage || '').trim(), deja: state.deja.slice(-30), idees: evenementsCelebres(40) }),
+  );
+  ensureUsage(project).claudeCalls += 1;
+  const an = (v, d) => (Number.isFinite(Number(v)) ? Math.max(-3000, Math.min(2026, Math.round(Number(v)))) : d);
+  const anneePerso = an(raw.anneePersonnage, 1805);
+  let anneeFrise = an(raw.anneeFrise, -52);
+  if (Math.abs(anneeFrise - anneePerso) < 300) {
+    anneeFrise = anneePerso > 0 ? -52 : 1900; // une vraie mauvaise époque
+  }
+  const nom = String(raw.personnage || personnage || 'Napoléon Bonaparte').slice(0, 60);
+  const visuel = String(raw.visuel || '').trim();
+  const line = (t) => (t ? [{ speaker: 'narrator', text: String(t).trim().slice(0, 200), audio: null, audioDurationSec: null }] : []);
+
+  // Décor de l'époque du personnage (appli Erea) pour l'intro et la question.
+  const decor = decorEpoque(anneePerso);
+  let decorFile = null;
+  if (decor) {
+    decorFile = `e${number}_decor${path.extname(decor)}`;
+    fs.copyFileSync(decor, path.join(dir, decorFile));
+  }
+  const base = (i, extra) => ({
+    id: `s${i + 1}`,
+    location: '',
+    screenshot: null,
+    characters: [],
+    image: null,
+    imageUrl: null,
+    kenBurns: 'zoom-in',
+    durationSec: 5,
+    version: 0,
+    imagePrompt: '',
+    lines: [],
+    ...extra,
+  });
+  const decorScene = decorFile ? { image: decorFile, fromSite: true, videoDisabled: true } : {};
+  // Les images et polices de l'appli, copiées une fois dans le projet : la
+  // frise de la pub est dessinée exactement comme dans le jeu.
+  const src = fichiersFrise();
+  const copie = (p, nom) => {
+    if (!p) {
+      return null;
+    }
+    const dest = path.join(dir, nom);
+    if (!fs.existsSync(dest)) {
+      fs.copyFileSync(p, dest);
+    }
+    return nom;
+  };
+  const friseAssets = {
+    bg: src.bg.map((p, i) => copie(p, `erea-bg-${i}.webp`)),
+    anim: src.anim.map((p, i) => copie(p, `erea-anim-${i}.webp`)),
+    fonts: {
+      baloo: copie(src.fonts.baloo, 'erea-baloo2.ttf'),
+      nunito: copie(src.fonts.nunito, 'erea-nunito.ttf'),
+      nunitoBlack: copie(src.fonts.nunitoBlack, 'erea-nunito-black.ttf'),
+    },
+  };
+  const scenes = [
+    base(0, { ...decorScene, badge: 'Erea', lines: line(raw.intro) }),
+    base(1, {
+      ...decorScene,
+      kenBurns: 'zoom-out',
+      question: { titre: nom, texte: String(raw.questionCarte || 'À quelle époque a-t-il vécu ?').slice(0, 60), fonts: friseAssets.fonts },
+      lines: line(raw.question),
+    }),
+    base(2, {
+      frise: { depart: anneePerso, arrivee: anneeFrise, ...friseAssets },
+      lines: line(raw.frise),
+      durationSec: 5,
+      fixedDuration: true,
+      videoDisabled: true,
+    }),
+    base(3, {
+      imagePrompt: `${String(raw.scene?.imagePrompt || '').trim()} The main character: ${visuel}`,
+      motionPrompt: String(raw.scene?.motionPrompt || '').trim().slice(0, 300),
+      clip: true,
+      fixedDuration: true,
+      durationSec: 6,
+      badge: String(raw.epoqueFrise || '').slice(0, 40) || null,
+    }),
+    base(4, {
+      imagePrompt: `${String(raw.reaction?.imagePrompt || '').trim()} The character: ${visuel}`,
+      kenBurns: 'zoom-in',
+      videoDisabled: true,
+      lines: line(raw.reaction?.accroche),
+    }),
+  ];
+  const episode = {
+    number,
+    title: String(raw.title || `${nom} — mauvaise époque`).slice(0, 120),
+    topic: `Anachronisme — ${nom} dans ${String(raw.epoqueFrise || anneeFrise)}`,
+    locations: {},
+    cliffhanger: '',
+    status: 'script',
+    renderedFile: null,
+    scenes,
+    cta: String(raw.cta || 'Joue gratuitement à Erea').slice(0, 60),
+  };
+  const icone = iconeErea();
+  if (icone && !project.ctaLogo) {
+    project.ctaLogo = `erea-icone${path.extname(icone)}`;
+    fs.copyFileSync(icone, path.join(dir, project.ctaLogo));
+  }
+  // Couleurs du jeu : parchemin et ocre de l'âge du bronze.
+  project.ctaTheme = {
+    bg: 'radial-gradient(ellipse at 50% 40%, #fff8e8 0%, #f2e2bf 80%)',
+    ink: '#2b2118',
+    pill: '#a97b36',
+    pillInk: '#ffffff',
+    withName: true,
+  };
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  state.deja.push(nom);
   saveProject(project);
   return { number };
 }

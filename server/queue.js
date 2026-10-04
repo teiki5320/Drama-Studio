@@ -25,6 +25,7 @@ import {
   createKeurbookAd,
   createOptiledAd,
   OPTILED_FORMATS,
+  createEreaAd,
   produceEpisode,
   retryFailedAssets,
 } from './pipeline.js';
@@ -141,6 +142,13 @@ export function addToQueue(raw) {
       culture,
       label: `Pub OptiLED — ${OPTILED_FORMATS[format].split(' — ')[0]}${raw.label ? `, ${String(raw.label).slice(0, 40)}` : ''}`,
     };
+  } else if (raw.kind === 'erea') {
+    // Pub Erea : l'anachronisme (personnage imposé ou choisi par Claude).
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const personnage = String(raw.personnage || '').trim().slice(0, 60);
+    item = { kind: 'erea', personnage, label: `Pub Erea — ${personnage || 'anachronisme surprise'}` };
   } else if (raw.kind === 'recette') {
     if (project.mode !== 'recette') {
       throw new Error('Ce projet n’est pas un atelier de recettes.');
@@ -197,7 +205,9 @@ async function produceItem(it, update) {
 
   // 1. Script
   const { number } =
-    it.kind === 'optiled'
+    it.kind === 'erea'
+      ? await createEreaAd(p, { personnage: it.personnage }, step('Script', 0, 0.05))
+      : it.kind === 'optiled'
       ? await createOptiledAd(p, { format: it.format, culture: it.culture }, step('Script', 0, 0.05))
       : it.kind === 'keurbook'
       ? await createKeurbookAd(p, { livre: it.livre }, step('Script', 0, 0.05))

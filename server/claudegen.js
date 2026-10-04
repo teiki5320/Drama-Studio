@@ -1177,3 +1177,45 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 - Total des narrations ≈ ${Math.round(seconds * 2.4)} mots.
 ${regles}`;
 }
+
+// ---------- Pub Erea : l'anachronisme ----------
+// Une question sur un personnage célèbre, la frise du jeu qui s'emballe et se
+// pose sur une MAUVAISE époque, et la scène qui en découle : le personnage
+// projeté dans cette époque (ex. Napoléon stupéfait devant son armée voit les
+// légions de César courir vers lui). Puis une accroche, et l'outro.
+export function buildEreaAdPrompt({ personnage = '', deja = [], idees = [] }) {
+  return `Tu imagines une pub TikTok pour Erea, le jeu d'histoire où l'on place des événements sur une frise de -3000 à aujourd'hui (appli gratuite). Le ressort de la pub : L'ANACHRONISME, drôle et spectaculaire.
+
+DÉROULÉ (déjà monté par le studio, tu fournis le contenu) :
+1. intro — une phrase d'accroche courte.
+2. question — on présente un personnage historique très connu et on demande à quelle époque il a vécu.
+3. frise — la frise du jeu s'emballe et se pose sur une MAUVAISE époque, très éloignée (au moins 300 ans d'écart).
+4. scène — le personnage est projeté dans cette époque : une image spectaculaire et drôle, animée en clip (ex. « Napoléon, stupéfait devant son armée, voit les légions de Jules César courir vers lui »).
+5. réaction — gros plan sur le personnage, stupéfait ; la phrase d'accroche qui invite à jouer.
+6. outro — carton final avec le logo.
+
+${personnage ? `PERSONNAGE IMPOSÉ : ${personnage}` : 'Choisis toi-même un personnage TRÈS connu en France (empereur, reine, inventeur, explorateur, artiste…).'}
+${deja.length ? `PERSONNAGES DÉJÀ UTILISÉS (à éviter) : ${deja.join(', ')}` : ''}
+Pour t'inspirer, quelques événements du jeu : ${idees.join(' ; ')}
+
+VOIX : dynamique et amusée, elle TUTOIE le spectateur. Phrases courtes.
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "title": "titre court (usage interne)",
+  "personnage": "son nom tel qu'on l'affiche (ex. « Napoléon Bonaparte »)",
+  "anneePersonnage": année emblématique de sa vie (entier, négatif avant J.-C.),
+  "visuel": "EN ANGLAIS : description physique très précise et STABLE du personnage (visage, coiffure, costume d'époque), réutilisée dans les deux images",
+  "anneeFrise": l'année (entier) où la frise se pose — une époque très éloignée et reconnaissable,
+  "epoqueFrise": "cette époque en quelques mots (ex. « la Rome de Jules César »)",
+  "intro": "phrase d'intro, 10 mots maximum",
+  "question": "la question dite à voix haute, 14 mots maximum",
+  "questionCarte": "la question écrite sur la carte, 8 mots maximum (ex. « À quelle époque a-t-il vécu ? »)",
+  "frise": "phrase courte pendant que la frise s'emballe (ex. « Oups… la frise s'emballe ! »), 8 mots maximum",
+  "scene": {"imagePrompt": "EN ANGLAIS : la scène anachronique, plan large spectaculaire et drôle, photo réaliste cinématographique, vertical 9:16, no text, no logo, no watermark", "motionPrompt": "EN ANGLAIS : le mouvement du clip (ex. « Roman legionaries charging toward the camera, Napoleon turning in shock, dust rising »)"},
+  "reaction": {"imagePrompt": "EN ANGLAIS : gros plan sur le personnage, stupéfait, dans cette époque, photo réaliste, vertical 9:16, no text", "accroche": "la phrase d'accroche finale, 16 mots maximum, qui invite à remettre chaque héros à la bonne époque dans Erea"},
+  "cta": "phrase du carton final, 8 mots maximum (ex. « Joue gratuitement à Erea »)"
+}
+
+CONTRAINTES : rien de choquant ni de violent (pas de sang, pas d'armes qui blessent) — c'est drôle et bon enfant. Aucune phrase de vente : on invite à jouer (l'appli est gratuite).`;
+}

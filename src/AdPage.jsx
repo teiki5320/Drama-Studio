@@ -355,6 +355,44 @@ function OptiledAdControls({ projectId, onQueued }) {
   );
 }
 
+// Erea : l'anachronisme — un personnage projeté dans une mauvaise époque.
+function EreaAdControls({ projectId, project, onQueued }) {
+  const [personnage, setPersonnage] = useState('');
+  const [error, setError] = useState('');
+  const deja = (project.ereaTour && project.ereaTour.deja) || [];
+  return (
+    <div className="clay-block">
+      <h3>⏳ Nouvelle pub Erea — l'anachronisme</h3>
+      <p className="clay-muted small">
+        Intro, la question sur un personnage, la frise du jeu qui s'emballe et se pose sur une mauvaise
+        époque, la scène qui en découle (en clip), l'accroche, l'outro. Voix de Léo, au « tu ».
+      </p>
+      <input
+        className="rp-input"
+        value={personnage}
+        placeholder="Personnage (facultatif) — sinon Claude en choisit un nouveau"
+        onChange={(e) => setPersonnage(e.target.value)}
+      />
+      {deja.length > 0 && <p className="clay-muted small">Déjà faits : {deja.join(', ')}</p>}
+      <button
+        className="clay-btn rp-generate"
+        onClick={() =>
+          api
+            .addToQueue({ kind: 'erea', projectId, personnage })
+            .then(() => {
+              setPersonnage('');
+              onQueued();
+            })
+            .catch((e) => setError(e.message))
+        }
+      >
+        🎬 Générer la pub
+      </button>
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
 export function AdPage({ projectId, onAdvanced }) {
   const [project, setProject] = useState(null);
   const [studio, setStudio] = useState(null);
@@ -422,7 +460,7 @@ export function AdPage({ projectId, onAdvanced }) {
     if (
       project &&
       project.kind === 'pub' &&
-      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook', 'teiki5320/optiled'].includes(
+      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook', 'teiki5320/optiled', 'teiki5320/erea'].includes(
         String(project.repo || '').toLowerCase(),
       ) &&
       !(project.episodes || []).length &&
@@ -443,6 +481,7 @@ export function AdPage({ projectId, onAdvanced }) {
   const isKeurDeco = repoKey === 'teiki5320/keurdeco';
   const isKeurbook = repoKey === 'teiki5320/keurbook';
   const isOptiled = repoKey === 'teiki5320/optiled';
+  const isErea = repoKey === 'teiki5320/erea';
   const episodes = [...(project.episodes || [])].sort((a, b) => b.number - a.number);
   const shown =
     episodes.find((e) => e.number === selected) || episodes.find((e) => e.renderedFile) || episodes[0] || null;
@@ -495,7 +534,15 @@ export function AdPage({ projectId, onAdvanced }) {
           <Credits />
         </div>
 
-        {isKeurCook || isKeurDeco || isKeurbook || isOptiled ? (
+        {isErea ? (
+          <EreaAdControls
+            projectId={projectId}
+            project={project}
+            onQueued={() =>
+              api.queue().then((list) => setQueue(list.filter((it) => it.projectId === projectId)))
+            }
+          />
+        ) : isKeurCook || isKeurDeco || isKeurbook || isOptiled ? (
           (() => {
             const Controls = isKeurCook
               ? KeurCookAdControls

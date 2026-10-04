@@ -1494,6 +1494,16 @@ app.get('/api/jobs/:id', (req, res) => {
 });
 
 // ---------- Fichiers des projets (images, voix, rendus) ----------
+// Polices d'un projet (pubs Erea : Baloo 2, Nunito) : le moteur de rendu les
+// charge depuis une autre origine (son propre serveur local) — on l'autorise
+// pour les fichiers de polices SEULEMENT, jamais pour les images ou vidéos.
+app.use('/files', (req, res, next) => {
+  if (/\.(ttf|otf|woff2?)$/i.test(req.path)) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  next();
+});
+
 app.get('/files/:id/*', (req, res) => {
   let dir;
   try {
