@@ -1213,9 +1213,10 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
   "questionCarte": "la question écrite sur la carte, 8 mots maximum (ex. « À quelle époque a-t-il vécu ? »)",
   "frise": "phrase courte pendant que la frise s'emballe (ex. « Oups… la frise s'emballe ! »), 8 mots maximum",
   "scene": {"imagePrompt": "EN ANGLAIS : la scène anachronique, plan large spectaculaire et drôle, photo réaliste cinématographique, vertical 9:16, no text, no logo, no watermark", "motionPrompt": "EN ANGLAIS : le mouvement du clip (ex. « Roman legionaries charging toward the camera, Napoleon turning in shock, dust rising »)"},
-  "reaction": {"imagePrompt": "EN ANGLAIS : gros plan sur le personnage, stupéfait, dans cette époque, photo réaliste, vertical 9:16, no text", "accroche": "la phrase d'accroche finale, 16 mots maximum, qui invite à remettre chaque héros à la bonne époque dans Erea"},
+  "reaction": {"imagePrompt": "EN ANGLAIS : gros plan sur le personnage, stupéfait, dans cette époque, photo réaliste, vertical 9:16, no text", "accroche": "la phrase d'accroche finale, 16 mots maximum, qui invite à remettre l'histoire dans le bon ordre avec Erea (ex. « Le Roi-Soleil chez les pharaons ? Remets chaque événement à sa place sur la frise d'Erea ! »)"},
   "cta": "phrase du carton final, 8 mots maximum (ex. « Joue gratuitement à Erea »)"
 }
 
-CONTRAINTES : rien de choquant ni de violent (pas de sang, pas d'armes qui blessent) — c'est drôle et bon enfant. Aucune phrase de vente : on invite à jouer (l'appli est gratuite).`;
+CONTRAINTES : rien de choquant ni de violent (pas de sang, pas d'armes qui blessent) — c'est drôle et bon enfant. Aucune phrase de vente : on invite à jouer (l'appli est gratuite).
+Erea fait placer des ÉVÉNEMENTS sur une frise (inventions, batailles, découvertes, règnes…), pas seulement des personnages : n'emploie JAMAIS le mot « héros » ; parle d'événements, d'histoire, de dates, d'époques.`;
 }
