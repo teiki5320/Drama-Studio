@@ -12,6 +12,7 @@ import {
 import { SafeImg } from './SafeImg.jsx';
 import { EreaFrise, EreaQuestion } from './EreaFrise.jsx';
 import { PalabreJeu } from './PalabreJeu.jsx';
+import { Clip, mouvementImage } from './Clip.jsx';
 import { FPS, SHOT_AUDIO_DELAY, sceneFrames, lineOffsets, shotOffsets, shotDurations } from './timing.js';
 
 const KEN_BURNS = {
@@ -74,28 +75,6 @@ const ereaAssets = (o, base) => ({
     ? { baloo: `${base}/${o.fonts.baloo}`, nunito: `${base}/${o.fonts.nunito}`, nunitoBlack: `${base}/${o.fonts.nunitoBlack}` }
     : null,
 });
-
-// Clip vidéo (muet). Plus court que son plan, il est ralenti jusqu'à moitié
-// vitesse pour le couvrir, et un lent zoom continue de le faire vivre :
-// l'image ne s'arrête plus net en attendant la fin de la voix.
-const Clip = ({ src, clipSec, planFrames }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const planSec = planFrames / fps;
-  const rate = clipSec && clipSec < planSec ? Math.max(0.5, clipSec / planSec) : 1;
-  const zoom = interpolate(frame, [0, Math.max(1, planFrames)], [1, 1.08], { extrapolateRight: 'clamp' });
-  return (
-    <AbsoluteFill style={{ transform: `scale(${zoom})` }}>
-      <OffthreadVideo
-        src={src}
-        muted
-        pauseWhenBuffering
-        playbackRate={rate}
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
-    </AbsoluteFill>
-  );
-};
 
 // Pub Palabre : fichiers du jeu copiés dans le projet → adresses complètes.
 const palabreUrls = (jeu, base) => {
@@ -204,7 +183,7 @@ const SoftCaption = ({ text }) => {
 };
 
 // Image fixe d'un plan : zoom lent 1,00 → 1,06 sur la durée du plan.
-const ShotStill = ({ src, durationInFrames }) => {
+const ShotStill = ({ src, durationInFrames, index = 0 }) => {
   const frame = useCurrentFrame();
   const p = Math.min(1, frame / Math.max(1, durationInFrames));
   return (
@@ -214,7 +193,7 @@ const ShotStill = ({ src, durationInFrames }) => {
         width: '100%',
         height: '100%',
         objectFit: 'cover',
-        transform: `scale(${1 + 0.06 * p})`,
+        transform: mouvementImage(index, p),
       }}
     />
   );
@@ -260,7 +239,7 @@ const ShotsScene = ({ scene, characters, assetBase, isFirst, episodeTitle, episo
             // Clip du plan (muet, coupé à la durée du plan par la Sequence).
             <Clip src={`${assetBase}/${sh.video}`} clipSec={sh.videoDurationSec} planFrames={durations[i]} />
           ) : sh.image ? (
-            <ShotStill src={`${assetBase}/${sh.image}`} durationInFrames={durations[i]} />
+            <ShotStill src={`${assetBase}/${sh.image}`} durationInFrames={durations[i]} index={i} />
           ) : scene.image ? (
             <SafeImg
               src={`${assetBase}/${scene.image}`}

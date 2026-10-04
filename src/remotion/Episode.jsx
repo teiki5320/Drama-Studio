@@ -98,6 +98,12 @@ const CtaCard = ({ appName, cta, logo, theme }) => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+  // Le carton ne reste jamais figé : le logo flotte, le tout se rapproche
+  // lentement, la pastille arrive après le logo.
+  const t2 = frame / fps;
+  const flotte = Math.sin(t2 * 2.2) * 10;
+  const approche = 1 + 0.05 * Math.min(1, t2 / 4);
+  const pastille = interpolate(frame, [0.35 * fps, 0.8 * fps], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return (
     <AbsoluteFill
       style={{
@@ -106,6 +112,7 @@ const CtaCard = ({ appName, cta, logo, theme }) => {
         justifyContent: 'center',
         opacity,
         padding: 80,
+        transform: `scale(${approche})`,
       }}
     >
       <div
@@ -116,7 +123,7 @@ const CtaCard = ({ appName, cta, logo, theme }) => {
           fontSize: 92,
           letterSpacing: 2,
           textAlign: 'center',
-          transform: `scale(${pop})`,
+          transform: `scale(${pop}) translateY(${flotte}px)`,
           textShadow: '0 6px 40px rgba(0,0,0,0.8)',
         }}
       >
@@ -148,6 +155,8 @@ const CtaCard = ({ appName, cta, logo, theme }) => {
           lineHeight: 1.25,
           maxWidth: 880,
           whiteSpace: 'pre-line',
+          opacity: pastille,
+          transform: `translateY(${(1 - pastille) * 30}px) scale(${1 + 0.02 * Math.sin(t2 * 3)})`,
         }}
       >
         {cta}

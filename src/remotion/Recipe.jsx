@@ -9,6 +9,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { SafeImg } from './SafeImg.jsx';
+import { Clip, mouvementImage } from './Clip.jsx';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { FPS, TRANSITION_FRAMES, sceneFrames, lineOffsets, outroClipFrames } from './timing.js';
@@ -36,18 +37,11 @@ export function recipeDurationInFrames(episode, studio) {
   return total + clip - TRANSITION_FRAMES * cuts;
 }
 
-const Fond = ({ scene, assetBase, durationInFrames }) => {
+const Fond = ({ scene, assetBase, durationInFrames, index = 0 }) => {
   const frame = useCurrentFrame();
   const p = Math.min(1, frame / Math.max(1, durationInFrames));
   if (scene.video) {
-    return (
-      <OffthreadVideo
-        src={`${assetBase}/${scene.video}`}
-        muted
-        pauseWhenBuffering
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
-    );
+    return <Clip src={`${assetBase}/${scene.video}`} clipSec={scene.videoDurationSec} planFrames={durationInFrames} />;
   }
   if (scene.image) {
     return (
@@ -57,7 +51,7 @@ const Fond = ({ scene, assetBase, durationInFrames }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          transform: `scale(${1.03 + 0.07 * p})`,
+          transform: mouvementImage(index, p),
         }}
       />
     );
@@ -75,57 +69,112 @@ const Fond = ({ scene, assetBase, durationInFrames }) => {
   );
 };
 
-// Bandeau titre : nom du plat, pays et temps total.
+// Carton titre : la région en surtitre, le nom du plat en grand, puis le
+// temps et les parts sur deux pastilles. Les éléments arrivent l'un après
+// l'autre et le bloc continue de respirer doucement.
+const Pastille = ({ icone, texte }) => (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 14,
+      padding: '14px 30px',
+      borderRadius: 999,
+      background: 'rgba(12,8,5,0.62)',
+      border: `2px solid ${GOLD}`,
+      color: CREAM,
+      fontFamily: 'Helvetica, Arial, sans-serif',
+      fontWeight: 700,
+      fontSize: 38,
+      whiteSpace: 'nowrap',
+    }}
+  >
+    {icone}
+    {texte}
+  </div>
+);
+const Horloge = () => (
+  <svg width="34" height="34" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" fill="none" stroke={GOLD} strokeWidth="2.2" />
+    <path d="M12 7v5l3 2" fill="none" stroke={GOLD} strokeWidth="2.2" strokeLinecap="round" />
+  </svg>
+);
+const Couverts = () => (
+  <svg width="34" height="34" viewBox="0 0 24 24">
+    <path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 0-3 2.5-3 6h3v12" fill="none" stroke={GOLD} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const CarteTitre = ({ recipe, title }) => {
   const frame = useCurrentFrame() - TRANSITION_FRAMES;
   const { fps } = useVideoConfig();
   if (frame < 0) {
     return null;
   }
-  const y = interpolate(frame, [0, 0.5 * fps], [40, 0], { extrapolateRight: 'clamp' });
-  const opacity = interpolate(frame, [0, 0.4 * fps], [0, 1], { extrapolateRight: 'clamp' });
-  const infos = [recipe?.country, recipe?.totalText, recipe?.servings].filter(Boolean).join(' · ');
+  const entree = (debut) => {
+    const k = interpolate(frame, [debut * fps, (debut + 0.45) * fps], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    return { opacity: k, transform: `translateY(${(1 - k) * 34}px)` };
+  };
+  // « Éthiopie (Hauts plateaux) » → « ÉTHIOPIE · HAUTS PLATEAUX ».
+  const pays = String(recipe?.country || '')
+    .replace(/\s*\(([^)]+)\)\s*/, ' · $1')
+    .trim();
+  const souffle = 1 + 0.025 * Math.sin((frame / fps) * 0.9);
+  const trait = interpolate(frame, [0.3 * fps, 0.8 * fps], [0, 140], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return (
-    <AbsoluteFill
-      style={{
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity,
-        transform: `translateY(${y}px)`,
-        padding: 70,
-      }}
-    >
-      <div
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', padding: '0 70px 120px' }}>
+      {/* Halo sombre derrière le titre : lisible sur n'importe quelle photo. */}
+      <AbsoluteFill
         style={{
-          fontFamily: 'Georgia, serif',
-          fontWeight: 700,
-          color: '#ffffff',
-          fontSize: 92,
-          textAlign: 'center',
-          lineHeight: 1.1,
-          textShadow: '0 6px 34px rgba(0,0,0,0.95)',
+          background: 'radial-gradient(ellipse 75% 26% at 50% 46%, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0) 100%)',
+          opacity: interpolate(frame, [0, 0.4 * fps], [0, 1], { extrapolateRight: 'clamp' }),
         }}
-      >
-        {recipe?.name || title}
-      </div>
-      {infos ? (
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transform: `scale(${souffle})` }}>
+        {pays ? (
+          <div
+            style={{
+              ...entree(0),
+              fontFamily: 'Helvetica, Arial, sans-serif',
+              fontWeight: 800,
+              fontSize: 34,
+              letterSpacing: 8,
+              textTransform: 'uppercase',
+              color: GOLD,
+              textAlign: 'center',
+              textShadow: '0 3px 18px rgba(0,0,0,0.9)',
+            }}
+          >
+            {pays}
+          </div>
+        ) : null}
         <div
           style={{
-            marginTop: 30,
-            padding: '14px 40px',
-            borderRadius: 999,
-            background: GOLD,
-            color: '#2a1705',
-            fontFamily: 'Helvetica, Arial, sans-serif',
-            fontWeight: 800,
-            fontSize: 42,
-            letterSpacing: 2,
-            textTransform: 'uppercase',
+            ...entree(0.12),
+            marginTop: 18,
+            fontFamily: 'Georgia, serif',
+            fontWeight: 700,
+            color: '#ffffff',
+            fontSize: 118,
+            textAlign: 'center',
+            lineHeight: 1.05,
+            maxWidth: 920,
+            textShadow: '0 6px 34px rgba(0,0,0,0.95)',
           }}
         >
-          {infos}
+          {recipe?.name || title}
         </div>
-      ) : null}
+        <div style={{ marginTop: 30, height: 4, width: trait, borderRadius: 2, background: GOLD }} />
+        {recipe?.totalText || recipe?.servings ? (
+          <div style={{ ...entree(0.35), marginTop: 30, display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {recipe?.totalText ? <Pastille icone={<Horloge />} texte={recipe.totalText} /> : null}
+            {recipe?.servings ? <Pastille icone={<Couverts />} texte={recipe.servings} /> : null}
+          </div>
+        ) : null}
+      </div>
     </AbsoluteFill>
   );
 };
@@ -342,7 +391,7 @@ const Progression = ({ total }) => {
   );
 };
 
-const PlanRecette = ({ scene, recipe, episodeTitle, assetBase, durationInFrames }) => {
+const PlanRecette = ({ scene, recipe, episodeTitle, assetBase, durationInFrames, index = 0 }) => {
   const frame = useCurrentFrame();
   const offsets = lineOffsets(scene);
   const lines = scene.lines || [];
@@ -360,7 +409,7 @@ const PlanRecette = ({ scene, recipe, episodeTitle, assetBase, durationInFrames 
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#0c0a08', overflow: 'hidden' }}>
-      <Fond scene={scene} assetBase={assetBase} durationInFrames={durationInFrames} />
+      <Fond scene={scene} assetBase={assetBase} durationInFrames={durationInFrames} index={index} />
 
       <AbsoluteFill
         style={{
@@ -446,6 +495,7 @@ export const Recipe = ({ episode, assetBase, musicFile, studio, studioBase }) =>
           episodeTitle={episode.title}
           assetBase={assetBase}
           durationInFrames={frames}
+          index={i}
         />
       </TransitionSeries.Sequence>,
     );
