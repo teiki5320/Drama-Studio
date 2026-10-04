@@ -42,6 +42,7 @@ import {
   buildKeurCookAdPrompt,
   buildKeurDecoAdPrompt,
   buildKeurbookAdPrompt,
+  buildOptiledAdPrompt,
   KITCHEN_REFERENCE_PROMPT,
   RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
@@ -53,6 +54,7 @@ import { tourAfrique, logoKeurCook } from './keurcook.js';
 import { chargeArticles, logoKeurDeco, VUES } from './keurdeco.js';
 import { composeMusic } from './music.js';
 import { chargeLivres, logoKeurbook } from './keurbook.js';
+import { chargeCultures, optiledRepo } from './optiled.js';
 import { applyVoicePreset } from './voicepresets.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -150,6 +152,11 @@ function normalizeEpisode(raw, number, maxScenes = 12) {
         ? s.ingredients.map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 12)
         : undefined,
       clip: s.clip === true ? true : undefined,
+      // Pub « chiffres » : un vrai chiffre du site affiché en grand.
+      stat:
+        s.stat && typeof s.stat === 'object' && s.stat.valeur
+          ? { valeur: String(s.stat.valeur).trim().slice(0, 16), label: String(s.stat.label || '').trim().slice(0, 50) }
+          : undefined,
       lines,
       characters,
       imagePrompt: String(s.imagePrompt || '').trim(),
@@ -1787,6 +1794,139 @@ export async function createKeurbookAd(project, { livre = '' } = {}, update) {
     state.done.push(l.slug);
   }
   if (state.done.length >= livres.length) {
+    state.done = [];
+  }
+  saveProject(project);
+  return { number };
+}
+
+// ---------- Pub OptiLED : « Le calcul en 30 s », « Time-lapse » ----------
+export const OPTILED_FORMATS = {
+  calcul: '🔢 Le calcul en 30 s — les vrais chiffres du site',
+  timelapse: '🌱 Time-lapse — la plante pousse sous les LED',
+};
+
+export async function optiledAdPlan(project) {
+  const cultures = await chargeCultures();
+  const state = project.opTour || { done: [] };
+  const next = cultures.find((c) => !state.done.includes(c.id)) || cultures[0] || null;
+  return {
+    formats: Object.entries(OPTILED_FORMATS).map(([id, label]) => ({ id, label })),
+    next: next && next.id,
+    cultures: cultures.map((c) => ({
+      id: c.id,
+      nom: c.nom,
+      resume: `${c.puissanceW} W · ${c.barres} barre${c.barres > 1 ? 's' : ''} · ${c.heures} h/jour`,
+      fait: state.done.includes(c.id),
+    })),
+  };
+}
+
+export async function createOptiledAd(project, { format = 'calcul', culture = '' } = {}, update) {
+  if (project.kind !== 'pub') {
+    throw new Error('Réservé à la campagne de pub OptiLED.');
+  }
+  applyVoicePreset(project);
+  const cultures = await chargeCultures();
+  const state = project.opTour || (project.opTour = { done: [] });
+  const c = cultures.find((x) => x.id === culture) || cultures.find((x) => !state.done.includes(x.id)) || cultures[0];
+  if (!c) {
+    throw new Error("Aucune culture lisible dans le dépôt d'OptiLED.");
+  }
+  const fmt = OPTILED_FORMATS[format] ? format : 'calcul';
+  const secs = 30; // durée fixée (on ne la demande plus)
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  const dir = assetsDir(project.id);
+
+  update(`Script de la pub « ${c.nom} » par Claude…`);
+  const raw = await askClaudeForJson(buildOptiledAdPrompt({ format: fmt, culture: c, seconds: secs }));
+  ensureUsage(project).claudeCalls += 1;
+
+  let episode;
+  if (fmt === 'timelapse') {
+    const scenes = (Array.isArray(raw.scenes) ? raw.scenes : []).slice(0, 8);
+    episode = {
+      number,
+      title: String(raw.title || c.nom).slice(0, 120),
+      locations: {},
+      cliffhanger: '',
+      status: 'script',
+      renderedFile: null,
+      scenes: scenes.map((sc, i) => ({
+        id: `s${i + 1}`,
+        location: '',
+        screenshot: null,
+        characters: [],
+        image: null,
+        imageUrl: null,
+        kenBurns: 'zoom-in',
+        version: 0,
+        lines: [],
+        badge: typeof sc.badge === 'string' && sc.badge.trim() ? sc.badge.trim().slice(0, 60) : null,
+        badgeStyle: 'doux',
+        imagePrompt: String(sc.imagePrompt || '').trim(),
+        motionPrompt: String(sc.motionPrompt || '').trim().slice(0, 300),
+        clip: true,
+        fixedDuration: true,
+        durationSec: Math.max(5, Math.min(8, Math.round(secs / Math.max(1, scenes.length)))),
+      })),
+    };
+    if (raw.music) {
+      try {
+        update('Composition de la musique par ElevenLabs…');
+        const file = `e${number}_musique.mp3`;
+        await composeMusic(String(raw.music).slice(0, 400), secs + 6, path.join(dir, file));
+        episode.musicFile = file;
+        episode.musicVolume = 0.75;
+      } catch (e) {
+        console.error('Musique OptiLED :', e.message);
+      }
+    }
+  } else {
+    episode = normalizeEpisode(raw, number, 8);
+    const photo = `e${number}_culture.webp`;
+    copyRecipeImage(c.photo, path.join(dir, photo));
+    for (const sc of episode.scenes) {
+      sc.characters = [];
+      for (const l of sc.lines) {
+        l.speaker = 'narrator';
+      }
+      if (sc.kind !== 'chiffre' || !sc.imagePrompt) {
+        sc.image = photo;
+        sc.imageUrl = null;
+        sc.imagePrompt = '';
+        sc.fromSite = true;
+        sc.videoDisabled = true;
+      }
+    }
+  }
+  if (!episode.scenes.length) {
+    throw new Error('Claude n’a rendu aucun plan pour cette pub.');
+  }
+  if (!project.ctaLogo) {
+    const logo = path.join(optiledRepo(), 'public', 'favicon.svg');
+    if (fs.existsSync(logo)) {
+      project.ctaLogo = 'optiled-logo.svg';
+      fs.copyFileSync(logo, path.join(dir, project.ctaLogo));
+    }
+  }
+  // Thème « Crépuscule » du site : nuit violette, ambre.
+  project.ctaTheme = {
+    bg: 'radial-gradient(ellipse at 50% 40%, #3a2140 0%, #1b1322 80%)',
+    ink: '#f6ecf0',
+    pill: '#f7c07a',
+    pillInk: '#1b1322',
+    withName: true,
+  };
+  episode.topic = `${OPTILED_FORMATS[fmt].split(' — ')[0]} — ${c.nom}`;
+  episode.cta = String(raw.cta || 'Calculez votre éclairage gratuitement sur optiled.fr').slice(0, 80);
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  if (!state.done.includes(c.id)) {
+    state.done.push(c.id);
+  }
+  if (state.done.length >= cultures.length) {
     state.done = [];
   }
   saveProject(project);

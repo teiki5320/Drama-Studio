@@ -23,6 +23,8 @@ import {
   createKeurDecoAd,
   KEURDECO_FORMATS,
   createKeurbookAd,
+  createOptiledAd,
+  OPTILED_FORMATS,
   produceEpisode,
   retryFailedAssets,
 } from './pipeline.js';
@@ -126,6 +128,19 @@ export function addToQueue(raw) {
     }
     const livre = String(raw.livre || '').trim().slice(0, 120);
     item = { kind: 'keurbook', livre, label: `Pub Keurbook — ${String(raw.label || livre || 'prochain livre').slice(0, 70)}` };
+  } else if (raw.kind === 'optiled') {
+    // Pub OptiLED : le calcul en 30 s, ou le time-lapse.
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const format = OPTILED_FORMATS[raw.format] ? raw.format : 'calcul';
+    const culture = String(raw.culture || '').trim().slice(0, 60);
+    item = {
+      kind: 'optiled',
+      format,
+      culture,
+      label: `Pub OptiLED — ${OPTILED_FORMATS[format].split(' — ')[0]}${raw.label ? `, ${String(raw.label).slice(0, 40)}` : ''}`,
+    };
   } else if (raw.kind === 'recette') {
     if (project.mode !== 'recette') {
       throw new Error('Ce projet n’est pas un atelier de recettes.');
@@ -182,7 +197,9 @@ async function produceItem(it, update) {
 
   // 1. Script
   const { number } =
-    it.kind === 'keurbook'
+    it.kind === 'optiled'
+      ? await createOptiledAd(p, { format: it.format, culture: it.culture }, step('Script', 0, 0.05))
+      : it.kind === 'keurbook'
       ? await createKeurbookAd(p, { livre: it.livre }, step('Script', 0, 0.05))
       : it.kind === 'keurdeco'
       ? await createKeurDecoAd(

@@ -287,6 +287,74 @@ function KeurbookAdControls({ projectId, onQueued }) {
   );
 }
 
+// OptiLED : le calcul en 30 s (vrais chiffres du site) ou le time-lapse.
+function OptiledAdControls({ projectId, onQueued }) {
+  const [plan, setPlan] = useState(null);
+  const [format, setFormat] = useState('calcul');
+  const [culture, setCulture] = useState('');
+  const [error, setError] = useState('');
+  const load = () =>
+    api
+      .optiledPlan(projectId)
+      .then((p) => {
+        setPlan(p);
+        setCulture((cur) => cur || p.next || '');
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, [projectId]);
+  const choisie = (plan?.cultures || []).find((c) => c.id === culture);
+  return (
+    <div className="clay-block">
+      <h3>💡 Nouvelle pub OptiLED</h3>
+      {!plan && !error && <p className="clay-muted small">Chargement des cultures…</p>}
+      {plan && (
+        <>
+          <select className="rp-input" value={format} onChange={(e) => setFormat(e.target.value)}>
+            {plan.formats.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <select className="rp-input" value={culture} onChange={(e) => setCulture(e.target.value)}>
+            {plan.cultures.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.fait ? '✓ ' : ''}
+                {c.nom} — {c.resume}
+                {c.id === plan.next ? ' · prochain' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="clay-muted small">
+            {format === 'calcul'
+              ? 'Les vrais chiffres du calculateur en grand à l’écran, voix dynamique de Léo, fin vers le calcul gratuit sur optiled.fr.'
+              : 'La plante pousse sous les LED, en clips lents, sans voix, musique composée (≈ 200 à 300 crédits OpenArt).'}
+          </p>
+          <button
+            className="clay-btn rp-generate"
+            disabled={!culture}
+            onClick={() =>
+              api
+                .addToQueue({ kind: 'optiled', projectId, format, culture, label: choisie ? choisie.nom : culture })
+                .then(() => {
+                  setCulture('');
+                  onQueued();
+                  return load();
+                })
+                .catch((e) => setError(e.message))
+            }
+          >
+            🎬 Générer la pub
+          </button>
+        </>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
 export function AdPage({ projectId, onAdvanced }) {
   const [project, setProject] = useState(null);
   const [studio, setStudio] = useState(null);
@@ -354,7 +422,9 @@ export function AdPage({ projectId, onAdvanced }) {
     if (
       project &&
       project.kind === 'pub' &&
-      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook'].includes(String(project.repo || '').toLowerCase()) &&
+      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook', 'teiki5320/optiled'].includes(
+        String(project.repo || '').toLowerCase(),
+      ) &&
       !(project.episodes || []).length &&
       !ideas.length &&
       !ideasBusy
@@ -372,6 +442,7 @@ export function AdPage({ projectId, onAdvanced }) {
   const isKeurCook = repoKey === 'teiki5320/keurcook';
   const isKeurDeco = repoKey === 'teiki5320/keurdeco';
   const isKeurbook = repoKey === 'teiki5320/keurbook';
+  const isOptiled = repoKey === 'teiki5320/optiled';
   const episodes = [...(project.episodes || [])].sort((a, b) => b.number - a.number);
   const shown =
     episodes.find((e) => e.number === selected) || episodes.find((e) => e.renderedFile) || episodes[0] || null;
@@ -424,9 +495,15 @@ export function AdPage({ projectId, onAdvanced }) {
           <Credits />
         </div>
 
-        {isKeurCook || isKeurDeco || isKeurbook ? (
+        {isKeurCook || isKeurDeco || isKeurbook || isOptiled ? (
           (() => {
-            const Controls = isKeurCook ? KeurCookAdControls : isKeurDeco ? KeurDecoAdControls : KeurbookAdControls;
+            const Controls = isKeurCook
+              ? KeurCookAdControls
+              : isKeurDeco
+                ? KeurDecoAdControls
+                : isKeurbook
+                  ? KeurbookAdControls
+                  : OptiledAdControls;
             return (
               <Controls
                 projectId={projectId}

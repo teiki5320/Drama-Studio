@@ -32,6 +32,7 @@ import {
   keurCookAdPlan,
   keurDecoAdPlan,
   keurbookAdPlan,
+  optiledAdPlan,
   createRecipeProject,
   createRecipeVideo,
   saveScreenshot,
@@ -1325,6 +1326,19 @@ app.get('/api/keurbook/ad-plan/:id', async (req, res) => {
   }
   try {
     res.json(await keurbookAdPlan(p));
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.get('/api/optiled/ad-plan/:id', async (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  try {
+    res.json(await optiledAdPlan(p));
   } catch (e) {
     res.status(502).json({ error: e.message });
   }

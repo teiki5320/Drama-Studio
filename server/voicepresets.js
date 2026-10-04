@@ -23,6 +23,11 @@ export const VOICE_PRESETS = {
     narratorVoice: 'aQROLel5sQbj1vuIVi6B', // Nicolas (narrateur parisien)
     voiceSettings: { stability: 0.55, similarity_boost: 0.8, style: 0.25, speed: 0.97 },
   },
+  // Pub OptiLED : astuce dynamique, au tutoiement.
+  'teiki5320/optiled': {
+    narratorVoice: 'AfbuxQ9DVtS4azaxN1W7', // Léo
+    voiceSettings: { stability: 0.4, similarity_boost: 0.8, style: 0.4, speed: 1.05 },
+  },
 };
 
 export function applyVoicePreset(project) {

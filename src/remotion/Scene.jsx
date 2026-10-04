@@ -63,6 +63,52 @@ const SceneBadge = ({ text }) => {
   );
 };
 
+// Pub « chiffres » (OptiLED) : un vrai chiffre du site, en très grand, qui
+// compte jusqu'à sa valeur (« 25 W »), et ce qu'il veut dire dessous.
+const StatOverlay = ({ valeur, label }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const m = String(valeur || '').match(/^(\d+(?:[.,]\d+)?)(.*)$/);
+  const p = interpolate(frame, [0.2 * fps, 1.2 * fps], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) });
+  const shown = m
+    ? `${(Number(m[1].replace(',', '.')) * p).toFixed(m[1].includes(',') || m[1].includes('.') ? 1 : 0).replace('.', ',')}${m[2]}`
+    : valeur;
+  const pop = interpolate(frame, [0, 0.35 * fps], [0.8, 1], { extrapolateRight: 'clamp' });
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', background: 'rgba(15,8,20,0.45)' }}>
+      <div
+        style={{
+          fontFamily: 'Helvetica, Arial, sans-serif',
+          fontWeight: 900,
+          fontSize: 230,
+          color: '#f7c07a',
+          lineHeight: 1,
+          transform: `scale(${pop})`,
+          textShadow: '0 10px 50px rgba(0,0,0,0.85)',
+        }}
+      >
+        {shown}
+      </div>
+      {label ? (
+        <div
+          style={{
+            marginTop: 26,
+            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontWeight: 800,
+            fontSize: 58,
+            color: '#ffffff',
+            textAlign: 'center',
+            padding: '0 80px',
+            textShadow: '0 4px 24px rgba(0,0,0,0.9)',
+          }}
+        >
+          {label}
+        </div>
+      ) : null}
+    </AbsoluteFill>
+  );
+};
+
 // Pub d'ambiance : quelques mots élégants, en fondu, au tiers bas de l'image.
 const SoftCaption = ({ text }) => {
   const frame = useCurrentFrame();
@@ -356,6 +402,7 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
       />
 
       {/* Pub : incrustation qui situe le plan (lieu, année) */}
+      {scene.stat && scene.stat.valeur ? <StatOverlay valeur={scene.stat.valeur} label={scene.stat.label} /> : null}
       {scene.badge ? (
         scene.badgeStyle === 'doux' ? <SoftCaption text={scene.badge} /> : <SceneBadge text={scene.badge} />
       ) : null}

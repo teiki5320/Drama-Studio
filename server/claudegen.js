@@ -1116,3 +1116,64 @@ CONTRAINTES STRICTES :
 - Ne cite AUCUN extrait du livre (droits d'auteur) : tu racontes avec tes mots.
 - Le site ne VEND RIEN lui-même : jamais « disponible », « en vente », « achetez », « commandez », ni aucun prix. On invite à DÉCOUVRIR le livre et à l'ajouter à sa pile à lire.`;
 }
+
+// ---------- Pub OptiLED : « Le calcul en 30 s » et « Time-lapse » ----------
+// calcul : une culture, ses VRAIS chiffres du site (puissance, barres, heures,
+//   coût par an) en grand à l'écran ; voix dynamique au tutoiement ; fin vers
+//   le calculateur gratuit.
+// timelapse : la plante pousse sous les LED, de la graine à la récolte, en
+//   clips lents ; sans voix ; quelques mots ; musique composée.
+export function buildOptiledAdPrompt({ format, culture, seconds = 30 }) {
+  const chiffres = `CHIFFRES DU SITE (calculés par optiled.fr pour ${culture.surface}, à reprendre EXACTEMENT) :
+- puissance LED : ${culture.puissanceW} W
+- barres LED : ${culture.barres}
+- lumière par jour : ${culture.heures} h
+- coût d'électricité : ${culture.coutAnEur != null ? `${culture.coutAnEur} € par an` : 'non calculé'}
+- difficulté : ${culture.difficulte}`;
+  const regles = `- Le site ne VEND RIEN : jamais « disponible », « achète », « en vente », « commande ». On invite à faire le calcul GRATUIT sur optiled.fr.
+- N'invente AUCUN chiffre : seulement ceux ci-dessus.`;
+  if (format === 'timelapse') {
+    const n = Math.max(4, Math.round(seconds / 6));
+    return `Tu réalises une pub TikTok « TIME-LAPSE » pour OptiLED (optiled.fr), le calculateur gratuit d'éclairage LED pour cultiver des légumes chez soi : ${seconds} secondes, verticale, SANS VOIX, apaisante et satisfaisante.
+Le principe : du ${culture.nom.toLowerCase()} qui POUSSE sous des barres LED dans un intérieur (${culture.surface}), de la graine à la récolte. LE MÊME décor du début à la fin (même étagère, mêmes barres LED à la lumière douce, même pot).
+
+${chiffres}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "title": "titre court (usage interne)",
+  "cta": "phrase du carton final, 10 mots maximum (ex. « Calculez votre éclairage gratuitement sur optiled.fr »)",
+  "music": "EN ANGLAIS : musique douce et lumineuse à composer (instruments, tempo lent, humeur)",
+  "scenes": [${n} plans de 6 secondes, dans l'ordre de la pousse : {
+    "badge": "quelques mots à l'écran, 5 mots maximum (ex. « Le semis », « Les premières feuilles », « ${culture.heures} h de lumière par jour », « La récolte »)",
+    "imagePrompt": "EN ANGLAIS : photo réaliste, vertical 9:16 — le décor identique (décris-le de la même façon à chaque plan) et la plante à CE stade ; lumière LED douce ; aucun visage, no text, no logo, no watermark",
+    "motionPrompt": "EN ANGLAIS : le mouvement lent du plan, effet time-lapse (ex. « time-lapse of basil leaves unfolding and growing, slow push-in »)"
+  }]
+}
+${regles}`;
+  }
+  return `Tu réalises une pub TikTok « LE CALCUL EN ${seconds} SECONDES » pour OptiLED (optiled.fr), le calculateur gratuit d'éclairage LED pour cultiver des légumes chez soi. Verticale, ${seconds} secondes, rythmée. La voix TUTOIE, ton dynamique d'astuce (« Tu veux du ${culture.nom.toLowerCase()} toute l'année ? »).
+
+LA CULTURE : ${culture.nom} (${culture.famille})
+${chiffres}
+
+DÉROULÉ :
+1. "accroche" (1 plan) — la question qui arrête le pouce. La vraie photo de la culture est utilisée (imagePrompt vide).
+2. "chiffre" (3 plans) — un chiffre par plan, affiché en très grand : la puissance, le nombre de barres, les heures de lumière (ou le coût par an). Images générées : l'installation (${culture.surface}) éclairée par les barres LED, la plante qui pousse.
+3. "fin" (1 plan, le DERNIER) — invitation à faire le calcul pour sa propre plante, gratuitement, sur optiled.fr. La vraie photo de la culture est utilisée (imagePrompt vide).
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "title": "titre court (usage interne)",
+  "cta": "phrase du carton final, 10 mots maximum (ex. « Fais le calcul pour ta plante sur optiled.fr »)",
+  "scenes": [{
+    "kind": "accroche | chiffre | fin",
+    "stat": {"valeur": "pour kind=chiffre : le chiffre avec son unité, ex. « ${culture.puissanceW} W »", "label": "ce qu'il veut dire, 5 mots maximum, ex. « de LED suffisent »"} ou null,
+    "badge": "texte très court à l'écran pour accroche et fin (4 mots maximum), null pour les chiffres",
+    "lines": [{"speaker": "narrator", "text": "phrase courte et orale, 14 mots maximum"}],
+    "imagePrompt": "EN ANGLAIS, pour les plans chiffre uniquement : photo réaliste vertical 9:16 de l'installation intérieure (étagère ou tente, barres LED allumées, ${culture.nom.toLowerCase()} en pot) ; aucun visage, no text, no numbers, no logo, no watermark ; chaîne vide pour accroche et fin"
+  }]
+}
+- Total des narrations ≈ ${Math.round(seconds * 2.4)} mots.
+${regles}`;
+}

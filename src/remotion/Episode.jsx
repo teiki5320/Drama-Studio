@@ -123,11 +123,16 @@ const CtaCard = ({ appName, cta, logo, theme }) => {
         {logo ? (
           <SafeImg
             src={logo}
-            style={{ width: 520, maxHeight: 520, objectFit: 'contain', display: 'block', margin: '0 auto' }}
+            style={{
+              width: t.withName ? 260 : 520,
+              maxHeight: t.withName ? 260 : 520,
+              objectFit: 'contain',
+              display: 'block',
+              margin: '0 auto',
+            }}
           />
-        ) : (
-          appName
-        )}
+        ) : null}
+        {!logo || t.withName ? <div style={{ marginTop: logo ? 24 : 0 }}>{appName}</div> : null}
       </div>
       <div
         style={{
