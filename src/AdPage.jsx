@@ -12,7 +12,7 @@ import { api, followJob } from './api.js';
 import { Episode } from './remotion/Episode.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
 import { Credits } from './RecipesPage.jsx';
-import { VideoSave, lienVideo } from './VideoSave.jsx';
+import { VideoSave, lienVideo, LogoAfrotok } from './VideoSave.jsx';
 import { ScreenshotsPanel } from './ProjectView.jsx';
 
 function Apercu({ project, episode, studio }) {
@@ -688,7 +688,7 @@ export function AdPage({ projectId, onAdvanced }) {
   return (
     <div className="rp">
       <div className="rp-left">
-        <Apercu project={project} episode={shown} studio={studio || {}} />
+        <Apercu project={project} episode={shown} studio={project.noSticker ? { ...(studio || {}), sticker: null } : studio || {}} />
         {shown && (
           <div className="rp-video-title">
             <b>{shown.title}</b>
@@ -834,6 +834,7 @@ export function AdPage({ projectId, onAdvanced }) {
             <button className="clay-btn ghost small" onClick={onAdvanced} title="Scènes, voix, images une par une">
               ⚙️ Réglages avancés
             </button>
+            <LogoAfrotok project={project} onChange={loadProject} />
           </div>
         </div>
       </div>

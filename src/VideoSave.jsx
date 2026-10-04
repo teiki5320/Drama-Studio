@@ -11,20 +11,10 @@ export const surLeMac = () => ['localhost', '127.0.0.1', '[::1]'].includes(windo
 export const lienVideo = (projectId, file, nom) =>
   `/files/${projectId}/${file}?dl=1&name=${encodeURIComponent(`${String(nom || 'video').slice(0, 120)}.mp4`)}`;
 
-// Lieu lisible du dossier iCloud, depuis le chemin d'export de l'épisode.
-export function lieuICloud(exportedTo) {
-  if (!exportedTo || !exportedTo.includes('com~apple~CloudDocs/')) {
-    return null;
-  }
-  const dossier = exportedTo.split('com~apple~CloudDocs/')[1].split('/').slice(0, -1).join(' → ');
-  return `Fichiers → iCloud Drive → ${dossier}`;
-}
-
 export function VideoSave({ project, episode, style }) {
   if (!episode || !episode.renderedFile) {
     return null;
   }
-  const lieu = lieuICloud(episode.exportedTo);
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', ...style }}>
       {surLeMac() && (
@@ -35,7 +25,25 @@ export function VideoSave({ project, episode, style }) {
       <a className="clay-btn small" href={lienVideo(project.id, episode.renderedFile, episode.title)}>
         ⬇️ Enregistrer la vidéo
       </a>
-      {!surLeMac() && lieu && <small className="clay-muted">Aussi dans {lieu}</small>}
     </div>
+  );
+}
+
+// Case à cocher : le logo Afrotok dans le coin des prochaines vidéos.
+export function LogoAfrotok({ project, onChange }) {
+  return (
+    <label className="clay-muted small" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+      <input
+        type="checkbox"
+        checked={!project.noSticker}
+        onChange={(e) =>
+          api
+            .patchProject(project.id, { noSticker: !e.target.checked })
+            .then(onChange)
+            .catch((err) => alert(err.message))
+        }
+      />
+      Logo Afrotok
+    </label>
   );
 }

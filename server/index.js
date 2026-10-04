@@ -762,6 +762,10 @@ app.patch('/api/projects/:id', (req, res) => {
     }
     p.videoSeconds = req.body.videoSeconds;
   }
+  // Case « Logo Afrotok » : la marque de l'auteur dans le coin, ou pas.
+  if (req.body.noSticker !== undefined) {
+    p.noSticker = Boolean(req.body.noSticker);
+  }
   saveProject(p);
   res.json(p);
 });

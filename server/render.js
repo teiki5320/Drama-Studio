@@ -32,6 +32,9 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
   if (project.mode === 'recette') {
     studio.outro = null;
   }
+  if (project.noSticker) {
+    studio.sticker = null;
+  }
   if (project.channelOutro) {
     studio.outro = project.channelOutro;
     studio.outroIsVideo = Boolean(project.channelOutroIsVideo);

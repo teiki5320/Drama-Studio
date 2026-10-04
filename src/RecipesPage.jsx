@@ -4,7 +4,7 @@
 // montage) — via la file d'attente, sans écran de script.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Player } from '@remotion/player';
-import { VideoSave, lienVideo } from './VideoSave.jsx';
+import { VideoSave, lienVideo, LogoAfrotok } from './VideoSave.jsx';
 import { api } from './api.js';
 import { Recipe, recipeDurationInFrames } from './remotion/Recipe.jsx';
 import { FPS, WIDTH, HEIGHT } from './remotion/timing.js';
@@ -274,11 +274,10 @@ export function RecipesPage({ projectId }) {
               </button>
             </div>
           ))}
-          <VideoSave
-            project={project}
-            episode={shown && shown.renderedFile ? shown : episodes.find((e) => e.renderedFile)}
-            style={{ marginTop: 10 }}
-          />
+          <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <VideoSave project={project} episode={shown && shown.renderedFile ? shown : episodes.find((e) => e.renderedFile)} />
+            <LogoAfrotok project={project} onChange={loadProject} />
+          </div>
         </div>
       </div>
     </div>
