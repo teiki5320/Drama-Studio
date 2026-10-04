@@ -1,0 +1,35 @@
+// ---------- Voix par format ----------
+// De vraies voix françaises (bibliothèque ElevenLabs, adoptées dans le
+// compte) et leurs réglages : stabilité, expressivité (style), débit (speed).
+// Appliquées une seule fois par projet : changer la voix ensuite reste libre.
+export const VOICE_PRESETS = {
+  // Recettes : calme et pédagogique, au vouvoiement, débit posé.
+  recette: {
+    narratorVoice: 'tMyQcCxfGDdIt7wJ2RQw', // Marie Alice
+    voiceSettings: { stability: 0.6, similarity_boost: 0.8, style: 0.15, speed: 0.95 },
+  },
+  // Pub Keur Cook : TikTok, tutoiement, énergie.
+  'teiki5320/keurcook': {
+    narratorVoice: 'FvmvwvObRqIHojkEGh5N', // Adina
+    voiceSettings: { stability: 0.38, similarity_boost: 0.8, style: 0.45, speed: 1.05 },
+  },
+  // Pub Keur Déco : douce et inspirante, au vouvoiement.
+  'teiki5320/keurdeco': {
+    narratorVoice: '6vTyAgAT8PncODBcLjRf', // Claire
+    voiceSettings: { stability: 0.6, similarity_boost: 0.8, style: 0.25, speed: 0.93 },
+  },
+};
+
+export function applyVoicePreset(project) {
+  if (project.voiceSettings) {
+    return false;
+  }
+  const key = project.mode === 'recette' ? 'recette' : String(project.repo || '').toLowerCase();
+  const preset = VOICE_PRESETS[key];
+  if (!preset) {
+    return false;
+  }
+  project.narratorVoice = preset.narratorVoice;
+  project.voiceSettings = { ...preset.voiceSettings };
+  return true;
+}

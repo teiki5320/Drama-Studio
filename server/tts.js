@@ -132,7 +132,30 @@ export function assignVoices(characters) {
 // language_code (turbo/flash v2.5) leur donne un accent québécois.
 // Son défaut — basculer en anglais sur les répliques courtes — est traité
 // en ancrant la langue avec un contexte français (previous_text, non facturé).
-async function synthesizeEleven(text, voiceId, outPath) {
+// Réglages de voix par format (project.voiceSettings) : stabilité,
+// expressivité (style) et débit (speed, 0,7 à 1,2). Bornés ici.
+function voiceSettingsFor(isV25, custom) {
+  const base = isV25
+    ? { stability: 0.5, similarity_boost: 0.75, style: 0 }
+    : { stability: 0.45, similarity_boost: 0.75, style: 0.35 };
+  if (!custom || typeof custom !== 'object') {
+    return base;
+  }
+  const clamp = (v, lo, hi, d) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+  const out = {
+    stability: clamp(custom.stability, 0, 1, base.stability),
+    similarity_boost: clamp(custom.similarity_boost, 0, 1, base.similarity_boost),
+    // Sur turbo/flash v2.5, style > 0 provoque grésillements et artefacts.
+    style: isV25 ? 0 : clamp(custom.style, 0, 1, base.style),
+    use_speaker_boost: true,
+  };
+  if (typeof custom.speed === 'number') {
+    out.speed = clamp(custom.speed, 0.7, 1.2, 1);
+  }
+  return out;
+}
+
+async function synthesizeEleven(text, voiceId, outPath, settings = null) {
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) {
     throw new Error('ELEVENLABS_API_KEY absente du .env');
@@ -142,10 +165,7 @@ async function synthesizeEleven(text, voiceId, outPath) {
   const body = {
     text,
     model_id: model,
-    // Sur turbo/flash v2.5, style > 0 provoque grésillements et artefacts.
-    voice_settings: isV25
-      ? { stability: 0.5, similarity_boost: 0.75, style: 0 }
-      : { stability: 0.45, similarity_boost: 0.75, style: 0.35 },
+    voice_settings: voiceSettingsFor(isV25, settings),
     // Ancre la détection de langue : la réplique est lue comme la suite
     // d'un dialogue français, plus de bascule vers l'anglais.
     previous_text: 'La conversation continue, toujours en français. Il répondit alors :',
@@ -345,7 +365,7 @@ export function ttsInfo() {
 // TTS_PROVIDER=elevenlabs | edge | say dans .env pour forcer un moteur.
 // Retourne { file (chemin complet), durationSec, engine, chars } — engine/chars
 // alimentent le compteur de consommation du projet.
-export async function synthesize({ text, edgeVoice, sayVoice, elevenVoice, outBase }) {
+export async function synthesize({ text, edgeVoice, sayVoice, elevenVoice, elevenSettings, outBase }) {
   const pref = (process.env.TTS_PROVIDER || 'auto').toLowerCase();
   const canSay = process.platform === 'darwin';
   const hasElevenKey = Boolean(process.env.ELEVENLABS_API_KEY);
@@ -355,7 +375,7 @@ export async function synthesize({ text, edgeVoice, sayVoice, elevenVoice, outBa
   if (pref === 'elevenlabs' || (pref === 'auto' && hasElevenKey)) {
     try {
       const mp3 = `${outBase}.mp3`;
-      const durationSec = await synthesizeEleven(text, elevenVoice, mp3);
+      const durationSec = await synthesizeEleven(text, elevenVoice, mp3, elevenSettings);
       return { file: mp3, durationSec, engine: 'elevenlabs', chars };
     } catch (e) {
       if (pref === 'elevenlabs') {
@@ -396,6 +416,7 @@ export function voiceFor(project, speaker) {
     edgeVoice: NARRATOR_VOICE,
     sayVoice: NARRATOR_SAY,
     elevenVoice: isCatalogVoice(project.narratorVoice) ? project.narratorVoice : ELEVEN_NARRATOR,
+    elevenSettings: project.voiceSettings || null,
   };
   if (speaker === 'narrator') {
     return narrator;

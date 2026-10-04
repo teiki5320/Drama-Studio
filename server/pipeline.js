@@ -51,6 +51,7 @@ import { copyRecipeImage, fetchRecipe, manualRecipe, recipeAsText } from './reci
 import { tourAfrique, logoKeurCook } from './keurcook.js';
 import { chargeArticles, logoKeurDeco, VUES } from './keurdeco.js';
 import { composeMusic } from './music.js';
+import { applyVoicePreset } from './voicepresets.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
 import {
@@ -1320,6 +1321,7 @@ export async function createRecipeVideo(project, params, update) {
   if (project.mode !== 'recette') {
     throw new Error('Réservé aux projets Recettes.');
   }
+  applyVoicePreset(project);
   const seconds = RECIPE_SECONDS.includes(params.seconds) ? params.seconds : project.targetSeconds || 60;
   const tone = params.tone || project.tone || 'chaleureux';
 
@@ -1469,6 +1471,7 @@ export async function createKeurCookAd(project, { pays = '', seconds = 45 } = {}
   if (project.kind !== 'pub') {
     throw new Error('Réservé à la campagne de pub Keur Cook.');
   }
+  applyVoicePreset(project);
   const tour = tourAfrique();
   const state = project.kcTour || (project.kcTour = { done: [], count: 0 });
   const entry =
@@ -1571,6 +1574,7 @@ export async function createKeurDecoAd(project, { format = 'ambiance', article =
   if (project.kind !== 'pub') {
     throw new Error('Réservé à la campagne de pub Keur Déco.');
   }
+  applyVoicePreset(project);
   const articles = articlesPublies();
   const state = project.kdTour || (project.kdTour = { done: [], count: 0 });
   const a = articles.find((x) => x.slug === article) || articles.find((x) => !state.done.includes(x.slug)) || articles[0];

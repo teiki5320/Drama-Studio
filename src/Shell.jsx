@@ -295,7 +295,7 @@ function RecettesEntry({ projects, loaded, onCreate }) {
           name: 'Recettes Keur Cook',
           tone: 'chaleureux',
           targetSeconds: 60,
-          narratorVoice: 'XrExE9yKIg1WjnnlVkGX',
+          narratorVoice: 'tMyQcCxfGDdIt7wJ2RQw', // Marie Alice (voix française)
         }),
       'recettes',
     );
