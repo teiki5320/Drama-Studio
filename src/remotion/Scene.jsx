@@ -5,6 +5,7 @@ import {
   Sequence,
   Audio,
   interpolate,
+  Easing,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
@@ -54,6 +55,36 @@ const SceneBadge = ({ text }) => {
           borderRadius: 14,
           padding: '14px 34px',
           textShadow: '0 3px 18px rgba(0,0,0,0.9)',
+        }}
+      >
+        {text}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// Pub d'ambiance : quelques mots élégants, en fondu, au tiers bas de l'image.
+const SoftCaption = ({ text }) => {
+  const frame = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  const opacity = interpolate(
+    frame,
+    [0.5 * fps, 1.4 * fps, Math.max(1.5 * fps, durationInFrames - 1.2 * fps), Math.max(1.6 * fps, durationInFrames - 0.3 * fps)],
+    [0, 1, 1, 0],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+  );
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 260, opacity }}>
+      <div
+        style={{
+          fontFamily: 'Georgia, serif',
+          fontStyle: 'italic',
+          fontSize: 62,
+          color: '#fff8ec',
+          textAlign: 'center',
+          padding: '0 90px',
+          lineHeight: 1.25,
+          textShadow: '0 4px 30px rgba(0,0,0,0.85)',
         }}
       >
         {text}
@@ -257,6 +288,10 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
   const progress = Math.min(1, frame / total);
 
   const move = (KEN_BURNS[scene.kenBurns] || KEN_BURNS['zoom-in'])(progress);
+  // Visite déco : la caméra part de la pièce entière et zoome lentement sur un
+  // objet précis de la photo (position en % de l'image).
+  const focus = scene.focus && Number.isFinite(scene.focus.x) ? scene.focus : null;
+  const focusScale = focus ? interpolate(progress, [0, 1], [1.15, 1.9], { easing: Easing.inOut(Easing.cubic) }) : 1;
   const offsets = lineOffsets(scene);
   const lines = scene.lines || [];
   const active = activeLineIndex(frame, scene);
@@ -291,7 +326,13 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            transform: `scale(${move.scale}) translate(${move.x}%, ${move.y}%)`,
+            ...(focus
+              ? {
+                  objectPosition: `${focus.x}% ${focus.y}%`,
+                  transformOrigin: `${focus.x}% ${focus.y}%`,
+                  transform: `scale(${focusScale})`,
+                }
+              : { transform: `scale(${move.scale}) translate(${move.x}%, ${move.y}%)` }),
           }}
         />
       ) : (
@@ -303,10 +344,6 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
             padding: 80,
           }}
         >
-          <div style={{ color: '#9c8a5a', fontSize: 44, fontFamily: 'Helvetica, Arial, sans-serif', textAlign: 'center', lineHeight: 1.4 }}>
-            Image manquante
-            <div style={{ fontSize: 28, marginTop: 30, color: '#6d6045' }}>{scene.imagePrompt}</div>
-          </div>
         </AbsoluteFill>
       )}
 
@@ -319,7 +356,9 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
       />
 
       {/* Pub : incrustation qui situe le plan (lieu, année) */}
-      {scene.badge ? <SceneBadge text={scene.badge} /> : null}
+      {scene.badge ? (
+        scene.badgeStyle === 'doux' ? <SoftCaption text={scene.badge} /> : <SceneBadge text={scene.badge} />
+      ) : null}
 
       {/* Titre de l'épisode sur la première scène */}
       {isFirst ? (

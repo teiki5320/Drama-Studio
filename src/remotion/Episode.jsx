@@ -87,7 +87,10 @@ const Outro = ({ title, cliffhanger }) => {
 };
 
 // Carton final d'une PUB : le nom de l'appli et l'appel à l'action.
-const CtaCard = ({ appName, cta, logo }) => {
+// theme : couleurs de la marque (fond, texte, bouton) — Keur Déco a un fond
+// sable clair et un bouton terracotta ; par défaut, bleu nuit et blanc.
+const CtaCard = ({ appName, cta, logo, theme }) => {
+  const t = { bg: 'radial-gradient(ellipse at 50% 40%, #12243a 0%, #05080c 78%)', ink: '#ffffff', pill: '#ffffff', pillInk: '#05080c', ...(theme || {}) };
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const opacity = interpolate(frame, [0, 0.4 * fps], [0, 1], { extrapolateRight: 'clamp' });
@@ -98,7 +101,7 @@ const CtaCard = ({ appName, cta, logo }) => {
   return (
     <AbsoluteFill
       style={{
-        background: 'radial-gradient(ellipse at 50% 40%, #12243a 0%, #05080c 78%)',
+        background: t.bg,
         alignItems: 'center',
         justifyContent: 'center',
         opacity,
@@ -109,7 +112,7 @@ const CtaCard = ({ appName, cta, logo }) => {
         style={{
           fontFamily: 'Helvetica, Arial, sans-serif',
           fontWeight: 800,
-          color: '#ffffff',
+          color: t.ink,
           fontSize: 92,
           letterSpacing: 2,
           textAlign: 'center',
@@ -120,7 +123,7 @@ const CtaCard = ({ appName, cta, logo }) => {
         {logo ? (
           <SafeImg
             src={logo}
-            style={{ width: 420, maxHeight: 420, objectFit: 'contain', display: 'block', margin: '0 auto' }}
+            style={{ width: 520, maxHeight: 520, objectFit: 'contain', display: 'block', margin: '0 auto' }}
           />
         ) : (
           appName
@@ -131,14 +134,15 @@ const CtaCard = ({ appName, cta, logo }) => {
           marginTop: 44,
           padding: '26px 54px',
           borderRadius: 999,
-          background: '#ffffff',
-          color: '#05080c',
+          background: t.pill,
+          color: t.pillInk,
           fontFamily: 'Helvetica, Arial, sans-serif',
           fontWeight: 800,
           fontSize: 46,
           textAlign: 'center',
           lineHeight: 1.25,
           maxWidth: 880,
+          whiteSpace: 'pre-line',
         }}
       >
         {cta}
@@ -147,7 +151,9 @@ const CtaCard = ({ appName, cta, logo }) => {
   );
 };
 
-export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle, studio, studioBase, noOutroCard, cta, ctaLogo }) => {
+export const Episode = ({ episode, characters, assetBase, musicFile, musicVolume, seriesTitle, studio, studioBase, noOutroCard, cta, ctaLogo, ctaTheme }) => {
+  // Pub d'ambiance (sans voix) : la musique passe au premier plan.
+  const vol = typeof musicVolume === 'number' ? musicVolume : 0.12;
   const scenes = episode?.scenes || [];
 
   if (scenes.length === 0) {
@@ -178,7 +184,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
           scene={scene}
           characters={characters}
           assetBase={assetBase}
-          isFirst={i === 0}
+          isFirst={i === 0 && !noOutroCard}
           episodeTitle={episode.title}
           episodeNumber={episode.number}
         />
@@ -201,7 +207,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
     seriesChildren.push(
       transition('tr-cta-card'),
       <TransitionSeries.Sequence key="cta-card" durationInFrames={Math.round(CTA_SECONDS * FPS)}>
-        <CtaCard appName={seriesTitle} cta={cta} logo={ctaLogo} />
+        <CtaCard appName={seriesTitle} cta={cta} logo={ctaLogo} theme={ctaTheme} />
       </TransitionSeries.Sequence>,
     );
   }
@@ -230,10 +236,10 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
         // Si l'outro perso est une vidéo (avec son propre son), la musique s'arrête avant.
         studio?.outroIsVideo && clipFrames > 0 ? (
           <Sequence from={0} durationInFrames={mainFrames} layout="none">
-            <Audio src={`${assetBase}/${musicFile}`} loop volume={0.12} />
+            <Audio src={`${assetBase}/${musicFile}`} loop volume={vol} />
           </Sequence>
         ) : (
-          <Audio src={`${assetBase}/${musicFile}`} loop volume={0.12} />
+          <Audio src={`${assetBase}/${musicFile}`} loop volume={vol} />
         )
       ) : null}
       <TransitionSeries>{seriesChildren}</TransitionSeries>

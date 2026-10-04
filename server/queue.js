@@ -20,6 +20,8 @@ import {
   createRecipeVideo,
   createKeurCookAd,
   keurCookAdPlan,
+  createKeurDecoAd,
+  KEURDECO_FORMATS,
   produceEpisode,
   retryFailedAssets,
 } from './pipeline.js';
@@ -101,6 +103,21 @@ export function addToQueue(raw) {
     }
     const seconds = Number(raw.seconds) === 60 ? 60 : 45;
     item = { kind: 'keurcook', pays, seconds, label: `Pub Keur Cook — ${pays}, ${seconds} s` };
+  } else if (raw.kind === 'keurdeco') {
+    // Pub Keur Déco : ambiance, visite déco ou avant / après.
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const format = KEURDECO_FORMATS[raw.format] ? raw.format : 'ambiance';
+    const seconds = Number(raw.seconds) === 45 ? 45 : 30;
+    item = {
+      kind: 'keurdeco',
+      format,
+      article: String(raw.article || '').slice(0, 120),
+      vue: String(raw.vue || '').slice(0, 120),
+      seconds,
+      label: `Pub Keur Déco — ${KEURDECO_FORMATS[format].split(' — ')[0]}, ${seconds} s`,
+    };
   } else if (raw.kind === 'recette') {
     if (project.mode !== 'recette') {
       throw new Error('Ce projet n’est pas un atelier de recettes.');
@@ -157,7 +174,13 @@ async function produceItem(it, update) {
 
   // 1. Script
   const { number } =
-    it.kind === 'keurcook'
+    it.kind === 'keurdeco'
+      ? await createKeurDecoAd(
+          p,
+          { format: it.format, article: it.article, vue: it.vue, seconds: it.seconds },
+          step('Script', 0, 0.05),
+        )
+      : it.kind === 'keurcook'
       ? await createKeurCookAd(p, { pays: it.pays, seconds: it.seconds }, step('Script', 0, 0.05))
       : it.kind === 'pub' || it.kind === 'chaine'
       ? await createChannelVideo(p, it.angle, step('Script', 0, 0.05))

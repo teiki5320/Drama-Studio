@@ -40,6 +40,7 @@ import {
   buildAdVideoPrompt,
   buildRecipePrompt,
   buildKeurCookAdPrompt,
+  buildKeurDecoAdPrompt,
   KITCHEN_REFERENCE_PROMPT,
   RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
@@ -48,6 +49,8 @@ import {
 } from './claudegen.js';
 import { copyRecipeImage, fetchRecipe, manualRecipe, recipeAsText } from './recipes.js';
 import { tourAfrique, logoKeurCook } from './keurcook.js';
+import { chargeArticles, logoKeurDeco, VUES } from './keurdeco.js';
+import { composeMusic } from './music.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
 import {
@@ -183,6 +186,10 @@ function recomputeSceneDuration(scene) {
     scene.durationSec = Math.round(
       shots.reduce((sum, sh) => sum + shotEffectiveSec(sh, scene), 0),
     );
+    return;
+  }
+  // Plan muet (pub d'ambiance) : sa durée est fixée par le script.
+  if (!(scene.lines || []).length && scene.fixedDuration) {
     return;
   }
   const spoken = (scene.lines || []).reduce(
@@ -476,6 +483,10 @@ export async function newLocationLook(project, index, instructions, update) {
 // qui mijote, plat qu'on sert), pas une répartition par position — la
 // production ET la réparation suivent la même règle.
 function wantedClipIndexes(project, scenes) {
+  // Pub d'ambiance : tous les plans marqués « clip » sont animés.
+  if (project.mode !== 'recette' && scenes.some((sc) => sc.clip && sc.fixedDuration)) {
+    return scenes.map((sc, i) => (sc.clip ? i : -1)).filter((i) => i >= 0);
+  }
   if (project.mode === 'recette') {
     return scenes
       .map((sc, i) => (sc.clip ? i : -1))
@@ -692,6 +703,15 @@ async function generateEpisodeAssets(project, episode, update) {
 // IMPORTANT : bouches immobiles — la voix off n'est pas synchronisée,
 // des lèvres qui bougent au hasard casseraient l'illusion.
 function videoMotionPrompt(scene) {
+  // Pub d'ambiance : le mouvement est décrit par le script (rideau, vagues,
+  // flamme de bougie, travelling lent) — une pièce sans personne.
+  if (scene.motionPrompt) {
+    return (
+      `Bring this interior scene to life with slow, calm, satisfying motion: ${scene.motionPrompt}. ` +
+      `Smooth slow cinematic camera movement, no people, no text. The room and its decor stay EXACTLY as in the source image. ` +
+      `Scene: ${scene.imagePrompt}`
+    );
+  }
   return (
     `Bring this scene to life with subtle, realistic motion: characters breathe, ` +
     `blink and make small natural gestures; gentle slow cinematic camera push-in. ` +
@@ -772,7 +792,9 @@ export async function generateSceneVideo(project, episode, scene, update) {
   // scène (5-10 s), l'image ne se fige plus pendant que la voix continue.
   const effSeconds = project.videoSeconds || (project.mode === 'long' ? 'auto' : 'eco');
   const durationSec =
-    effSeconds === 'auto' ? Math.max(5, Math.min(10, Math.round(scene.durationSec || 6))) : 5;
+    effSeconds === 'auto' || scene.fixedDuration
+      ? Math.max(5, Math.min(10, Math.round(scene.durationSec || 6)))
+      : 5;
   const { buffer } = await openartGenerateVideo({
     prompt: project.mode === 'recette' ? recipeMotionPrompt(scene) : videoMotionPrompt(scene),
     imageUrl: scene.imageUrl || null,
@@ -1512,6 +1534,176 @@ export async function createKeurCookAd(project, { pays = '', seconds = 45 } = {}
   }
   if (state.done.length >= tour.length) {
     state.done = []; // tournée terminée : on repart pour un tour
+  }
+  state.count += 1;
+  saveProject(project);
+  return { number };
+}
+
+// ---------- Pub Keur Déco : ambiance, visite déco, avant / après ----------
+export const KEURDECO_FORMATS = {
+  ambiance: '🌅 Ambiance — une pièce face à une vue extraordinaire',
+  visite: '🔍 Visite déco — zoom sur chaque objet',
+  avant: '✨ Avant / après',
+};
+
+const articlesPublies = () => chargeArticles().filter((a) => a.publie);
+
+export function keurDecoAdPlan(project) {
+  const articles = articlesPublies();
+  const state = project.kdTour || { done: [], count: 0 };
+  const next = articles.find((a) => !state.done.includes(a.slug)) || articles[0] || null;
+  return {
+    formats: Object.entries(KEURDECO_FORMATS).map(([id, label]) => ({ id, label })),
+    vues: VUES,
+    nextVue: VUES[state.count % VUES.length],
+    next: next && next.slug,
+    articles: articles.map((a) => ({
+      slug: a.slug,
+      titre: a.titre,
+      objets: a.objets.length,
+      fait: state.done.includes(a.slug),
+    })),
+  };
+}
+
+export async function createKeurDecoAd(project, { format = 'ambiance', article = '', vue = '', seconds = 30 } = {}, update) {
+  if (project.kind !== 'pub') {
+    throw new Error('Réservé à la campagne de pub Keur Déco.');
+  }
+  const articles = articlesPublies();
+  const state = project.kdTour || (project.kdTour = { done: [], count: 0 });
+  const a = articles.find((x) => x.slug === article) || articles.find((x) => !state.done.includes(x.slug)) || articles[0];
+  if (!a) {
+    throw new Error('Aucun article publié sur Keur Déco.');
+  }
+  const fmt = KEURDECO_FORMATS[format] ? format : 'ambiance';
+  if (fmt !== 'ambiance' && a.objets.length < 2) {
+    throw new Error(`L'article « ${a.titre} » n'a pas assez d'objets repérés sur sa photo pour ce format.`);
+  }
+  const laVue = vue || VUES[state.count % VUES.length];
+  const secs = [30, 45].includes(Number(seconds)) ? Number(seconds) : 30;
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  const dir = assetsDir(project.id);
+
+  update(`Script de la pub « ${a.titre} » par Claude…`);
+  const raw = await askClaudeForJson(buildKeurDecoAdPrompt({ format: fmt, article: a, vue: laVue, seconds: secs }));
+  ensureUsage(project).claudeCalls += 1;
+
+  const base = (i, extra) => ({
+    id: `s${i + 1}`,
+    location: '',
+    screenshot: null,
+    characters: [],
+    image: null,
+    imageUrl: null,
+    kenBurns: KEN_BURNS_CYCLE[i % KEN_BURNS_CYCLE.length],
+    durationSec: 6,
+    version: 0,
+    imagePrompt: '',
+    lines: [],
+    ...extra,
+  });
+  const lines = (sc) =>
+    (Array.isArray(sc.lines) ? sc.lines : [])
+      .filter((l) => l && l.text)
+      .slice(0, 2)
+      .map((l) => ({ speaker: 'narrator', text: String(l.text).trim(), audio: null, audioDurationSec: null }));
+  const badge = (sc) => (typeof sc.badge === 'string' && sc.badge.trim() ? sc.badge.trim().slice(0, 60) : null);
+
+  // La vraie photo de l'article, copiée une fois pour toute la vidéo.
+  let photo = null;
+  const photoDuSite = () => {
+    if (!photo) {
+      photo = `e${number}_keurdeco.jpg`;
+      fs.copyFileSync(a.photo, path.join(dir, photo));
+    }
+    return { image: photo, fromSite: true, videoDisabled: true };
+  };
+
+  const episode = {
+    number,
+    title: String(raw.title || a.titre).slice(0, 120),
+    locations: {},
+    cliffhanger: '',
+    status: 'script',
+    renderedFile: null,
+    topic: `${KEURDECO_FORMATS[fmt].split(' — ')[0]} — ${a.titre}${fmt === 'ambiance' ? ` (${laVue})` : ''}`,
+    kdFormat: fmt,
+    scenes: [],
+  };
+
+  if (fmt === 'ambiance') {
+    const scenes = (Array.isArray(raw.scenes) ? raw.scenes : []).slice(0, 8);
+    episode.scenes = scenes.map((sc, i) =>
+      base(i, {
+        badge: badge(sc),
+        badgeStyle: 'doux',
+        imagePrompt: String(sc.imagePrompt || '').trim(),
+        motionPrompt: String(sc.motionPrompt || '').trim().slice(0, 300),
+        clip: true,
+        fixedDuration: true,
+        durationSec: Math.max(5, Math.min(8, Math.round(secs / Math.max(1, scenes.length)))),
+      }),
+    );
+    // Musique composée pour cette vidéo (la durée de la vidéo + le carton final).
+    if (raw.music) {
+      try {
+        update('Composition de la musique par ElevenLabs…');
+        const file = `e${number}_musique.mp3`;
+        await composeMusic(String(raw.music).slice(0, 400), secs + 6, path.join(dir, file));
+        episode.musicFile = file;
+        episode.musicVolume = 0.75;
+      } catch (e) {
+        console.error('Musique Keur Déco :', e.message);
+      }
+    }
+  } else {
+    const objets = a.objets;
+    episode.scenes = (Array.isArray(raw.scenes) ? raw.scenes : []).slice(0, 9).map((sc, i) => {
+      const o = Number.isInteger(sc.objet) ? objets[sc.objet - 1] : null;
+      if (sc.kind === 'avant') {
+        return base(i, {
+          badge: badge(sc) || 'Avant',
+          lines: lines(sc),
+          imagePrompt: `${String(raw.avant || '').trim()} Vertical 9:16 photograph, no people, no text, no logo, no watermark.`,
+          videoDisabled: true,
+        });
+      }
+      return base(i, {
+        badge: badge(sc),
+        lines: lines(sc),
+        ...photoDuSite(),
+        ...(o ? { focus: { x: o.x, y: o.y } } : {}),
+      });
+    });
+  }
+  if (!episode.scenes.length) {
+    throw new Error('Claude n’a rendu aucun plan pour cette pub.');
+  }
+
+  const logo = logoKeurDeco();
+  if (logo && !project.ctaLogo) {
+    project.ctaLogo = `keurdeco-logo${path.extname(logo)}`;
+    fs.copyFileSync(logo, path.join(dir, project.ctaLogo));
+  }
+  // Palette « Terre de Dakar » du site : sable, indigo, terracotta.
+  project.ctaTheme = {
+    bg: 'radial-gradient(ellipse at 50% 40%, #fbf6ee 0%, #efe2cf 80%)',
+    ink: '#1E2A47',
+    pill: '#A3472A',
+    pillInk: '#ffffff',
+  };
+  episode.cta = `${String(raw.cta || 'Tous les objets sur keurdeco.com').slice(0, 70)}\nÉpinglez l'idée sur Pinterest`;
+
+  project.episodes.push(episode);
+  project.episodes.sort((x, y) => x.number - y.number);
+  project.episodeCount = project.episodes.length;
+  if (!state.done.includes(a.slug)) {
+    state.done.push(a.slug);
+  }
+  if (state.done.length >= articles.length) {
+    state.done = [];
   }
   state.count += 1;
   saveProject(project);

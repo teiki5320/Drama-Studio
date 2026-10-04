@@ -53,6 +53,7 @@ function Apercu({ project, episode, studio }) {
           noOutroCard: true,
           cta,
           ctaLogo,
+          ctaTheme: project.ctaTheme,
         }}
         durationInFrames={Math.max(1, episodeDurationInFrames(episode, studio, true, cta))}
         fps={FPS}
@@ -118,6 +119,94 @@ function KeurCookAdControls({ projectId, onQueued }) {
                 .addToQueue({ kind: 'keurcook', projectId, pays, seconds })
                 .then(() => {
                   setPays('');
+                  onQueued();
+                  return load();
+                })
+                .catch((e) => setError(e.message))
+            }
+          >
+            🎬 Générer la pub
+          </button>
+        </>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
+// Keur Déco : trois formats au choix (ambiance, visite, avant / après),
+// l'article du site (le prochain est proposé), la vue pour l'ambiance.
+function KeurDecoAdControls({ projectId, onQueued }) {
+  const [plan, setPlan] = useState(null);
+  const [format, setFormat] = useState('ambiance');
+  const [article, setArticle] = useState('');
+  const [vue, setVue] = useState('');
+  const [seconds, setSeconds] = useState(30);
+  const [error, setError] = useState('');
+  const load = () =>
+    api
+      .keurdecoPlan(projectId)
+      .then((p) => {
+        setPlan(p);
+        setArticle((cur) => cur || p.next || '');
+        setVue((cur) => cur || p.nextVue || '');
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, [projectId]);
+  const choix = (plan?.articles || []).filter((a) => format === 'ambiance' || a.objets >= 2);
+  return (
+    <div className="clay-block">
+      <h3>🛋️ Nouvelle pub Keur Déco</h3>
+      {!plan && !error && <p className="clay-muted small">Chargement des articles…</p>}
+      {plan && (
+        <>
+          <select className="rp-input" value={format} onChange={(e) => setFormat(e.target.value)}>
+            {plan.formats.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <select className="rp-input" value={article} onChange={(e) => setArticle(e.target.value)}>
+            {choix.map((a) => (
+              <option key={a.slug} value={a.slug}>
+                {a.fait ? '✓ ' : ''}
+                {a.titre}
+                {a.slug === plan.next ? ' (prochain)' : ''}
+              </option>
+            ))}
+          </select>
+          {format === 'ambiance' && (
+            <select className="rp-input" value={vue} onChange={(e) => setVue(e.target.value)}>
+              {plan.vues.map((v) => (
+                <option key={v} value={v}>
+                  Vue : {v}
+                </option>
+              ))}
+            </select>
+          )}
+          <select className="rp-input" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>
+            <option value={30}>30 secondes</option>
+            <option value={45}>45 secondes</option>
+          </select>
+          <p className="clay-muted small">
+            {format === 'ambiance'
+              ? 'Sans voix, tout en clips lents, musique composée par ElevenLabs (≈ 200 à 300 crédits OpenArt).'
+              : format === 'visite'
+                ? 'La vraie photo de l’article, zoom sur chaque objet, voix douce (presque sans crédit d’image).'
+                : 'La pièce banale (image générée), puis la vraie pièce décorée du site, voix douce.'}
+          </p>
+          <button
+            className="clay-btn rp-generate"
+            disabled={!article}
+            onClick={() =>
+              api
+                .addToQueue({ kind: 'keurdeco', projectId, format, article, vue, seconds })
+                .then(() => {
+                  setArticle('');
+                  setVue('');
                   onQueued();
                   return load();
                 })
@@ -200,7 +289,7 @@ export function AdPage({ projectId, onAdvanced }) {
     if (
       project &&
       project.kind === 'pub' &&
-      String(project.repo || '').toLowerCase() !== 'teiki5320/keurcook' &&
+      !['teiki5320/keurcook', 'teiki5320/keurdeco'].includes(String(project.repo || '').toLowerCase()) &&
       !(project.episodes || []).length &&
       !ideas.length &&
       !ideasBusy
@@ -214,7 +303,9 @@ export function AdPage({ projectId, onAdvanced }) {
   }
 
   const isPub = project.kind === 'pub';
-  const isKeurCook = String(project.repo || '').toLowerCase() === 'teiki5320/keurcook';
+  const repoKey = String(project.repo || '').toLowerCase();
+  const isKeurCook = repoKey === 'teiki5320/keurcook';
+  const isKeurDeco = repoKey === 'teiki5320/keurdeco';
   const episodes = [...(project.episodes || [])].sort((a, b) => b.number - a.number);
   const shown =
     episodes.find((e) => e.number === selected) || episodes.find((e) => e.renderedFile) || episodes[0] || null;
@@ -267,13 +358,18 @@ export function AdPage({ projectId, onAdvanced }) {
           <Credits />
         </div>
 
-        {isKeurCook ? (
-          <KeurCookAdControls
-            projectId={projectId}
-            onQueued={() =>
-              api.queue().then((list) => setQueue(list.filter((it) => it.projectId === projectId)))
-            }
-          />
+        {isKeurCook || isKeurDeco ? (
+          (() => {
+            const Controls = isKeurCook ? KeurCookAdControls : KeurDecoAdControls;
+            return (
+              <Controls
+                projectId={projectId}
+                onQueued={() =>
+                  api.queue().then((list) => setQueue(list.filter((it) => it.projectId === projectId)))
+                }
+              />
+            );
+          })()
         ) : (
         <div className="clay-block">
           <h3>{isPub ? `📣 Nouvelle pub ${project.title}` : `🎥 Nouvelle vidéo — ${project.title}`}</h3>

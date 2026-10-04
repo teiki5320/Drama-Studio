@@ -45,7 +45,9 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
     },
     characters: project.characters,
     assetBase,
-    musicFile: project.musicFile,
+    // Une vidéo peut avoir sa propre musique (pub d'ambiance composée pour elle).
+    musicFile: episode.musicFile || project.musicFile,
+    musicVolume: typeof episode.musicVolume === 'number' ? episode.musicVolume : undefined,
     seriesTitle: project.title,
     studio,
     studioBase: studioBase || '',
@@ -56,6 +58,7 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
     // avec le logo de l'appli s'il existe.
     cta: project.kind === 'pub' ? episode.cta || project.cta || '' : '',
     ctaLogo: project.kind === 'pub' && project.ctaLogo ? `${assetBase}/${project.ctaLogo}` : '',
+    ctaTheme: project.kind === 'pub' && project.ctaTheme ? project.ctaTheme : undefined,
   };
 }
 

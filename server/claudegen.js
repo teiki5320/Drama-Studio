@@ -1001,3 +1001,76 @@ CONTRAINTES STRICTES :
 - N'INVENTE RIEN : histoire, origine et usage viennent des textes ci-dessus. Aucun prix.
 - Plans "mains" : jamais de visage ni de corps entier, seulement les mains, vue du dessus.`;
 }
+
+// ---------- Pub Keur Déco : trois formats ----------
+// ambiance : une pièce décorée à l'africaine ouverte sur une vue
+//   extraordinaire, tout en clips lents, sans voix, quelques mots, musique ;
+// visite : la photo d'une pièce du site, zoom sur chaque objet, voix douce ;
+// avant : la pièce banale (générée), puis la vraie pièce décorée du site.
+// Voix au vouvoiement, douce et inspirante. Fin : keurdeco.com + Pinterest.
+export function buildKeurDecoAdPrompt({ format, article, vue, seconds = 30 }) {
+  const fiche = `ARTICLE DU SITE : « ${article.titre} »
+${article.description}
+Pièce(s) : ${article.pieces.join(', ') || '—'} · matières : ${article.matieres.join(', ') || '—'}
+Description de la photo : ${article.imageAlt}`;
+  const commun = `Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour).
+CONTRAINTES : n'invente aucun prix ni aucune promesse ; tout le texte en français, sauf les imagePrompt et motionPrompt en anglais.`;
+  if (format === 'ambiance') {
+    const n = Math.max(4, Math.round(seconds / 6));
+    return `Tu réalises une pub TikTok d'AMBIANCE pour Keur Déco, le site de décoration africaine (keurdeco.com) : ${seconds} secondes, verticale, SANS VOIX, apaisante et « satisfaisante » à regarder.
+Le principe : UNE pièce décorée à l'africaine, inspirée de l'article ci-dessous, qui s'ouvre sur une vue extraordinaire : ${vue}. Mouvements lents et doux : un rideau en lin qui ondule, la lumière qui glisse, une bougie qui vacille, la vue qui respire au loin.
+
+${fiche}
+
+${commun}
+{
+  "title": "titre court (usage interne)",
+  "music": "EN ANGLAIS : la musique d'ambiance à composer (instruments, tempo lent, humeur), africaine et apaisante",
+  "scenes": [${n} plans de 6 secondes, LA MÊME PIÈCE vue sous différents angles, de l'intérieur vers la vue : {
+    "badge": "quelques mots élégants à l'écran, 6 mots maximum (ex. « Une chambre bogolan face à l'océan »), ou chaîne vide",
+    "imagePrompt": "EN ANGLAIS : photo réaliste d'intérieur, vertical 9:16 — la pièce décorée (matières, objets, couleurs de l'article), décrite de façon IDENTIQUE d'un plan à l'autre, et la vue (${vue}) par une grande baie ou une terrasse ; lumière douce ; aucun personnage, no text, no logo, no watermark",
+    "motionPrompt": "EN ANGLAIS : le mouvement lent de ce plan (ex. « linen curtain gently swaying in the breeze, slow push-in toward the ocean view »)"
+  }]
+}`;
+  }
+  if (format === 'avant') {
+    const objets = article.objets.slice(0, 3);
+    return `Tu réalises une pub TikTok « AVANT / APRÈS » pour Keur Déco, le site de décoration africaine (keurdeco.com) : ${seconds} secondes, verticale. Voix off DOUCE et inspirante qui VOUVOIE.
+Déroulé : la pièce banale et vide AVANT (image générée), puis la vraie pièce décorée du site APRÈS (photo réelle), puis 2 ou 3 objets en gros plan, puis la fin.
+
+${fiche}
+Objets repérés sur la photo : ${objets.map((o, i) => `${i + 1}. ${o.nom}`).join(' ; ') || 'aucun'}
+
+${commun}
+{
+  "title": "titre court (usage interne)",
+  "cta": "phrase du carton final, 10 mots maximum (ex. « Tous les objets sur keurdeco.com »)",
+  "avant": "EN ANGLAIS : la MÊME pièce que la description de la photo, même cadrage et même architecture, mais vide et banale : murs blancs nus, aucune décoration, aucun meuble décoratif, lumière froide ; photo réaliste ; no text",
+  "scenes": [
+    {"kind": "avant", "badge": "Avant", "lines": [{"speaker": "narrator", "text": "phrase courte, 14 mots maximum"}]},
+    {"kind": "apres", "badge": "Après", "lines": [{"speaker": "narrator", "text": "…"}]},
+    ${objets.map((o, i) => `{"kind": "objet", "objet": ${i + 1}, "badge": "nom court de l'objet, 4 mots maximum", "lines": [{"speaker": "narrator", "text": "…"}]}`).join(',\n    ')},
+    {"kind": "fin", "badge": "keurdeco.com", "lines": [{"speaker": "narrator", "text": "invite à retrouver tous les objets sur keurdeco.com et à épingler l'idée sur Pinterest"}]}
+  ]
+}
+Total des narrations ≈ ${Math.round(seconds * 2.2)} mots.`;
+  }
+  // visite déco
+  const objets = article.objets.slice(0, seconds <= 30 ? 4 : 6);
+  return `Tu réalises une pub TikTok « VISITE DÉCO » pour Keur Déco, le site de décoration africaine (keurdeco.com) : ${seconds} secondes, verticale. Voix off DOUCE et inspirante qui VOUVOIE. La caméra montre la pièce entière, puis zoome sur chaque objet, l'un après l'autre.
+
+${fiche}
+Objets repérés sur la photo, dans l'ordre de la visite : ${objets.map((o, i) => `${i + 1}. ${o.nom}`).join(' ; ')}
+
+${commun}
+{
+  "title": "titre court (usage interne)",
+  "cta": "phrase du carton final, 10 mots maximum (ex. « Tous les objets sur keurdeco.com »)",
+  "scenes": [
+    {"kind": "piece", "badge": "le nom de l'ambiance, 5 mots maximum", "lines": [{"speaker": "narrator", "text": "accroche douce qui donne envie, 14 mots maximum"}]},
+    ${objets.map((o, i) => `{"kind": "objet", "objet": ${i + 1}, "badge": "nom court de l'objet, 4 mots maximum", "lines": [{"speaker": "narrator", "text": "ce que cet objet apporte à la pièce, 14 mots maximum"}]}`).join(',\n    ')},
+    {"kind": "fin", "badge": "keurdeco.com", "lines": [{"speaker": "narrator", "text": "invite à retrouver tous les objets sur keurdeco.com et à épingler l'idée sur Pinterest"}]}
+  ]
+}
+Total des narrations ≈ ${Math.round(seconds * 2.2)} mots.`;
+}
