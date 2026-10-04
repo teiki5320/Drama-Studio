@@ -39,6 +39,7 @@ export const api = {
   keurdecoPlan: (id) => request(`/api/keurdeco/ad-plan/${id}`),
   keurbookPlan: (id) => request(`/api/keurbook/ad-plan/${id}`),
   optiledPlan: (id) => request(`/api/optiled/ad-plan/${id}`),
+  kultivaPlan: (id) => request(`/api/kultiva/ad-plan/${id}`),
   addToQueue: (item) => request('/api/queue', { method: 'POST', body: JSON.stringify(item) }),
   removeFromQueue: (id) => request(`/api/queue/${id}`, { method: 'DELETE' }),
   recipes: () => request('/api/recipes'),

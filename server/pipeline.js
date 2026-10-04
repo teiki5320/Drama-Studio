@@ -44,6 +44,7 @@ import {
   buildKeurbookAdPrompt,
   buildOptiledAdPrompt,
   buildEreaAdPrompt,
+  buildKultivaAdPrompt,
   KITCHEN_REFERENCE_PROMPT,
   RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
@@ -57,6 +58,7 @@ import { composeMusic } from './music.js';
 import { chargeLivres, logoKeurbook } from './keurbook.js';
 import { chargeCultures, optiledRepo } from './optiled.js';
 import { decorEpoque, iconeErea, evenementsCelebres, fichiersFrise } from './erea.js';
+import { chargeEspeces, aSemer, tamassi, fondPastel, iconeKultiva, REGIONS, MOIS } from './kultiva.js';
 import { applyVoicePreset } from './voicepresets.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
@@ -2067,6 +2069,185 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
   project.episodes.sort((a, b) => a.number - b.number);
   project.episodeCount = project.episodes.length;
   state.deja.push(nom);
+  saveProject(project);
+  return { number };
+}
+
+// ---------- Pub Kultiva ----------
+export const KULTIVA_FORMATS = {
+  mois: '📅 Que semer ce mois-ci ?',
+  assiette: "🍽️ De la graine à l'assiette",
+  famille: '👨‍👩‍👧 Au jardin en famille',
+  timelapse: '🌱 Time-lapse — la plante pousse',
+};
+const moisCourant = () => Number(new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', month: 'numeric' }));
+
+export function kultivaAdPlan(project) {
+  const mois = moisCourant();
+  const state = project.kuTour || { used: {} };
+  return {
+    formats: Object.entries(KULTIVA_FORMATS).map(([id, label]) => ({ id, label })),
+    regions: Object.entries(REGIONS).map(([id, label]) => ({ id, label })),
+    mois: MOIS[mois - 1],
+    especes: chargeEspeces().map((e) => ({
+      id: e.id,
+      nom: e.nom,
+      emoji: e.emoji,
+      france: (e.regions.france?.sowing_months || []).includes(mois),
+      west_africa: (e.regions.west_africa?.sowing_months || []).includes(mois),
+      fait: Object.values(state.used || {}).some((l) => l.includes(e.id)),
+    })),
+  };
+}
+
+export async function createKultivaAd(project, { format = 'mois', region = 'france', espece = '' } = {}, update) {
+  if (project.kind !== 'pub') {
+    throw new Error('Réservé à la campagne de pub Kultiva.');
+  }
+  applyVoicePreset(project);
+  const fmt = KULTIVA_FORMATS[format] ? format : 'mois';
+  const reg = REGIONS[region] ? region : 'france';
+  const state = project.kuTour || (project.kuTour = { used: {} });
+  const used = state.used[reg] || (state.used[reg] = []);
+  const mois = moisCourant();
+  const secs = 30; // durée fixée (on ne la demande plus)
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+  const dir = assetsDir(project.id);
+  const copie = (src, nom) => {
+    if (!src) {
+      return null;
+    }
+    const dest = path.join(dir, nom);
+    if (!fs.existsSync(dest)) {
+      fs.copyFileSync(src, dest);
+    }
+    return nom;
+  };
+  const melange = (l) => [...l].sort(() => Math.random() - 0.5);
+  const toutes = chargeEspeces();
+  let especes = [];
+  let e = null;
+  if (fmt === 'mois') {
+    const dispo = aSemer(reg, mois);
+    especes = [...melange(dispo.filter((x) => !used.includes(x.id))), ...melange(dispo.filter((x) => used.includes(x.id)))].slice(0, 3);
+    if (especes.length === 0) {
+      throw new Error(`Rien à semer en ${MOIS[mois - 1]} dans le calendrier de Kultiva (${REGIONS[reg]}).`);
+    }
+  } else {
+    e =
+      toutes.find((x) => x.id === espece) ||
+      toutes.find((x) => (x.regions[reg]?.sowing_months || []).includes(mois) && !used.includes(x.id)) ||
+      toutes.find((x) => !used.includes(x.id)) ||
+      toutes[0];
+  }
+
+  update('Script de la pub Kultiva par Claude…');
+  const raw = await askClaudeForJson(
+    buildKultivaAdPrompt({ format: fmt, region: reg, mois: MOIS[mois - 1], especes, espece: e, seconds: secs }),
+  );
+  ensureUsage(project).claudeCalls += 1;
+  const fond = copie(fondPastel('morning'), 'kultiva-fond.png');
+  const tama = tamassi();
+  const tamaFile = (i) => copie(tama[Math.min(tama.length - 1, i)], `kultiva-tamassi-${i}.png`);
+  const surFond = { image: fond, fromSite: true, videoDisabled: true, kenBurns: 'zoom-in' };
+
+  let episode;
+  if (fmt === 'timelapse') {
+    const scenes = (Array.isArray(raw.scenes) ? raw.scenes : []).slice(0, 8);
+    episode = {
+      number,
+      title: String(raw.title || 'Time-lapse Kultiva').slice(0, 120),
+      locations: {},
+      cliffhanger: '',
+      status: 'script',
+      renderedFile: null,
+      scenes: scenes.map((sc, i) => ({
+        id: `s${i + 1}`,
+        location: '',
+        screenshot: null,
+        characters: [],
+        image: null,
+        imageUrl: null,
+        kenBurns: 'zoom-in',
+        version: 0,
+        lines: [],
+        badge: typeof sc.badge === 'string' && sc.badge.trim() ? sc.badge.trim().slice(0, 60) : null,
+        badgeStyle: 'doux',
+        imagePrompt: String(sc.imagePrompt || '').trim(),
+        motionPrompt: String(sc.motionPrompt || '').trim().slice(0, 300),
+        clip: true,
+        fixedDuration: true,
+        durationSec: Math.max(5, Math.min(8, Math.round(secs / Math.max(1, scenes.length)))),
+      })),
+    };
+    if (raw.music) {
+      try {
+        update('Composition de la musique par ElevenLabs…');
+        const file = `e${number}_musique.mp3`;
+        await composeMusic(String(raw.music).slice(0, 400), secs + 6, path.join(dir, file));
+        episode.musicFile = file;
+        episode.musicVolume = 0.75;
+      } catch (err) {
+        console.error('Musique Kultiva :', err.message);
+      }
+    }
+  } else {
+    episode = normalizeEpisode(raw, number, 8);
+    for (const sc of episode.scenes) {
+      sc.characters = [];
+      for (const l of sc.lines) {
+        l.speaker = 'narrator';
+      }
+    }
+    if (fmt === 'mois') {
+      // Tout en illustrations de l'appli : aucune image générée.
+      episode.scenes.forEach((sc, i) => {
+        const k = (raw.scenes || [])[i] || {};
+        Object.assign(sc, surFond, { imagePrompt: '' });
+        if (k.kind === 'legume' && Number.isInteger(k.legume) && especes[k.legume - 1]) {
+          const x = especes[k.legume - 1];
+          sc.sticker = copie(x.illustration, `kultiva-${x.id}.png`);
+        } else {
+          sc.sticker = tamaFile(k.kind === 'fin' ? 10 : 2);
+          sc.stickerSize = 0.85;
+        }
+      });
+    } else if (fmt === 'famille') {
+      episode.scenes.forEach((sc, i) => {
+        if ((raw.scenes || [])[i]?.tamassi) {
+          sc.sticker = tamaFile(4);
+          sc.stickerSize = 0.45;
+          sc.stickerY = 560;
+        }
+      });
+    }
+  }
+  if (!episode.scenes.length) {
+    throw new Error('Claude n’a rendu aucun plan pour cette pub.');
+  }
+  if (!project.ctaLogo) {
+    project.ctaLogo = copie(iconeKultiva(), 'kultiva-icone.png');
+  }
+  // Pastels de l'appli : menthe, crème, rose.
+  project.ctaTheme = {
+    bg: 'radial-gradient(ellipse at 50% 40%, #fbfff9 0%, #dcf2e6 80%)',
+    ink: '#3d5a4c',
+    pill: '#ff8fab',
+    pillInk: '#ffffff',
+    withName: true,
+  };
+  const sujet = fmt === 'mois' ? especes.map((x) => x.nom).join(', ') : e.nom;
+  episode.topic = `${KULTIVA_FORMATS[fmt]} — ${sujet} (${REGIONS[reg]})`;
+  episode.title = String(raw.title || episode.topic).slice(0, 120);
+  episode.cta = String(raw.cta || 'Ton potager dans ta poche').slice(0, 70);
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  for (const x of fmt === 'mois' ? especes : [e]) {
+    if (!used.includes(x.id)) {
+      used.push(x.id);
+    }
+  }
   saveProject(project);
   return { number };
 }

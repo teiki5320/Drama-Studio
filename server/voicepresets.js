@@ -33,6 +33,11 @@ export const VOICE_PRESETS = {
     narratorVoice: 'AfbuxQ9DVtS4azaxN1W7', // Léo
     voiceSettings: { stability: 0.38, similarity_boost: 0.8, style: 0.45, speed: 1.05 },
   },
+  // Pub Kultiva : jeune et joyeuse, esprit kawaii, au tutoiement.
+  'teiki5320/kultiva': {
+    narratorVoice: 'FvmvwvObRqIHojkEGh5N', // Adina
+    voiceSettings: { stability: 0.4, similarity_boost: 0.8, style: 0.4, speed: 1.02 },
+  },
 };
 
 export function applyVoicePreset(project) {

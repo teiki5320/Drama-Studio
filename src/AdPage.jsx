@@ -355,6 +355,102 @@ function OptiledAdControls({ projectId, onQueued }) {
   );
 }
 
+// Kultiva : semis du mois (illustrations de l'appli), graine → assiette,
+// famille avec le Tamassi, ou time-lapse. Région choisie à chaque pub.
+const KULTIVA_AIDE = {
+  mois: 'Les légumes à semer ce mois-ci, avec les vraies illustrations de l’appli et le Tamassi. Aucune image générée : presque gratuit.',
+  assiette: 'Le parcours d’un légume, de la graine au plat, voix joyeuse d’Adina.',
+  famille: 'Parents et enfants au potager, le Tamassi qui fait coucou.',
+  timelapse: 'La plante pousse en clips lents, sans voix, musique composée (≈ 200 à 300 crédits OpenArt).',
+};
+function KultivaAdControls({ projectId, onQueued }) {
+  const [plan, setPlan] = useState(null);
+  const [format, setFormat] = useState('mois');
+  const [region, setRegion] = useState('france');
+  const [espece, setEspece] = useState('');
+  const [error, setError] = useState('');
+  const load = () =>
+    api
+      .kultivaPlan(projectId)
+      .then(setPlan)
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, [projectId]);
+  const especes = (plan?.especes || [])
+    .slice()
+    .sort((a, b) => Number(b[region]) - Number(a[region]) || a.nom.localeCompare(b.nom, 'fr'));
+  const aSemer = especes.filter((e) => e[region]);
+  const choisie = especes.find((e) => e.id === espece);
+  return (
+    <div className="clay-block">
+      <h3>🌱 Nouvelle pub Kultiva</h3>
+      {!plan && !error && <p className="clay-muted small">Chargement du calendrier…</p>}
+      {plan && (
+        <>
+          <select className="rp-input" value={format} onChange={(e) => setFormat(e.target.value)}>
+            {plan.formats.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <select className="rp-input" value={region} onChange={(e) => setRegion(e.target.value)}>
+            {plan.regions.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.id === 'france' ? '🇫🇷' : '🌍'} {r.label}
+              </option>
+            ))}
+          </select>
+          {format === 'mois' ? (
+            <p className="clay-muted small">
+              En {plan.mois} : {aSemer.length} légume{aSemer.length > 1 ? 's' : ''} à semer
+              {aSemer.length ? ` (${aSemer.slice(0, 6).map((e) => e.nom).join(', ')}${aSemer.length > 6 ? '…' : ''})` : ''}.
+              Trois seront choisis.
+            </p>
+          ) : (
+            <select className="rp-input" value={espece} onChange={(e) => setEspece(e.target.value)}>
+              <option value="">Au hasard (de saison)</option>
+              {especes.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.fait ? '✓ ' : ''}
+                  {e.emoji} {e.nom}
+                  {e[region] ? ` · à semer en ${plan.mois}` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="clay-muted small">{KULTIVA_AIDE[format]}</p>
+          <button
+            className="clay-btn rp-generate"
+            disabled={format === 'mois' && !aSemer.length}
+            onClick={() =>
+              api
+                .addToQueue({
+                  kind: 'kultiva',
+                  projectId,
+                  format,
+                  region,
+                  espece: format === 'mois' ? '' : espece,
+                  label: format === 'mois' ? plan.mois : choisie ? choisie.nom : '',
+                })
+                .then(() => {
+                  setEspece('');
+                  onQueued();
+                  return load();
+                })
+                .catch((e) => setError(e.message))
+            }
+          >
+            🎬 Générer la pub
+          </button>
+        </>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
 // Erea : l'anachronisme — un personnage projeté dans une mauvaise époque.
 function EreaAdControls({ projectId, project, onQueued }) {
   const [personnage, setPersonnage] = useState('');
@@ -460,7 +556,7 @@ export function AdPage({ projectId, onAdvanced }) {
     if (
       project &&
       project.kind === 'pub' &&
-      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook', 'teiki5320/optiled', 'teiki5320/erea'].includes(
+      !['teiki5320/keurcook', 'teiki5320/keurdeco', 'teiki5320/keurbook', 'teiki5320/optiled', 'teiki5320/erea', 'teiki5320/kultiva'].includes(
         String(project.repo || '').toLowerCase(),
       ) &&
       !(project.episodes || []).length &&
@@ -482,6 +578,7 @@ export function AdPage({ projectId, onAdvanced }) {
   const isKeurbook = repoKey === 'teiki5320/keurbook';
   const isOptiled = repoKey === 'teiki5320/optiled';
   const isErea = repoKey === 'teiki5320/erea';
+  const isKultiva = repoKey === 'teiki5320/kultiva';
   const episodes = [...(project.episodes || [])].sort((a, b) => b.number - a.number);
   const shown =
     episodes.find((e) => e.number === selected) || episodes.find((e) => e.renderedFile) || episodes[0] || null;
@@ -542,7 +639,7 @@ export function AdPage({ projectId, onAdvanced }) {
               api.queue().then((list) => setQueue(list.filter((it) => it.projectId === projectId)))
             }
           />
-        ) : isKeurCook || isKeurDeco || isKeurbook || isOptiled ? (
+        ) : isKeurCook || isKeurDeco || isKeurbook || isOptiled || isKultiva ? (
           (() => {
             const Controls = isKeurCook
               ? KeurCookAdControls
@@ -550,7 +647,9 @@ export function AdPage({ projectId, onAdvanced }) {
                 ? KeurDecoAdControls
                 : isKeurbook
                   ? KeurbookAdControls
-                  : OptiledAdControls;
+                  : isOptiled
+                    ? OptiledAdControls
+                    : KultivaAdControls;
             return (
               <Controls
                 projectId={projectId}

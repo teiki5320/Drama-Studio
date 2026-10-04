@@ -25,6 +25,8 @@ import {
   createKeurbookAd,
   createOptiledAd,
   OPTILED_FORMATS,
+  createKultivaAd,
+  KULTIVA_FORMATS,
   createEreaAd,
   produceEpisode,
   retryFailedAssets,
@@ -142,6 +144,21 @@ export function addToQueue(raw) {
       culture,
       label: `Pub OptiLED — ${OPTILED_FORMATS[format].split(' — ')[0]}${raw.label ? `, ${String(raw.label).slice(0, 40)}` : ''}`,
     };
+  } else if (raw.kind === 'kultiva') {
+    // Pub Kultiva : semis du mois, graine → assiette, famille, time-lapse.
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const format = KULTIVA_FORMATS[raw.format] ? raw.format : 'mois';
+    const region = raw.region === 'west_africa' ? 'west_africa' : 'france';
+    const espece = format === 'mois' ? '' : String(raw.espece || '').trim().slice(0, 60);
+    item = {
+      kind: 'kultiva',
+      format,
+      region,
+      espece,
+      label: `Pub Kultiva — ${KULTIVA_FORMATS[format].replace(/^\S+\s/, '')}${raw.label ? `, ${String(raw.label).slice(0, 40)}` : ''}`,
+    };
   } else if (raw.kind === 'erea') {
     // Pub Erea : l'anachronisme (personnage imposé ou choisi par Claude).
     if (project.kind !== 'pub') {
@@ -207,6 +224,8 @@ async function produceItem(it, update) {
   const { number } =
     it.kind === 'erea'
       ? await createEreaAd(p, { personnage: it.personnage }, step('Script', 0, 0.05))
+      : it.kind === 'kultiva'
+      ? await createKultivaAd(p, { format: it.format, region: it.region, espece: it.espece }, step('Script', 0, 0.05))
       : it.kind === 'optiled'
       ? await createOptiledAd(p, { format: it.format, culture: it.culture }, step('Script', 0, 0.05))
       : it.kind === 'keurbook'

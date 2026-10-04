@@ -74,6 +74,23 @@ const ereaAssets = (o, base) => ({
     : null,
 });
 
+// Illustration détourée de l'appli (légume, Tamassi…) posée sur le fond,
+// avec un léger rebond kawaii.
+const Sticker = ({ src, size = 0.62, y = 0 }) => {
+  const frame = useCurrentFrame();
+  const { fps, width } = useVideoConfig();
+  const pop = interpolate(frame, [0, 0.45 * fps], [0.6, 1], { extrapolateRight: 'clamp', easing: Easing.out(Easing.back(1.8)) });
+  const bob = Math.sin((frame / fps) * Math.PI * 1.2) * 14;
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <SafeImg
+        src={src}
+        style={{ width: width * size, transform: `translateY(${y + bob}px) scale(${pop})`, filter: 'drop-shadow(0 18px 30px rgba(80,60,40,0.25))' }}
+      />
+    </AbsoluteFill>
+  );
+};
+
 // Pub « chiffres » (OptiLED) : un vrai chiffre du site, en très grand, qui
 // compte jusqu'à sa valeur (« 25 W »), et ce qu'il veut dire dessous.
 const StatOverlay = ({ valeur, label }) => {
@@ -430,6 +447,7 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
 
       {/* Pub : incrustation qui situe le plan (lieu, année) */}
       {scene.stat && scene.stat.valeur ? <StatOverlay valeur={scene.stat.valeur} label={scene.stat.label} /> : null}
+      {scene.sticker ? <Sticker src={`${assetBase}/${scene.sticker}`} size={scene.stickerSize || 0.62} y={scene.stickerY || 0} /> : null}
       {scene.question ? (
         <EreaQuestion titre={scene.question.titre} texte={scene.question.texte} fonts={ereaAssets(scene.question, assetBase).fonts} />
       ) : null}

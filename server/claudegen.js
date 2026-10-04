@@ -1220,3 +1220,63 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 CONTRAINTES : rien de choquant ni de violent (pas de sang, pas d'armes qui blessent) — c'est drôle et bon enfant. Aucune phrase de vente : on invite à jouer (l'appli est gratuite).
 Erea fait placer des ÉVÉNEMENTS sur une frise (inventions, batailles, découvertes, règnes…), pas seulement des personnages : n'emploie JAMAIS le mot « héros » ; parle d'événements, d'histoire, de dates, d'époques.`;
 }
+
+// ---------- Pub Kultiva : « le potager kawaii dans ta poche » ----------
+// mois : que semer ce mois-ci (3 légumes du calendrier de l'appli, région
+//   France ou Afrique de l'Ouest) — illustrations de l'appli ;
+// assiette : de la graine à l'assiette — aquarelles kawaii générées ;
+// famille : au jardin en famille, une petite scène jouée — aquarelles kawaii ;
+// timelapse : la plante pousse, sans voix, clips lents, musique.
+export const KULTIVA_STYLE =
+  'kawaii pastel watercolor illustration, in the style of a cute Japanese gardening app (soft mint, pink and cream colors, rounded shapes, gentle light, big shiny eyes on cute creatures), vertical 9:16, no text, no letters, no logo, no watermark';
+
+export function buildKultivaAdPrompt({ format, region, mois, especes = [], espece = null, seconds = 30 }) {
+  const lieu =
+    region === 'west_africa'
+      ? "en Afrique de l'Ouest (cour familiale, potager tropical, saison des pluies ou sèche, cultures locales)"
+      : 'en France (balcon, petit potager, jardin familial)';
+  const voix = 'VOIX : jeune, joyeuse et chaleureuse, elle TUTOIE ; phrases courtes.';
+  const regles = `RÈGLES : aucune phrase de vente (l'appli est gratuite : on invite à la découvrir) ; n'invente aucun fait de culture — reprends les conseils fournis ; jamais de texte dans les images.`;
+  const json = (scenes) => `Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "title": "titre court (usage interne)",
+  "cta": "phrase du carton final, 9 mots maximum (ex. « Ton potager dans ta poche : Kultiva »)",
+  ${format === 'timelapse' ? '"music": "EN ANGLAIS : musique douce et joyeuse à composer (instruments, tempo, humeur)",' : ''}
+  "scenes": ${scenes}
+}`;
+  if (format === 'mois') {
+    return `Tu réalises une pub TikTok pour Kultiva, l'appli de jardinage kawaii (gratuite) : « Que semer en ${mois} ? » ${lieu}. ${seconds} secondes, verticale.
+${voix}
+LES 3 LÉGUMES À SEMER CE MOIS-CI (calendrier de l'appli) :
+${especes.map((e, i) => `${i + 1}. ${e.nom} — semis : ${e.semis} ; profondeur : ${e.profondeur} ; exposition : ${e.exposition} ; ${e.note}`).join('\n')}
+
+${json(`[
+    {"kind": "intro", "badge": "En ${mois} 🌱", "lines": [{"speaker": "narrator", "text": "accroche : qu'est-ce qu'on sème en ${mois} ? 12 mots maximum"}]},
+    ${especes.map((e, i) => `{"kind": "legume", "legume": ${i + 1}, "badge": "${e.nom}", "lines": [{"speaker": "narrator", "text": "une astuce de semis tirée des conseils, 16 mots maximum"}]}`).join(',\n    ')},
+    {"kind": "fin", "badge": "Kultiva", "lines": [{"speaker": "narrator", "text": "invite à retrouver tout le calendrier de semis dans Kultiva, gratuitement, 16 mots maximum"}]}
+  ]`)}
+${regles}`;
+  }
+  const e = espece;
+  const fiche = e ? `LE LÉGUME : ${e.nom} — ${e.description} Semis : ${e.semis}, profondeur ${e.profondeur}, exposition ${e.exposition}, arrosage ${e.arrosage}. ${e.note}` : '';
+  if (format === 'timelapse') {
+    const n = Math.max(4, Math.round(seconds / 6));
+    return `Tu réalises une pub TikTok « TIME-LAPSE » pour Kultiva, l'appli de jardinage kawaii (gratuite) : ${seconds} secondes, verticale, SANS VOIX, douce et satisfaisante. ${fiche}
+Une plante de ${e ? e.nom.toLowerCase() : 'légume'} qui pousse ${lieu}, de la graine à la récolte, LE MÊME pot et le même décor d'un plan à l'autre ; un petit Tamassi (créature kawaii ronde, verte, aux grands yeux brillants) la regarde grandir.
+${json(`[${n} plans de 6 s dans l'ordre de la pousse : {"badge": "quelques mots doux, 5 mots maximum (ex. « La graine », « Première feuille », « La récolte ! »)", "imagePrompt": "EN ANGLAIS : la scène à ce stade, décor identique, terminé par : ${KULTIVA_STYLE}", "motionPrompt": "EN ANGLAIS : le mouvement lent, effet time-lapse (ex. « time-lapse of the sprout unfolding its leaves, the cute creature bouncing happily »)"}]`)}
+${regles}`;
+  }
+  if (format === 'famille') {
+    return `Tu réalises une pub TikTok « AU JARDIN EN FAMILLE » pour Kultiva, l'appli de jardinage kawaii (gratuite), pensée parent-enfant : ${seconds} secondes, verticale, une petite scène jouée ${lieu}. ${fiche}
+Un parent et son enfant sèment ensemble, l'enfant arrose, découvre la première pousse, puis récolte, fier. Le Tamassi (la créature kawaii de l'appli) les encourage : il sera ajouté par le studio sur certains plans.
+${voix}
+${json(`[5 plans : {"kind": "scene", "badge": "texte très court à l'écran, 4 mots maximum, ou null", "tamassi": true sur 2 plans seulement (le Tamassi apparaît), false ailleurs, "lines": [{"speaker": "narrator", "text": "phrase courte, 14 mots maximum"}], "imagePrompt": "EN ANGLAIS : la scène, le même parent et le même enfant d'un plan à l'autre (décris-les pareil), terminé par : ${KULTIVA_STYLE}"}]`)}
+${regles}`;
+  }
+  // assiette
+  return `Tu réalises une pub TikTok « DE LA GRAINE À L'ASSIETTE » pour Kultiva, l'appli de jardinage kawaii (gratuite) : ${seconds} secondes, verticale, ${lieu}. ${fiche}
+Le voyage du légume : la graine, la pousse, la plante, la récolte, le plat.
+${voix}
+${json(`[5 plans dans l'ordre : {"kind": "graine | pousse | plante | recolte | assiette", "badge": "texte très court à l'écran, 4 mots maximum", "lines": [{"speaker": "narrator", "text": "phrase courte, 14 mots maximum, avec un conseil tiré de la fiche"}], "imagePrompt": "EN ANGLAIS : ce stade du ${e ? e.nom.toLowerCase() : 'légume'}, terminé par : ${KULTIVA_STYLE}"}]`)}
+${regles}`;
+}
