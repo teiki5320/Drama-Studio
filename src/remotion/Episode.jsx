@@ -87,7 +87,7 @@ const Outro = ({ title, cliffhanger }) => {
 };
 
 // Carton final d'une PUB : le nom de l'appli et l'appel à l'action.
-const CtaCard = ({ appName, cta }) => {
+const CtaCard = ({ appName, cta, logo }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const opacity = interpolate(frame, [0, 0.4 * fps], [0, 1], { extrapolateRight: 'clamp' });
@@ -117,7 +117,14 @@ const CtaCard = ({ appName, cta }) => {
           textShadow: '0 6px 40px rgba(0,0,0,0.8)',
         }}
       >
-        {appName}
+        {logo ? (
+          <SafeImg
+            src={logo}
+            style={{ width: 420, maxHeight: 420, objectFit: 'contain', display: 'block', margin: '0 auto' }}
+          />
+        ) : (
+          appName
+        )}
       </div>
       <div
         style={{
@@ -140,7 +147,7 @@ const CtaCard = ({ appName, cta }) => {
   );
 };
 
-export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle, studio, studioBase, noOutroCard, cta }) => {
+export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle, studio, studioBase, noOutroCard, cta, ctaLogo }) => {
   const scenes = episode?.scenes || [];
 
   if (scenes.length === 0) {
@@ -194,7 +201,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, seriesTitle
     seriesChildren.push(
       transition('tr-cta-card'),
       <TransitionSeries.Sequence key="cta-card" durationInFrames={Math.round(CTA_SECONDS * FPS)}>
-        <CtaCard appName={seriesTitle} cta={cta} />
+        <CtaCard appName={seriesTitle} cta={cta} logo={ctaLogo} />
       </TransitionSeries.Sequence>,
     );
   }

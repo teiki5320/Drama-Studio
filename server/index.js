@@ -29,6 +29,7 @@ import {
   createChannel,
   createChannelVideo,
   createAdProject,
+  keurCookAdPlan,
   createRecipeProject,
   createRecipeVideo,
   saveScreenshot,
@@ -1285,6 +1286,20 @@ app.post('/api/projects/:id/episodes/:n/render', (req, res) => {
     const job = startJob(`Rendu épisode ${ep.number}`, (update) => renderEpisode(p, ep, update), { projectId: p.id });
     res.json({ jobId: job.id });
   });
+});
+
+// ---------- Pub Keur Cook : la tournée des pays ----------
+app.get('/api/keurcook/ad-plan/:id', (req, res) => {
+  const p = loadProject(req.params.id);
+  if (!p) {
+    res.status(404).json({ error: 'Projet introuvable' });
+    return;
+  }
+  try {
+    res.json(keurCookAdPlan(p));
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
 });
 
 // ---------- File d'attente ----------

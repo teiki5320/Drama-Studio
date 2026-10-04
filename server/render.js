@@ -51,14 +51,18 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
     studioBase: studioBase || '',
     // Chaîne : la vidéo se termine sans carton « À suivre ».
     noOutroCard: project.mode === 'chaine',
-    // Pub : carton final « nom de l'appli + appel à l'action ».
-    cta: project.kind === 'pub' ? project.cta || '' : '',
+    // Pub : carton final « nom de l'appli + appel à l'action » — la phrase peut
+    // changer d'une pub à l'autre (Keur Cook alterne recette / ingrédient),
+    // avec le logo de l'appli s'il existe.
+    cta: project.kind === 'pub' ? episode.cta || project.cta || '' : '',
+    ctaLogo: project.kind === 'pub' && project.ctaLogo ? `${assetBase}/${project.ctaLogo}` : '',
   };
 }
 
 export async function renderEpisode(project, episode, update) {
-  // Recette : aucune allégation de santé ne doit partir au rendu.
-  if (project.mode === 'recette') {
+  // Recette, et pubs Keur Cook (un site alimentaire) : aucune allégation de
+  // santé ne doit partir au rendu.
+  if (project.mode === 'recette' || String(project.repo || '').toLowerCase() === 'teiki5320/keurcook') {
     assertNoHealthClaims(episode);
   }
   update('Préparation du moteur de rendu…');

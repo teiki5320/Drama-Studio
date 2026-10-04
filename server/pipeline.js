@@ -39,6 +39,7 @@ import {
   buildAdPrompt,
   buildAdVideoPrompt,
   buildRecipePrompt,
+  buildKeurCookAdPrompt,
   KITCHEN_REFERENCE_PROMPT,
   RECIPE_IMAGE_STYLE,
   RECIPE_SECONDS,
@@ -46,6 +47,7 @@ import {
   DRAMA_IMAGE_SUFFIX,
 } from './claudegen.js';
 import { copyRecipeImage, fetchRecipe, manualRecipe, recipeAsText } from './recipes.js';
+import { tourAfrique, logoKeurCook } from './keurcook.js';
 import { generateImage, currentProvider } from './images.js';
 import { assignVoices, synthesize, voiceFor, isCatalogVoice } from './tts.js';
 import {
@@ -139,7 +141,7 @@ function normalizeEpisode(raw, number, maxScenes = 12) {
       onScreen: typeof s.onScreen === 'string' ? s.onScreen.trim().slice(0, 80) : undefined,
       stepNumber: Number.isInteger(s.stepNumber) ? s.stepNumber : undefined,
       ingredients: Array.isArray(s.ingredients)
-        ? s.ingredients.map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 8)
+        ? s.ingredients.map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 12)
         : undefined,
       clip: s.clip === true ? true : undefined,
       lines,
@@ -1391,6 +1393,7 @@ export function assertNoHealthClaims(episode) {
     { where: 'le pays de la recette', text: r.country || '' },
     { where: 'la durée affichée', text: r.totalText || '' },
     { where: "l'accroche (légende TikTok)", text: episode.hook || '' },
+    { where: 'le carton final', text: episode.cta || '' },
   ];
   for (const piece of head) {
     const found = findHealthClaims(piece.text);
@@ -1405,6 +1408,7 @@ export function assertNoHealthClaims(episode) {
     const pieces = [
       ...(scene.lines || []).map((l) => ({ where: 'la narration', text: l.text })),
       { where: "le texte à l'écran", text: scene.onScreen || '' },
+      { where: "l'incrustation", text: scene.badge || '' },
       ...(scene.ingredients || []).map((x) => ({ where: 'la liste des ingrédients', text: x })),
     ];
     for (const piece of pieces) {
@@ -1420,6 +1424,100 @@ export function assertNoHealthClaims(episode) {
 }
 
 // Écrit le script d'une nouvelle vidéo de la chaîne sur un sujet donné.
+// ---------- Pub Keur Cook : « Tour d'Afrique » ----------
+// Le pays suivant de la tournée (ou celui demandé), et la fin qui alterne :
+// une pub sur deux renvoie vers la recette, l'autre vers l'ingrédient.
+export function keurCookAdPlan(project) {
+  const tour = tourAfrique();
+  const state = project.kcTour || { done: [], count: 0 };
+  const next = tour.find((e) => !state.done.includes(e.pays)) || tour[0] || null;
+  return {
+    next: next && { pays: next.pays, recette: next.recette.name, produit: next.produit.name },
+    fin: state.count % 2 === 0 ? 'recette' : 'produit',
+    pays: tour.map((e) => ({
+      pays: e.pays,
+      recette: e.recette.name,
+      produit: e.produit.name,
+      fait: state.done.includes(e.pays),
+    })),
+  };
+}
+
+export async function createKeurCookAd(project, { pays = '', seconds = 45 } = {}, update) {
+  if (project.kind !== 'pub') {
+    throw new Error('Réservé à la campagne de pub Keur Cook.');
+  }
+  const tour = tourAfrique();
+  const state = project.kcTour || (project.kcTour = { done: [], count: 0 });
+  const entry =
+    tour.find((e) => e.pays === pays) || tour.find((e) => !state.done.includes(e.pays)) || tour[0];
+  if (!entry) {
+    throw new Error('Aucun pays exploitable dans les recettes de Keur Cook.');
+  }
+  const fin = state.count % 2 === 0 ? 'recette' : 'produit';
+  const secs = [45, 60].includes(Number(seconds)) ? Number(seconds) : 45;
+  const number = (project.episodes || []).reduce((m, e) => Math.max(m, e.number), 0) + 1;
+
+  update(`Script de la pub « ${entry.pays} » par Claude…`);
+  const raw = await askClaudeForJson(
+    buildKeurCookAdPrompt({ pays: entry.pays, recette: entry.recette, produit: entry.produit, seconds: secs, fin }),
+  );
+  ensureUsage(project).claudeCalls += 1;
+  const episode = normalizeEpisode(raw, number, 14);
+  for (const sc of episode.scenes) {
+    sc.characters = [];
+    for (const l of sc.lines) {
+      l.speaker = 'narrator';
+    }
+  }
+  // Les vraies photos du site : le plat, le produit — et le plat encore pour
+  // le plan de fin, avant le carton final au logo de Keur Cook.
+  const dir = assetsDir(project.id);
+  const realPhoto = (sc, src, tag) => {
+    if (!src) {
+      return;
+    }
+    const file = `e${number}_${sc.id}_${tag}.webp`;
+    copyRecipeImage(src, path.join(dir, file));
+    sc.image = file;
+    sc.imageUrl = null;
+    sc.imagePrompt = '';
+    sc.fromSite = true;
+    sc.videoDisabled = true;
+  };
+  for (const sc of episode.scenes) {
+    if (sc.kind === 'plat' || sc.kind === 'fin') {
+      realPhoto(sc, entry.recette.photo, 'plat');
+    } else if (sc.kind === 'produit') {
+      realPhoto(sc, entry.produit.photo, 'produit');
+    }
+  }
+  const logo = logoKeurCook();
+  if (logo && !project.ctaLogo) {
+    project.ctaLogo = 'keurcook-logo.webp';
+    copyRecipeImage(logo, path.join(dir, project.ctaLogo));
+  }
+  episode.topic = `${entry.pays} — ${entry.recette.name} + ${entry.produit.name}`;
+  episode.title = raw.title || episode.topic;
+  episode.cta = String(
+    raw.cta || (fin === 'produit' ? "L'ingrédient introuvable sur keurcook.com" : 'La recette pas à pas sur keurcook.com'),
+  ).slice(0, 80);
+  episode.kcPays = entry.pays;
+  episode.cliffhanger = '';
+  project.episodes.push(episode);
+  project.episodes.sort((a, b) => a.number - b.number);
+  project.episodeCount = project.episodes.length;
+  if (!state.done.includes(entry.pays)) {
+    state.done.push(entry.pays);
+  }
+  if (state.done.length >= tour.length) {
+    state.done = []; // tournée terminée : on repart pour un tour
+  }
+  state.count += 1;
+  saveProject(project);
+  return { number };
+}
+
 export async function createChannelVideo(project, topic, update) {
   if (project.mode !== 'chaine') {
     throw new Error('Réservé aux chaînes.');

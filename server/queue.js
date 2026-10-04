@@ -15,7 +15,14 @@ import crypto from 'node:crypto';
 import { STUDIO_DIR } from './studio.js';
 import { startJob } from './jobs.js';
 import { loadProject } from './projects.js';
-import { createChannelVideo, createRecipeVideo, produceEpisode, retryFailedAssets } from './pipeline.js';
+import {
+  createChannelVideo,
+  createRecipeVideo,
+  createKeurCookAd,
+  keurCookAdPlan,
+  produceEpisode,
+  retryFailedAssets,
+} from './pipeline.js';
 import { renderEpisode } from './render.js';
 
 const FILE = path.join(STUDIO_DIR, 'queue.json');
@@ -82,6 +89,18 @@ export function addToQueue(raw) {
       angle,
       label: `${isPub ? 'Pub' : 'Vidéo'} ${project.title} — « ${angle.slice(0, 70)} »`,
     };
+  } else if (raw.kind === 'keurcook') {
+    // Pub Keur Cook « Tour d'Afrique » : le pays suivant, ou celui choisi.
+    if (project.kind !== 'pub') {
+      throw new Error('Ce projet n’est pas une campagne de pub.');
+    }
+    const plan = keurCookAdPlan(project);
+    const pays = String(raw.pays || '').trim() || (plan.next && plan.next.pays) || '';
+    if (!pays) {
+      throw new Error('Aucun pays disponible pour la pub Keur Cook.');
+    }
+    const seconds = Number(raw.seconds) === 60 ? 60 : 45;
+    item = { kind: 'keurcook', pays, seconds, label: `Pub Keur Cook — ${pays}, ${seconds} s` };
   } else if (raw.kind === 'recette') {
     if (project.mode !== 'recette') {
       throw new Error('Ce projet n’est pas un atelier de recettes.');
@@ -138,7 +157,9 @@ async function produceItem(it, update) {
 
   // 1. Script
   const { number } =
-    it.kind === 'pub' || it.kind === 'chaine'
+    it.kind === 'keurcook'
+      ? await createKeurCookAd(p, { pays: it.pays, seconds: it.seconds }, step('Script', 0, 0.05))
+      : it.kind === 'pub' || it.kind === 'chaine'
       ? await createChannelVideo(p, it.angle, step('Script', 0, 0.05))
       : await createRecipeVideo(
           p,

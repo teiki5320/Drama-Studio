@@ -36,7 +36,8 @@ function Apercu({ project, episode, studio }) {
       />
     );
   }
-  const cta = isPub ? project.cta || '' : '';
+  const cta = isPub ? episode.cta || project.cta || '' : '';
+  const ctaLogo = isPub && project.ctaLogo ? `/files/${project.id}/${project.ctaLogo}` : '';
   return (
     <div className="rp-video">
       <Player
@@ -51,6 +52,7 @@ function Apercu({ project, episode, studio }) {
           studioBase: '/studio',
           noOutroCard: true,
           cta,
+          ctaLogo,
         }}
         durationInFrames={Math.max(1, episodeDurationInFrames(episode, studio, true, cta))}
         fps={FPS}
@@ -60,6 +62,73 @@ function Apercu({ project, episode, studio }) {
         acknowledgeRemotionLicense
         style={{ width: '100%', height: '100%' }}
       />
+    </div>
+  );
+}
+
+// Keur Cook : pas d'idées à choisir — la pub suit la tournée des pays
+// (plat emblématique + ingrédient rare), la fin alterne recette / ingrédient.
+function KeurCookAdControls({ projectId, onQueued }) {
+  const [plan, setPlan] = useState(null);
+  const [pays, setPays] = useState('');
+  const [seconds, setSeconds] = useState(45);
+  const [error, setError] = useState('');
+  const load = () =>
+    api
+      .keurcookPlan(projectId)
+      .then((p) => {
+        setPlan(p);
+        setPays((cur) => cur || (p.next && p.next.pays) || '');
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, [projectId]);
+  const choisi = plan?.pays.find((e) => e.pays === pays);
+  return (
+    <div className="clay-block">
+      <h3>🌍 Nouvelle pub — Tour d'Afrique</h3>
+      {!plan && !error && <p className="clay-muted small">Chargement de la tournée…</p>}
+      {plan && (
+        <>
+          <select className="rp-input" value={pays} onChange={(e) => setPays(e.target.value)}>
+            {plan.pays.map((e) => (
+              <option key={e.pays} value={e.pays}>
+                {e.fait ? '✓ ' : ''}
+                {e.pays} — {e.recette} + {e.produit}
+                {plan.next && e.pays === plan.next.pays ? ' (prochain)' : ''}
+              </option>
+            ))}
+          </select>
+          {choisi && (
+            <p className="clay-muted small">
+              Plat : <b>{choisi.recette}</b> · ingrédient secret : <b>{choisi.produit}</b> · fin :{' '}
+              <b>{plan.fin === 'produit' ? "l'ingrédient sur keurcook.com" : 'la recette sur keurcook.com'}</b>
+            </p>
+          )}
+          <select className="rp-input" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>
+            <option value={45}>45 secondes</option>
+            <option value={60}>60 secondes</option>
+          </select>
+          <button
+            className="clay-btn rp-generate"
+            disabled={!pays}
+            onClick={() =>
+              api
+                .addToQueue({ kind: 'keurcook', projectId, pays, seconds })
+                .then(() => {
+                  setPays('');
+                  onQueued();
+                  return load();
+                })
+                .catch((e) => setError(e.message))
+            }
+          >
+            🎬 Générer la pub
+          </button>
+        </>
+      )}
+      {error && <p className="error small">{error}</p>}
     </div>
   );
 }
@@ -128,7 +197,14 @@ export function AdPage({ projectId, onAdvanced }) {
       .finally(() => setIdeasBusy(false));
   };
   useEffect(() => {
-    if (project && project.kind === 'pub' && !(project.episodes || []).length && !ideas.length && !ideasBusy) {
+    if (
+      project &&
+      project.kind === 'pub' &&
+      String(project.repo || '').toLowerCase() !== 'teiki5320/keurcook' &&
+      !(project.episodes || []).length &&
+      !ideas.length &&
+      !ideasBusy
+    ) {
       moreIdeas();
     }
   }, [project?.id]);
@@ -138,6 +214,7 @@ export function AdPage({ projectId, onAdvanced }) {
   }
 
   const isPub = project.kind === 'pub';
+  const isKeurCook = String(project.repo || '').toLowerCase() === 'teiki5320/keurcook';
   const episodes = [...(project.episodes || [])].sort((a, b) => b.number - a.number);
   const shown =
     episodes.find((e) => e.number === selected) || episodes.find((e) => e.renderedFile) || episodes[0] || null;
@@ -190,6 +267,14 @@ export function AdPage({ projectId, onAdvanced }) {
           <Credits />
         </div>
 
+        {isKeurCook ? (
+          <KeurCookAdControls
+            projectId={projectId}
+            onQueued={() =>
+              api.queue().then((list) => setQueue(list.filter((it) => it.projectId === projectId)))
+            }
+          />
+        ) : (
         <div className="clay-block">
           <h3>{isPub ? `📣 Nouvelle pub ${project.title}` : `🎥 Nouvelle vidéo — ${project.title}`}</h3>
           {ideas.length > 0 && (
@@ -216,6 +301,7 @@ export function AdPage({ projectId, onAdvanced }) {
           </button>
           {error && <p className="error small">{error}</p>}
         </div>
+        )}
 
         {(active.length > 0 || failed) && (
           <div className="clay-block">

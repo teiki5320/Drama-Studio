@@ -950,3 +950,54 @@ CONTRAINTES STRICTES :
 - Chaque imagePrompt décrit une vue DU DESSUS avec les mains dans le cadre, et les MÊMES ustensiles et le MÊME plan de travail, décrits de la même façon d'un plan à l'autre.
 - Le texte à l'écran est court et lisible sur un téléphone.`;
 }
+
+// ---------- Pub Keur Cook : « Tour d'Afrique » ----------
+// Une pub = un pays : son plat emblématique (vraie photo du site) et son
+// ingrédient secret (vraie photo du produit rare). Style TikTok : accroche
+// dans les 2 premières secondes, plans courts, tutoiement, texte à l'écran.
+// La fin alterne : la recette, ou l'ingrédient introuvable.
+export function buildKeurCookAdPrompt({ pays, recette, produit, seconds = 45, fin = 'recette' }) {
+  const words = Math.round(seconds * 2.4);
+  const nScenes = seconds <= 45 ? '8 à 10' : '10 à 13';
+  const appel =
+    fin === 'produit'
+      ? `l'ingrédient introuvable est sur keurcook.com (le ${produit.name})`
+      : `la recette pas à pas du ${recette.name} est sur keurcook.com`;
+  return `Tu es monteur de pubs TikTok pour Keur Cook, le site des recettes africaines et des produits rares (keurcook.com). Tu fais une pub de ${seconds} secondes, verticale, qui fait voyager le spectateur dans UN pays.
+
+LE PAYS : ${pays}
+LE PLAT EMBLÉMATIQUE (une recette du site) : ${recette.name}
+- ${recette.shortDescription}
+- Histoire : ${String(recette.story || '').slice(0, 900)}
+L'INGRÉDIENT SECRET (un produit rare de la boutique) : ${produit.name}
+- ${produit.shortDescription}
+- ${String(produit.description || '').slice(0, 900)}
+- Usage : ${produit.usageTips}
+
+STYLE : TikTok. Accroche qui arrête le pouce dans les 2 premières secondes (question ou surprise, ex. « Direction le ${pays} ! »). Plans COURTS (3 à 5 s), rythme rapide, phrases qui claquent. La voix TUTOIE le spectateur, ton dynamique et enthousiaste. Chaque plan a un texte à l'écran très court (badge).
+
+DÉROULÉ OBLIGATOIRE :
+1. "pays" (1 à 2 plans) — l'ambiance du pays : marché, rue animée, paysage, vus en photo réaliste (image générée). Accroche.
+2. "plat" (1 plan) — le ${recette.name} : la VRAIE photo du site sera utilisée (laisse imagePrompt vide). Une phrase sur son histoire ou sa place dans le pays.
+3. "produit" (1 plan) — le ${produit.name} : la VRAIE photo du produit sera utilisée (laisse imagePrompt vide). D'où il vient, ce qu'il apporte au plat.
+4. "mains" (3 à 5 plans) — deux mains africaines, vues du dessus sur un plan de travail en bois sombre, qui cuisinent le plat avec cet ingrédient (images générées). Rythme rapide.
+5. "fin" (1 plan, le DERNIER) — le message de fin : ${appel}. La narration le dit clairement ; badge : « keurcook.com ».
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
+{
+  "title": "titre court de la pub (usage interne)",
+  "cta": "la phrase de fin affichée sur le carton final, 8 mots maximum (ex. « La recette pas à pas sur keurcook.com »)",
+  "scenes": [${nScenes} plans : {
+    "kind": "pays | plat | produit | mains | fin",
+    "badge": "texte TRÈS court à l'écran, 4 mots maximum (ex. « 🇨🇲 Cameroun », « Le ndolé », « Poivre de Penja »)",
+    "lines": [{"speaker": "narrator", "text": "phrase courte et orale, 14 mots maximum"}],
+    "imagePrompt": "EN ANGLAIS, pour les plans pays et mains uniquement (chaîne vide pour plat, produit et fin) : la scène à générer, photo réaliste, 9:16 vertical, no text, no letters, no logo, no watermark"
+  }]
+}
+
+CONTRAINTES STRICTES :
+- Total des narrations ≈ ${words} mots (≈ ${seconds} secondes).
+- INTERDICTION ABSOLUE de toute allégation de santé ou de nutrition : jamais les mots santé, sain, bienfaits, bien-être, digestion, vitamines, minéraux, protéines, calories, antioxydant, anti-inflammatoire, immunité, détox, minceur, brûle-graisse, ventre plat, nutritif, énergisant, ni aucune promesse sur le corps. On parle de goût, d'odeur, de voyage, de tradition.
+- N'INVENTE RIEN : histoire, origine et usage viennent des textes ci-dessus. Aucun prix.
+- Plans "mains" : jamais de visage ni de corps entier, seulement les mains, vue du dessus.`;
+}

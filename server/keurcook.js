@@ -173,6 +173,7 @@ export function chargeRecettes() {
           quantity: i[0] ?? null,
           unit: i[1] ?? null,
           name: String(i[2] || ''),
+          productSlug: i[3] ? String(i[3]) : null,
         })),
         steps: r.steps.map((s) => String(s)),
         tips: Array.isArray(r.tips) ? r.tips.map(String) : [],
@@ -194,4 +195,111 @@ export function trouveRecette(slug) {
     throw new Error(`Recette « ${slug} » introuvable dans le dépôt de Keur Cook.`);
   }
   return r;
+}
+
+// ---------- Produits rares (boutique) ----------
+// Deux sources : catalog.ts (graines « seeds », la catégorie passe par un
+// appel cat("…")) et catalog-nouveautes.ts. Photo : public/products/<slug>.webp.
+const PRODUITS = [
+  ['src/lib/demo/catalog.ts', 'const seeds'],
+  ['src/lib/demo/catalog-nouveautes.ts', 'export const nouveauxProduits'],
+];
+
+let cacheProduits = null;
+
+export function chargeProduits() {
+  const dir = exigeDepot();
+  const sig = PRODUITS.map(([rel]) => {
+    try {
+      return String(fs.statSync(path.join(dir, rel)).mtimeMs);
+    } catch {
+      return '0';
+    }
+  }).join('|');
+  if (cacheProduits && cacheProduits.sig === sig) {
+    return cacheProduits.produits;
+  }
+  const produits = [];
+  for (const [rel, marqueur] of PRODUITS) {
+    const f = path.join(dir, rel);
+    if (!fs.existsSync(f)) {
+      continue;
+    }
+    const litteral = litteralApres(fs.readFileSync(f, 'utf8'), marqueur, rel);
+    if (CODE_INTERDIT.test(litteral)) {
+      throw new Error(`${rel} : le fichier contient du code, pas seulement des produits.`);
+    }
+    let brut;
+    try {
+      // cat("epices") → "epices" : seul appel autorisé dans ces données.
+      // eslint-disable-next-line no-new-func
+      brut = new Function('cat', `"use strict"; return (${litteral});`)((x) => String(x));
+    } catch (e) {
+      throw new Error(`${rel} : produits illisibles (${e.message}).`);
+    }
+    for (const p of Array.isArray(brut) ? brut : []) {
+      if (!p || !p.slug) {
+        continue;
+      }
+      const photo = path.join(dir, 'public/products', `${p.slug}.webp`);
+      produits.push({
+        slug: String(p.slug),
+        name: String(p.name || p.slug),
+        originCountry: p.originCountry ? String(p.originCountry) : '',
+        originRegion: p.originRegion ? String(p.originRegion) : '',
+        shortDescription: String(p.shortDescription || ''),
+        description: String(p.description || ''),
+        usageTips: p.usageTips ? String(p.usageTips) : '',
+        photo: fs.existsSync(photo) ? photo : '',
+      });
+    }
+  }
+  cacheProduits = { sig, produits };
+  return produits;
+}
+
+// Logo de Keur Cook (fin des pubs).
+export function logoKeurCook() {
+  const dir = exigeDepot();
+  for (const rel of ['public/brand/keurcook-logo.webp', 'public/brand/keurcook-embleme.webp']) {
+    const f = path.join(dir, rel);
+    if (fs.existsSync(f)) {
+      return f;
+    }
+  }
+  return '';
+}
+
+// ---------- « Tour d'Afrique » : une pub par pays ----------
+// Pour chaque pays : son plat emblématique (une recette du site avec photo,
+// de préférence celle qui utilise un produit rare de la boutique) et
+// l'ingrédient secret (ce produit rare, avec sa photo). Ordre : celui du site.
+export function tourAfrique() {
+  const produits = new Map(chargeProduits().filter((p) => p.photo).map((p) => [p.slug, p]));
+  // Tous les couples (plat, produit rare) possibles, pays par pays.
+  const candidats = new Map();
+  for (const r of chargeRecettes()) {
+    if (!r.country || !r.photo) {
+      continue;
+    }
+    for (const i of r.ingredients) {
+      const prod = produits.get(i.productSlug);
+      if (prod) {
+        if (!candidats.has(r.country)) {
+          candidats.set(r.country, { code: r.countryCode, couples: [] });
+        }
+        candidats.get(r.country).couples.push({ recette: r, produit: prod });
+      }
+    }
+  }
+  // Un pays après l'autre, on prend de préférence un produit encore jamais
+  // montré : chaque pub fait découvrir un ingrédient différent.
+  const vus = new Set();
+  const tour = [];
+  for (const [pays, { code, couples }] of candidats) {
+    const choix = couples.find((c) => !vus.has(c.produit.slug)) || couples[0];
+    vus.add(choix.produit.slug);
+    tour.push({ pays, code, recette: choix.recette, produit: choix.produit });
+  }
+  return tour;
 }
