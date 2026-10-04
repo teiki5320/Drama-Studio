@@ -102,12 +102,6 @@ function KeurCookAdControls({ projectId, onQueued }) {
               </option>
             ))}
           </select>
-          {choisi && (
-            <p className="clay-muted small">
-              Plat : <b>{choisi.recette}</b> · ingrédient secret : <b>{choisi.produit}</b> · fin :{' '}
-              <b>{plan.fin === 'produit' ? "tout sur l'ingrédient, sur keurcook.com" : 'la recette, sur keurcook.com'}</b>
-            </p>
-          )}
           <button
             className="clay-btn rp-generate"
             disabled={!pays}
@@ -163,6 +157,7 @@ function KeurDecoAdControls({ projectId, onQueued }) {
             {plan.formats.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label}
+                {f.id === 'ambiance' || f.id === 'timelapse' ? ' · ≈ 250 crédits' : ''}
               </option>
             ))}
           </select>
@@ -184,13 +179,6 @@ function KeurDecoAdControls({ projectId, onQueued }) {
               ))}
             </select>
           )}
-          <p className="clay-muted small">
-            {format === 'ambiance'
-              ? 'Sans voix, tout en clips lents, musique composée par ElevenLabs (≈ 200 à 300 crédits OpenArt).'
-              : format === 'visite'
-                ? 'La vraie photo de l’article, zoom sur chaque objet, voix douce (presque sans crédit d’image).'
-                : 'La pièce banale (image générée), puis la vraie pièce décorée du site, voix douce.'}
-          </p>
           <button
             className="clay-btn rp-generate"
             disabled={!article}
@@ -260,10 +248,6 @@ function KeurbookAdControls({ projectId, onQueued }) {
               </option>
             ))}
           </select>
-          <p className="clay-muted small">
-            Une bande-annonce du livre : son illustration Keurbook, l'histoire en quelques images, pourquoi le lire —
-            voix posée de Nicolas, fin vers la pile à lire de keurbook.com.
-          </p>
           <button
             className="clay-btn rp-generate"
             disabled={!livre}
@@ -316,6 +300,7 @@ function OptiledAdControls({ projectId, onQueued }) {
             {plan.formats.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label}
+                {f.id === 'ambiance' || f.id === 'timelapse' ? ' · ≈ 250 crédits' : ''}
               </option>
             ))}
           </select>
@@ -328,11 +313,6 @@ function OptiledAdControls({ projectId, onQueued }) {
               </option>
             ))}
           </select>
-          <p className="clay-muted small">
-            {format === 'calcul'
-              ? 'Les vrais chiffres du calculateur en grand à l’écran, voix dynamique de Léo, fin vers le calcul gratuit sur optiled.fr.'
-              : 'La plante pousse sous les LED, en clips lents, sans voix, musique composée (≈ 200 à 300 crédits OpenArt).'}
-          </p>
           <button
             className="clay-btn rp-generate"
             disabled={!culture}
@@ -358,12 +338,6 @@ function OptiledAdControls({ projectId, onQueued }) {
 
 // Kultiva : semis du mois (illustrations de l'appli), graine → assiette,
 // famille avec le Tamassi, ou time-lapse. Région choisie à chaque pub.
-const KULTIVA_AIDE = {
-  mois: 'Les légumes à semer ce mois-ci, avec les vraies illustrations de l’appli et le Tamassi. Aucune image générée : presque gratuit.',
-  assiette: 'Le parcours d’un légume, de la graine au plat, voix joyeuse d’Adina.',
-  famille: 'Parents et enfants au potager, le Tamassi qui fait coucou.',
-  timelapse: 'La plante pousse en clips lents, sans voix, musique composée (≈ 200 à 300 crédits OpenArt).',
-};
 function KultivaAdControls({ projectId, onQueued }) {
   const [plan, setPlan] = useState(null);
   const [format, setFormat] = useState('mois');
@@ -393,6 +367,7 @@ function KultivaAdControls({ projectId, onQueued }) {
             {plan.formats.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label}
+                {f.id === 'ambiance' || f.id === 'timelapse' ? ' · ≈ 250 crédits' : ''}
               </option>
             ))}
           </select>
@@ -403,13 +378,7 @@ function KultivaAdControls({ projectId, onQueued }) {
               </option>
             ))}
           </select>
-          {format === 'mois' ? (
-            <p className="clay-muted small">
-              En {plan.mois} : {aSemer.length} légume{aSemer.length > 1 ? 's' : ''} à semer
-              {aSemer.length ? ` (${aSemer.slice(0, 6).map((e) => e.nom).join(', ')}${aSemer.length > 6 ? '…' : ''})` : ''}.
-              Trois seront choisis.
-            </p>
-          ) : (
+          {format !== 'mois' && (
             <select className="rp-input" value={espece} onChange={(e) => setEspece(e.target.value)}>
               <option value="">Au hasard (de saison)</option>
               {especes.map((e) => (
@@ -421,7 +390,6 @@ function KultivaAdControls({ projectId, onQueued }) {
               ))}
             </select>
           )}
-          <p className="clay-muted small">{KULTIVA_AIDE[format]}</p>
           <button
             className="clay-btn rp-generate"
             disabled={format === 'mois' && !aSemer.length}
@@ -454,11 +422,6 @@ function KultivaAdControls({ projectId, onQueued }) {
 
 // Palabre : les vrais écrans du jeu — une carte posée au spectateur, un
 // mandat en accéléré, ou le palais qui s'achète pièce par pièce.
-const PALABRE_AIDE = {
-  question: 'Une vraie carte du jeu : le joueur hésite, « Et vous ? », puis ce que donne chaque réponse (la radio du lendemain).',
-  mandat: 'Un mandat entier en accéléré : le serment, trois jours, puis la fin — réélu ou renversé.',
-  palais: 'Le balcon, puis le bureau, la cour et la piscine qui s’enrichissent à chaque achat. Musique du jeu.',
-};
 function PalabreAdControls({ projectId, onQueued }) {
   const [plan, setPlan] = useState(null);
   const [format, setFormat] = useState('question');
@@ -483,6 +446,7 @@ function PalabreAdControls({ projectId, onQueued }) {
             {plan.formats.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label}
+                {f.id === 'ambiance' || f.id === 'timelapse' ? ' · ≈ 250 crédits' : ''}
               </option>
             ))}
           </select>
@@ -497,8 +461,6 @@ function PalabreAdControls({ projectId, onQueued }) {
               ))}
             </select>
           )}
-          {format === 'question' && choisie && <p className="clay-muted small">« {choisie.resume} »</p>}
-          <p className="clay-muted small">{PALABRE_AIDE[format]} Aucune image générée : presque gratuit.</p>
           <button
             className="clay-btn rp-generate"
             onClick={() =>
@@ -525,21 +487,15 @@ function PalabreAdControls({ projectId, onQueued }) {
 function EreaAdControls({ projectId, project, onQueued }) {
   const [personnage, setPersonnage] = useState('');
   const [error, setError] = useState('');
-  const deja = (project.ereaTour && project.ereaTour.deja) || [];
   return (
     <div className="clay-block">
       <h3>⏳ Nouvelle pub Erea — l'anachronisme</h3>
-      <p className="clay-muted small">
-        Intro, la question sur un personnage, la frise du jeu qui s'emballe et se pose sur une mauvaise
-        époque, la scène qui en découle (en clip), l'accroche, l'outro. Voix de Léo, au « tu ».
-      </p>
       <input
         className="rp-input"
         value={personnage}
         placeholder="Personnage (facultatif) — sinon Claude en choisit un nouveau"
         onChange={(e) => setPersonnage(e.target.value)}
       />
-      {deja.length > 0 && <p className="clay-muted small">Déjà faits : {deja.join(', ')}</p>}
       <button
         className="clay-btn rp-generate"
         onClick={() =>

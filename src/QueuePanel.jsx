@@ -48,7 +48,7 @@ export function QueuePanel({ projectId = null, refreshKey = 0, onDone = null }) 
       {error && <p className="error small">{error}</p>}
       {items && shown.length === 0 && (
         <p className="clay-muted small">
-          Rien en attente. {projectId ? 'Choisis une idée et ajoute-la à la file.' : ''}
+          Rien en attente.
         </p>
       )}
       {[...shown].reverse().map((it) => {

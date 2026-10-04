@@ -203,10 +203,6 @@ export function RecipesPage({ projectId }) {
           <button className="clay-btn rp-generate" disabled={!slug} onClick={generate}>
             🎬 Générer la vidéo
           </button>
-          <p className="clay-muted small">
-            Environ 1 minute : la photo du site, les ingrédients, les étapes avec leurs quantités, le
-            plat fini. Tout se fabrique tout seul jusqu'au MP4 rangé dans iCloud.
-          </p>
           {error && <p className="error small">{error}</p>}
         </div>
 

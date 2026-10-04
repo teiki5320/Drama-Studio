@@ -179,7 +179,6 @@ function PubPage({ projects, onOpenRepo }) {
 
   return (
     <div className="clay-content">
-      <p className="clay-sub">Choisis l'appli ou le site dont tu veux faire la pub.</p>
       {error && <p className="error">Liste GitHub illisible : {error}</p>}
       {!repos && !error && <p className="clay-muted">Chargement de tes dépôts…</p>}
       <div className="clay-grid">
@@ -226,23 +225,16 @@ function KeurCookPage({ projects, onOpenRepo }) {
   const n = (p) => (p ? (p.episodes || []).length : 0);
   return (
     <div className="clay-content">
-      <p className="clay-sub">Que veux-tu faire pour Keur Cook ?</p>
       <div className="clay-two">
         <a className="clay-big" href="#/recettes">
           <span className="clay-big-ic">🍲</span>
           <b>Recettes</b>
-          <span>
-            Les recettes du site en vidéos, vue du dessus, les mains qui cuisinent
-            {n(recettes) ? ` — ${n(recettes)} vidéo${n(recettes) > 1 ? 's' : ''}` : ''}.
-          </span>
+          {n(recettes) ? <span>{`${n(recettes)} vidéo${n(recettes) > 1 ? 's' : ''}`}</span> : null}
         </a>
         <button className="clay-big" onClick={() => onOpenRepo(KEURCOOK_REPO)}>
           <span className="clay-big-ic">📣</span>
           <b>Publicité</b>
-          <span>
-            Des pubs pour faire connaître le site Keur Cook
-            {n(pub) ? ` — ${n(pub)} pub${n(pub) > 1 ? 's' : ''}` : ''}.
-          </span>
+          {n(pub) ? <span>{`${n(pub)} pub${n(pub) > 1 ? 's' : ''}`}</span> : null}
         </button>
       </div>
     </div>
@@ -328,10 +320,6 @@ function ReglagesPage() {
 function EnCoursPage() {
   return (
     <div className="clay-content">
-      <p className="clay-sub">
-        Tout ce que le studio fabrique ou va fabriquer, l'une après l'autre. Tu peux fermer la
-        page : la fabrication continue sur le Mac.
-      </p>
       <QueuePanel />
     </div>
   );
