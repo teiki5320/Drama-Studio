@@ -1946,6 +1946,16 @@ export function ereaAdPlan(project) {
   return { deja };
 }
 
+// Les mauvaises époques déjà montrées (« … → La Lune, juillet 1969 »), pour
+// ne pas retomber deux fois sur la Lune ou Gizeh.
+function lieuxErea(project) {
+  return (project.episodes || [])
+    .map((e) => String(e.topic || '').split('→')[1] || String(e.topic || '').split(' dans ')[1] || '')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(-40);
+}
+
 export async function createEreaAd(project, { personnage = '' } = {}, update) {
   if (project.kind !== 'pub') {
     throw new Error('Réservé à la campagne de pub Erea.');
@@ -1957,7 +1967,12 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
 
   update('Claude imagine l’anachronisme…');
   const raw = await askClaudeForJson(
-    buildEreaAdPrompt({ personnage: String(personnage || '').trim(), deja: state.deja.slice(-30), idees: evenementsCelebres(40) }),
+    buildEreaAdPrompt({
+      personnage: String(personnage || '').trim(),
+      deja: state.deja.slice(-30),
+      lieux: lieuxErea(project),
+      idees: evenementsCelebres(40),
+    }),
   );
   ensureUsage(project).claudeCalls += 1;
   const an = (v, d) => (Number.isFinite(Number(v)) ? Math.max(-3000, Math.min(2026, Math.round(Number(v)))) : d);

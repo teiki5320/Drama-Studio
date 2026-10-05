@@ -1183,7 +1183,7 @@ ${regles}`;
 // pose sur une MAUVAISE époque, et la scène qui en découle : le personnage
 // projeté dans cette époque (ex. Napoléon stupéfait devant son armée voit les
 // légions de César courir vers lui). Puis une accroche, et l'outro.
-export function buildEreaAdPrompt({ personnage = '', deja = [], idees = [] }) {
+export function buildEreaAdPrompt({ personnage = '', deja = [], lieux = [], idees = [] }) {
   return `Tu imagines une pub TikTok très accrocheuse pour Erea, le jeu d'histoire où l'on place des événements sur une frise de -3000 à aujourd'hui (appli gratuite). Le ressort : un DOCUMENTAIRE HISTORIQUE QUI DÉRAILLE.
 
 DÉROULÉ (monté par le studio, tu fournis le contenu) :
@@ -1197,6 +1197,8 @@ Exemple : « 18 juin 1815. Au matin de Waterloo, Napoléon passe ses troupes en 
 
 ${personnage ? `PERSONNAGE IMPOSÉ : ${personnage}` : 'Choisis toi-même un personnage TRÈS connu en France (empereur, reine, inventeur, explorateur, artiste…), dans un moment célèbre de sa vie.'}
 ${deja.length ? `PERSONNAGES DÉJÀ UTILISÉS (à éviter) : ${deja.join(', ')}` : ''}
+${lieux.length ? `MAUVAISES ÉPOQUES DÉJÀ UTILISÉES — INTERDITES (ni le même lieu, ni la même époque, ni un décor voisin) : ${lieux.join(' ; ')}` : ''}
+VARIE les mauvaises époques : pioche dans toute l'histoire et toute la planète (préhistoire, Mésopotamie, Chine impériale, Japon des samouraïs, Vikings, Aztèques, empire du Mali, Renaissance, Far West, années folles, disco, conquête spatiale…), pas toujours les mêmes clichés.
 Pour t'inspirer, quelques événements du jeu : ${idees.join(' ; ')}
 
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
