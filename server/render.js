@@ -135,6 +135,8 @@ export async function renderEpisode(project, episode, update) {
 
   episode.renderedFile = `renders/${outName}`;
   episode.status = 'done';
+  // Une vidéo (re)montée est à revoir : elle repasse « à valider ».
+  episode.validation = 'a_valider';
   saveProject(project);
 
   update('Copie dans Bureau/Dramas…');

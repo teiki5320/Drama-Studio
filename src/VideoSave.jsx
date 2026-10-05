@@ -57,3 +57,27 @@ export function CasesBoutiques({ project, onChange }) {
     </>
   );
 }
+
+// État d'une vidéo dans la liste : à monter, à valider (bouton Valider), ou
+// validée (un clic la remet à valider). Seules les validées vont au planning.
+export function EtatValidation({ project, ep, onChange }) {
+  if (!ep.renderedFile) {
+    return <span className="clay-state att">à monter</span>;
+  }
+  const change = (e, ok) => {
+    e.stopPropagation();
+    api
+      .validateEpisode(project.id, ep.number, ok)
+      .then(onChange)
+      .catch((err) => alert(err.message));
+  };
+  return ep.validation === 'validee' ? (
+    <button className="clay-state ok" style={{ cursor: 'pointer', border: 'none' }} title="Remettre à valider" onClick={(e) => change(e, false)}>
+      validée ✓
+    </button>
+  ) : (
+    <button className="clay-btn small" title="Valider : la vidéo passe dans « Validées » et au planning" onClick={(e) => change(e, true)}>
+      ✅ Valider
+    </button>
+  );
+}

@@ -4,7 +4,7 @@
 // montage) — via la file d'attente, sans écran de script.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Player } from '@remotion/player';
-import { VideoSave, lienVideo, surLeMac } from './VideoSave.jsx';
+import { VideoSave, EtatValidation, lienVideo, surLeMac } from './VideoSave.jsx';
 import { api } from './api.js';
 import { Recipe, recipeDurationInFrames } from './remotion/Recipe.jsx';
 import { FPS, WIDTH, HEIGHT } from './remotion/timing.js';
@@ -245,9 +245,7 @@ export function RecipesPage({ projectId }) {
               onClick={() => setSelected(ep.number)}
             >
               <span className="rp-ep-title">{ep.title}</span>
-              <span className={`clay-state ${ep.renderedFile ? 'ok' : 'att'}`}>
-                {ep.renderedFile ? 'MP4 prêt' : 'à monter'}
-              </span>
+              <EtatValidation project={project} ep={ep} onChange={loadProject} />
               {ep.renderedFile && !surLeMac() && (
                 <a
                   className="clay-btn ghost small"

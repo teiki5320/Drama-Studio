@@ -1293,6 +1293,24 @@ app.post('/api/projects/:id/episodes/:n/regen-images', (req, res) => {
   });
 });
 
+// Valider (ou remettre à valider) une vidéo finie : elle change de dossier
+// sur le Bureau, et seule une vidéo validée va au planning.
+app.post('/api/projects/:id/episodes/:n/validate', (req, res) => {
+  withEpisode(req, res, (p, ep) => {
+    if (!ep || !ep.renderedFile) {
+      res.status(404).json({ error: 'Vidéo introuvable ou pas encore montée' });
+      return;
+    }
+    ep.validation = req.body && req.body.ok === false ? 'a_valider' : 'validee';
+    const dest = exportEpisode(p, ep);
+    if (dest) {
+      ep.exportedTo = dest;
+    }
+    saveProject(p);
+    res.json({ ok: true, validation: ep.validation });
+  });
+});
+
 app.post('/api/projects/:id/episodes/:n/render', (req, res) => {
   withEpisode(req, res, (p, ep) => {
     if (!ep) {

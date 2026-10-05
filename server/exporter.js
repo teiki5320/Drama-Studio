@@ -71,6 +71,16 @@ function dossierStudio(project) {
   return null;
 }
 
+// Pubs, recettes, chaînes : deux dossiers, « À valider » puis « Validées »
+// (la vidéo passe de l'un à l'autre quand on la valide). Dramas : inchangé.
+export function dossierVideo(project, episode) {
+  const studio = dossierStudio(project);
+  if (!studio) {
+    return projectExportDir(project);
+  }
+  return path.join(studio, episode && episode.validation === 'validee' ? 'Validées' : 'À valider');
+}
+
 export function exportRootFor(project) {
   const studio = dossierStudio(project);
   if (studio) {
@@ -134,7 +144,7 @@ export function exportEpisode(project, episode) {
     if (!fs.existsSync(src)) {
       return null;
     }
-    const dir = projectExportDir(project);
+    const dir = dossierVideo(project, episode);
     fs.mkdirSync(dir, { recursive: true });
     // Supprime les anciens exports de CET épisode (ancien nom « Episode NN - … »
     // ou légende différente) pour éviter les doublons après renommage.

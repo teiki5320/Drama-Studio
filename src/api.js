@@ -79,6 +79,8 @@ export const api = {
     }),
   activeJob: (id) => request(`/api/projects/${id}/active-job`),
   activeJobs: () => request('/api/active-jobs'),
+  validateEpisode: (id, n, ok = true) =>
+    request(`/api/projects/${id}/episodes/${n}/validate`, { method: 'POST', body: JSON.stringify({ ok }) }),
   renderEpisode: (id, n) =>
     request(`/api/projects/${id}/episodes/${n}/render`, { method: 'POST' }),
   regenAllImages: (id, n) =>
