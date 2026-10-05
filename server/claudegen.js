@@ -1198,7 +1198,7 @@ Exemple : « 18 juin 1815. Au matin de Waterloo, Napoléon passe ses troupes en 
 ${personnage ? `PERSONNAGE IMPOSÉ : ${personnage}` : 'Choisis toi-même un personnage TRÈS connu en France (empereur, reine, inventeur, explorateur, artiste…), dans un moment célèbre de sa vie.'}
 ${deja.length ? `PERSONNAGES DÉJÀ UTILISÉS (à éviter) : ${deja.join(', ')}` : ''}
 ${lieux.length ? `MAUVAISES ÉPOQUES DÉJÀ UTILISÉES — INTERDITES (ni le même lieu, ni la même époque, ni un décor voisin) : ${lieux.join(' ; ')}` : ''}
-VARIE les mauvaises époques : pioche dans toute l'histoire et toute la planète (préhistoire, Mésopotamie, Chine impériale, Japon des samouraïs, Vikings, Aztèques, empire du Mali, Renaissance, Far West, années folles, disco, conquête spatiale…), pas toujours les mêmes clichés.
+VARIE les mauvaises époques, mais TOUJOURS sur la frise du jeu, entre -3000 et aujourd'hui (rien avant -3000 : pas de préhistoire, pas de dinosaures) : Mésopotamie, Égypte, Grèce, Chine impériale, Japon des samouraïs, Vikings, Aztèques, empire du Mali, Renaissance, Far West, années folles, disco, conquête spatiale… — pas toujours les mêmes clichés.
 Pour t'inspirer, quelques événements du jeu : ${idees.join(' ; ')}
 
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
@@ -1207,7 +1207,7 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
   "personnage": "son nom tel qu'on l'affiche (ex. « Napoléon Bonaparte »)",
   "anneePersonnage": l'année du moment célèbre (entier, négatif avant J.-C.),
   "moment": "la date et le lieu, à la manière d'un documentaire, 6 mots maximum (ex. « 18 juin 1815, Waterloo »)",
-  "anneeFrise": l'année de la MAUVAISE époque (entier, au moins 300 ans d'écart),
+  "anneeFrise": l'année de la MAUVAISE époque (entier entre -3000 et 2026, au moins 300 ans d'écart),
   "epoqueFrise": "cette mauvaise époque, 6 mots maximum (ex. « Alésia, 52 av. J.-C. »)",
   "visuel": "EN ANGLAIS : description physique très précise et STABLE du personnage (âge, visage, coiffure, tenue de SON époque, accessoires), reprise mot pour mot dans les deux images",
   "historien": {
