@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { projectDir, listProjects, loadProject } from './projects.js';
 import { tiktokCaption } from '../shared/catalog.js';
+import { appLook } from '../src/apps.js';
 
 // Dossier d'export des épisodes validés : Bureau/Dramas/<Titre du drama>/
 // EXPORT_DIR dans .env pour changer, avec le raccourci EXPORT_DIR=icloud
@@ -43,7 +44,38 @@ export const EXPORT_ROOT = resolveExportRoot();
 export const EXPORT_ROOT_SYNCHRO = `${EXPORT_ROOT} Synchro`;
 export const EXPORT_ROOT_LONG = `${EXPORT_ROOT} Long`;
 
+// Pubs, recettes et chaînes : sur le Bureau (synchronisé avec iCloud),
+// rangées comme les onglets du Studio :
+//   Bureau/Publicité/<Appli>/            (Erea, Kultiva, Palabre…)
+//   Bureau/Publicité/Keur Cook/Publicité
+//   Bureau/Publicité/Keur Cook/Recettes
+//   Bureau/Chaîne/<Chaîne>/
+const BUREAU = path.join(os.homedir(), 'Desktop');
+function dossierStudio(project) {
+  if (!project) {
+    return null;
+  }
+  if (project.mode === 'recette') {
+    return path.join(BUREAU, 'Publicité', 'Keur Cook', 'Recettes');
+  }
+  if (project.kind === 'pub') {
+    const depot = String(project.repo || '').split('/').pop().toLowerCase();
+    if (depot === 'keurcook') {
+      return path.join(BUREAU, 'Publicité', 'Keur Cook', 'Publicité');
+    }
+    return path.join(BUREAU, 'Publicité', sanitizeName(appLook(depot, project.title).name));
+  }
+  if (project.mode === 'chaine') {
+    return path.join(BUREAU, 'Chaîne', sanitizeName(project.title));
+  }
+  return null;
+}
+
 export function exportRootFor(project) {
+  const studio = dossierStudio(project);
+  if (studio) {
+    return studio;
+  }
   if (project && project.mode === 'synchro') {
     return EXPORT_ROOT_SYNCHRO;
   }
@@ -124,6 +156,15 @@ export function exportEpisode(project, episode) {
     }
     const dest = path.join(dir, episodeFileName(project, episode));
     fs.copyFileSync(src, dest);
+    // L'ancienne copie de CET épisode (autre nom ou autre dossier) disparaît :
+    // une seule copie par vidéo, toujours au bon endroit.
+    if (episode.exportedTo && episode.exportedTo !== dest && fs.existsSync(episode.exportedTo)) {
+      try {
+        fs.rmSync(episode.exportedTo, { force: true });
+      } catch {
+        // iCloud peut refuser : l'ancienne copie reste, sans gravité.
+      }
+    }
     return dest;
   } catch (e) {
     console.error('Export Bureau impossible :', e.message);
