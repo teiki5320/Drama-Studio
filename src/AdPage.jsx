@@ -12,9 +12,8 @@ import { api, followJob } from './api.js';
 import { Episode } from './remotion/Episode.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
 import { Credits } from './RecipesPage.jsx';
-import { VideoSave, lienVideo, LogoAfrotok, surLeMac, CasesBoutiques } from './VideoSave.jsx';
-import { badgesBoutiques, logoAfrotokVisible } from './apps.js';
-const isPubProjet = (p) => p && p.kind === 'pub';
+import { VideoSave, lienVideo, surLeMac, CasesBoutiques } from './VideoSave.jsx';
+import { badgesBoutiques, logoAfrotokVisible, outroAfrotok } from './apps.js';
 import { ScreenshotsPanel } from './ProjectView.jsx';
 
 function Apercu({ project, episode, studio }) {
@@ -647,7 +646,7 @@ export function AdPage({ projectId, onAdvanced }) {
   return (
     <div className="rp">
       <div className="rp-left">
-        <Apercu project={project} episode={shown} studio={{ ...(studio || {}), sticker: logoAfrotokVisible(project) ? studio?.sticker : null, outro: isPubProjet(project) ? null : studio?.outro }} />
+        <Apercu project={project} episode={shown} studio={{ ...(studio || {}), sticker: logoAfrotokVisible(project) ? studio?.sticker : null, outro: outroAfrotok(project) ? studio?.outro : null }} />
         {shown && (
           <div className="rp-video-title">
             <b>{shown.title}</b>
@@ -793,7 +792,6 @@ export function AdPage({ projectId, onAdvanced }) {
             <button className="clay-btn ghost small" onClick={onAdvanced} title="Refaire une image, un clip ou une voix">
               🔧 Retoucher
             </button>
-            <LogoAfrotok project={project} onChange={loadProject} />
             <CasesBoutiques project={project} onChange={loadProject} />
           </div>
         </div>

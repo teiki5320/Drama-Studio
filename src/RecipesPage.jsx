@@ -4,7 +4,7 @@
 // montage) — via la file d'attente, sans écran de script.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Player } from '@remotion/player';
-import { VideoSave, lienVideo, LogoAfrotok, surLeMac } from './VideoSave.jsx';
+import { VideoSave, lienVideo, surLeMac } from './VideoSave.jsx';
 import { api } from './api.js';
 import { Recipe, recipeDurationInFrames } from './remotion/Recipe.jsx';
 import { FPS, WIDTH, HEIGHT } from './remotion/timing.js';
@@ -277,7 +277,6 @@ export function RecipesPage({ projectId }) {
                 🔧 Retoucher
               </a>
             )}
-            <LogoAfrotok project={project} onChange={loadProject} />
           </div>
         </div>
       </div>
