@@ -360,12 +360,16 @@ export function Shell() {
   const project =
     route.page === 'projet' || route.page === 'avance' ? projects.find((p) => p.id === route.arg) : null;
 
-  // Pastille « En cours » : nombre de fabrications actives.
+  // Pastille « En cours » : tout ce qui se fabrique ou attend — la file
+  // (en cours + en attente) et les retouches lancées à part.
   useEffect(() => {
     const tick = () =>
-      api
-        .activeJobs()
-        .then((jobs) => setRunning(jobs.length))
+      Promise.all([api.queue(), api.activeJobs()])
+        .then(([file, jobs]) => {
+          const enFile = file.filter((it) => it.status === 'running' || it.status === 'waiting');
+          const lies = new Set(file.map((it) => it.jobId).filter(Boolean));
+          setRunning(enFile.length + jobs.filter((j) => !lies.has(j.id)).length);
+        })
         .catch(() => {});
     tick();
     const t = setInterval(tick, 5000);
