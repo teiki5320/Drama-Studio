@@ -15,9 +15,14 @@ export function QueuePanel({ projectId = null, refreshKey = 0, onDone = null }) 
   const [items, setItems] = useState(null);
   const [error, setError] = useState('');
 
+  // Travaux lancés hors de la file (Retoucher : montage, image, clip, voix).
+  const [travaux, setTravaux] = useState([]);
   const load = () =>
     api
-      .queue()
+      .activeJobs()
+      .then(setTravaux)
+      .catch(() => {})
+      .then(() => api.queue())
       .then((list) => {
         setItems((prev) => {
           // Une vidéo vient de se terminer : la page du projet se met à jour.
@@ -41,12 +46,25 @@ export function QueuePanel({ projectId = null, refreshKey = 0, onDone = null }) 
   }, [refreshKey]);
 
   const shown = (items || []).filter((it) => !projectId || it.projectId === projectId);
+  const liesALaFile = new Set((items || []).map((it) => it.jobId).filter(Boolean));
+  const horsFile = travaux.filter((j) => !liesALaFile.has(j.id) && (!projectId || j.projectId === projectId));
 
   return (
     <div className="clay-block">
       <h3>🏭 File d'attente</h3>
       {error && <p className="error small">{error}</p>}
-      {items && shown.length === 0 && (
+      {horsFile.map((j) => (
+        <div key={j.id} className="clay-file">
+          <div className="clay-file-txt">
+            <span>{j.label}</span>
+            {j.step && <small className="clay-muted">{j.step}</small>}
+          </div>
+          <span className="clay-state run">
+            en cours{j.progress != null ? ` · ${Math.round(j.progress * 100)} %` : ''}
+          </span>
+        </div>
+      ))}
+      {items && shown.length === 0 && horsFile.length === 0 && (
         <p className="clay-muted small">
           Rien en attente.
         </p>

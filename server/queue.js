@@ -41,10 +41,26 @@ const KEEP_FINISHED = 30;
 let items = load();
 let running = false;
 
+// Une ligne dont le script est écrit porte le vrai sujet de sa vidéo.
+function avecSujet(it) {
+  if (it.number == null) {
+    return it;
+  }
+  try {
+    const e = loadProject(it.projectId)?.episodes?.find((x) => x.number === it.number);
+    if (e) {
+      return { ...it, label: `${String(it.label).split(' — ')[0]} — ${String(e.topic || e.title).slice(0, 90)}` };
+    }
+  } catch {
+    // Projet supprimé : on garde l'ancien titre.
+  }
+  return it;
+}
+
 function load() {
   try {
     const list = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    return (Array.isArray(list) ? list : []).map((it) =>
+    return (Array.isArray(list) ? list : []).map(avecSujet).map((it) =>
       it.status === 'running'
         ? {
             ...it,
@@ -195,6 +211,10 @@ export function addToQueue(raw) {
   } else {
     throw new Error('Type de vidéo inconnu.');
   }
+  // Tant que le script n'est pas écrit, on ne connaît pas encore le sujet :
+  // un numéro distingue les vidéos en attente d'une même appli.
+  const deja = (project.episodes || []).length + items.filter((x) => x.projectId === project.id && x.status !== 'done').length;
+  item.label = `${item.label} · n° ${deja + 1}`;
   const full = {
     id: `q_${crypto.randomBytes(5).toString('hex')}`,
     projectId: project.id,
@@ -263,6 +283,12 @@ async function produceItem(it, update) {
           step('Découpage', 0, 0.05),
         );
   it.number = number;
+  // Le script est écrit : la ligne prend le vrai sujet de la vidéo.
+  const fait = loadProject(it.projectId)?.episodes?.find((e) => e.number === number);
+  if (fait) {
+    const avant = String(it.label).split(' — ')[0];
+    it.label = `${avant} — ${String(fait.topic || fait.title).slice(0, 90)}`;
+  }
   save();
 
   // 2. Images, clips, voix

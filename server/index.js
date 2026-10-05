@@ -1292,7 +1292,7 @@ app.post('/api/projects/:id/episodes/:n/render', (req, res) => {
       res.status(404).json({ error: 'Épisode introuvable' });
       return;
     }
-    const job = startJob(`Rendu épisode ${ep.number}`, (update) => renderEpisode(p, ep, update), { projectId: p.id });
+    const job = startJob(`Montage — ${p.title} · ${String(ep.topic || ep.title).slice(0, 70)}`, (update) => renderEpisode(p, ep, update), { projectId: p.id });
     res.json({ jobId: job.id });
   });
 });
@@ -1460,7 +1460,7 @@ app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/image', (req, res) => {
     if (typeof req.body.imagePrompt === 'string' && req.body.imagePrompt.trim()) {
       scene.imagePrompt = req.body.imagePrompt.trim();
     }
-    const job = startJob('Nouvelle image', (update) => regenerateSceneImage(p, ep, scene, update), { projectId: p.id });
+    const job = startJob(`Nouvelle image — ${p.title} · plan ${ep.scenes.indexOf(scene) + 1}`, (update) => regenerateSceneImage(p, ep, scene, update), { projectId: p.id });
     res.json({ jobId: job.id });
   });
 });
@@ -1470,7 +1470,7 @@ app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/image', (req, res) => {
 // personnage parle dans la scène.
 app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/video', (req, res) => {
   withScene(req, res, (p, ep, scene) => {
-    const job = startJob('Clip vidéo de la scène', async (update) => {
+    const job = startJob(`Nouveau clip — ${p.title} · plan ${ep.scenes.indexOf(scene) + 1}`, async (update) => {
       await generateSceneVideo(p, ep, scene, update);
       if (wantsLipsync(p) && lipsyncSpeaker(scene)) {
         await lipsyncSceneVideo(p, ep, scene, update);
@@ -1499,7 +1499,7 @@ app.delete('/api/projects/:id/episodes/:n/scenes/:sceneId/video', (req, res) => 
 
 app.post('/api/projects/:id/episodes/:n/scenes/:sceneId/audio', (req, res) => {
   withScene(req, res, (p, ep, scene) => {
-    const job = startJob('Nouvelles voix', (update) => regenerateSceneAudio(p, ep, scene, update), { projectId: p.id });
+    const job = startJob(`Nouvelle voix — ${p.title} · plan ${ep.scenes.indexOf(scene) + 1}`, (update) => regenerateSceneAudio(p, ep, scene, update), { projectId: p.id });
     res.json({ jobId: job.id });
   });
 });
