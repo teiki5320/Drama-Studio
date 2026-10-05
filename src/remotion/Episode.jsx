@@ -175,7 +175,7 @@ const CtaCard = ({ appName, cta, logo, theme, badges = [] }) => {
           }}
         >
           {badges.map((src) => (
-            <SafeImg key={src} src={src} style={{ height: src.endsWith('.png') ? 150 : 104, objectFit: 'contain' }} />
+            <SafeImg key={src} src={src} style={{ height: src.endsWith('.png') ? 200 : 140, objectFit: 'contain' }} />
           ))}
         </div>
       ) : null}
