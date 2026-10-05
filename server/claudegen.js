@@ -1190,10 +1190,10 @@ DÉROULÉ (monté par le studio, tu fournis le contenu) :
 1. logo Erea (rien à écrire).
 2. L'HISTORIEN : un vrai moment célèbre, montré dans SA VRAIE époque (clip vidéo, AUCUN élément d'une autre époque à l'image). Voix d'historien de documentaire : grave, posée, précise, impersonnelle (ni « tu » ni « vous »).
 3. LE BUG DU TEMPS : l'image se déchire, le temps bugue (rien à écrire).
-4. LA CATASTROPHE : le MÊME personnage, même tenue, même cadrage, mais le décor a changé : il est dans une MAUVAISE époque, très éloignée, spectaculaire et reconnaissable. Le personnage garde son air normal, digne, comme si de rien n'était (il n'est PAS paniqué, il ne regarde pas autour de lui) : c'est le NARRATEUR qui panique — voix catastrophée, qui bafouille, qui s'emballe, drôle.
+4. LA CATASTROPHE : le MÊME personnage, même tenue, mais le décor a changé : il est dans une MAUVAISE époque, très éloignée, spectaculaire et reconnaissable. Et il PREND PART À L'ACTION de cette époque, avec un vrai geste, drôle et spectaculaire — ex. Jeanne d'Arc à Woodstock se met à danser avec les hippies ; Napoléon chez Jules César croise sa baïonnette avec l'épée d'un légionnaire romain. Son visage n'est PAS paniqué : il agit comme si c'était naturel, à fond. C'est le NARRATEUR qui panique — voix catastrophée, qui bafouille, qui s'emballe, drôle.
 5. la frise du jeu remet l'événement à sa vraie place ; puis le carton final.
 
-Exemple : « 18 juin 1815. Au matin de Waterloo, Napoléon passe ses troupes en revue… » — bug — le même Napoléon, impassible, au milieu des légionnaires d'Alésia : « Attendez… Ce ne sont pas les Anglais, ça. Ce sont des Romains ! Mais qu'est-ce qui s'est passé avec la frise ?! »
+Exemple : « 18 juin 1815. Au matin de Waterloo, Napoléon passe ses troupes en revue… » — bug — le même Napoléon, au milieu des légionnaires d'Alésia, croise le fer avec un Romain, baïonnette contre glaive : « Attendez… Ce ne sont pas les Anglais, ça. Ce sont des Romains ! Mais qu'est-ce qui s'est passé avec la frise ?! »
 
 ${personnage ? `PERSONNAGE IMPOSÉ : ${personnage}` : 'Choisis toi-même un personnage TRÈS connu en France (empereur, reine, inventeur, explorateur, artiste…), dans un moment célèbre de sa vie.'}
 ${deja.length ? `PERSONNAGES DÉJÀ UTILISÉS (à éviter) : ${deja.join(', ')}` : ''}
@@ -1209,13 +1209,13 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
   "epoqueFrise": "cette mauvaise époque, 6 mots maximum (ex. « Alésia, 52 av. J.-C. »)",
   "visuel": "EN ANGLAIS : description physique très précise et STABLE du personnage (âge, visage, coiffure, tenue de SON époque, accessoires), reprise mot pour mot dans les deux images",
   "historien": {
-    "imagePrompt": "EN ANGLAIS : photo réaliste cinématographique de documentaire historique, vertical 9:16, le moment célèbre dans SA vraie époque UNIQUEMENT ; le personnage au centre, cadré de la tête aux genoux, de face ou de trois quarts, calme et digne ; no text, no logo, no watermark",
-    "motionPrompt": "EN ANGLAIS : mouvement lent et solennel de documentaire (lent travelling avant, vent dans les drapeaux, figurants qui bougent), le personnage reste calme",
+    "imagePrompt": "EN ANGLAIS : photo réaliste cinématographique de documentaire historique, vertical 9:16, le moment célèbre dans SA vraie époque UNIQUEMENT ; le personnage au centre, cadré en pied ou de la tête aux genoux, en train de faire le GESTE célèbre du moment (ex. Jeanne d'Arc lève son étendard devant les murailles d'Orléans) ; no text, no logo, no watermark",
+    "motionPrompt": "EN ANGLAIS : l'action du moment célèbre, filmée comme un documentaire (le personnage accomplit son geste, la foule ou les troupes bougent, vent, lent travelling)",
     "voix": "voix d'historien, 24 mots maximum, factuelle et solennelle, qui installe le moment"
   },
   "catastrophe": {
-    "imagePrompt": "EN ANGLAIS : le MÊME personnage (même description, même tenue, même cadrage, même pose calme et digne, expression neutre et imperturbable), mais au milieu de la MAUVAISE époque, spectaculaire et reconnaissable (sans sang) ; photo réaliste cinématographique, vertical 9:16, no text, no logo, no watermark",
-    "motionPrompt": "EN ANGLAIS : l'action de la mauvaise époque s'agite tout autour, le personnage reste immobile et impassible, caméra légèrement à l'épaule",
+    "imagePrompt": "EN ANGLAIS : le MÊME personnage (même description, même tenue), en pleine ACTION au milieu de la MAUVAISE époque — il participe à ce qui s'y passe, avec un geste précis et spectaculaire (ex. dancing wildly with hippies in the mud at Woodstock ; crossing his bayonet with a Roman legionary's gladius), visage concentré ou réjoui, jamais paniqué ; décor spectaculaire et reconnaissable, sans sang ; photo réaliste cinématographique, en pied, vertical 9:16, no text, no logo, no watermark",
+    "motionPrompt": "EN ANGLAIS : l'ACTION du personnage, dynamique et précise (ex. she spins and dances to the music, arms raised, the hippie crowd dancing around her ; he parries and strikes, bayonet clashing against the gladius, sparks), caméra à l'épaule qui suit l'action",
     "voix": "le narrateur PANIQUE, 20 mots maximum : il découvre l'erreur, bafouille, s'emballe, drôle (« Attendez… », « mais… », « ?! »)",
     "ecran": "texte à l'écran, 6 mots maximum (ex. « Alésia, 52 av. J.-C. ?! »)"
   },

@@ -2070,7 +2070,7 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     base(3, {
       coupeNette: true,
       memeQue: 's2',
-      imagePrompt: `${String(ca.imagePrompt || '').trim()} The character (same person as in the reference image, calm and unbothered): ${visuel}`,
+      imagePrompt: `${String(ca.imagePrompt || '').trim()} The character (same person as in the reference image, in full action, never panicked): ${visuel}`,
       motionPrompt: String(ca.motionPrompt || '').trim().slice(0, 300),
       clip: true,
       fixedDuration: true,
