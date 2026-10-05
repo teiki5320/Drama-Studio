@@ -12,7 +12,7 @@ import {
 import { SafeImg } from './SafeImg.jsx';
 import { EreaFrise, EreaQuestion } from './EreaFrise.jsx';
 import { PalabreJeu } from './PalabreJeu.jsx';
-import { EreaLogoIntro, EreaRevelation, EreaSlogan } from './EreaPub.jsx';
+import { EreaLogoIntro, EreaRevelation, EreaSlogan, EreaHistorien, EreaBascule, EreaCatastrophe } from './EreaPub.jsx';
 import { Clip, mouvementImage } from './Clip.jsx';
 import { FPS, SHOT_AUDIO_DELAY, sceneFrames, lineOffsets, shotOffsets, shotDurations } from './timing.js';
 
@@ -433,6 +433,48 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
           bugs={scene.revelation.bugs}
           legende={scene.revelation.legende}
           fonts={ereaFonts(scene.revelation)}
+          planFrames={total}
+        />
+        {pistes}
+      </AbsoluteFill>
+    );
+  }
+  if (scene.historien) {
+    return (
+      <AbsoluteFill>
+        <EreaHistorien
+          video={scene.video ? `${assetBase}/${scene.video}` : null}
+          image={scene.image ? `${assetBase}/${scene.image}` : null}
+          clipSec={scene.videoDurationSec}
+          nom={scene.historien.nom}
+          moment={scene.historien.moment}
+          fonts={ereaFonts(scene.historien)}
+          planFrames={total}
+        />
+        {pistes}
+      </AbsoluteFill>
+    );
+  }
+  if (scene.bascule) {
+    return (
+      <AbsoluteFill>
+        <EreaBascule
+          de={scene.bascule.imgDe ? `${assetBase}/${scene.bascule.imgDe}` : null}
+          vers={scene.bascule.imgVers ? `${assetBase}/${scene.bascule.imgVers}` : null}
+        />
+        {pistes}
+      </AbsoluteFill>
+    );
+  }
+  if (scene.catastrophe) {
+    return (
+      <AbsoluteFill>
+        <EreaCatastrophe
+          video={scene.video ? `${assetBase}/${scene.video}` : null}
+          image={scene.image ? `${assetBase}/${scene.image}` : null}
+          clipSec={scene.videoDurationSec}
+          ecran={scene.catastrophe.ecran}
+          fonts={ereaFonts(scene.catastrophe)}
           planFrames={total}
         />
         {pistes}

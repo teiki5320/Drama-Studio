@@ -168,7 +168,13 @@ const CtaCard = ({ appName, cta, logo, theme }) => {
 export const Episode = ({ episode, characters, assetBase, musicFile, musicVolume, seriesTitle, studio, studioBase, noOutroCard, cta, ctaLogo, ctaTheme }) => {
   // Pub d'ambiance (sans voix) : la musique passe au premier plan.
   const vol = typeof musicVolume === 'number' ? musicVolume : 0.12;
-  const scenes = episode?.scenes || [];
+  // Pub Erea : la bascule entre deux époques montre les images des plans
+  // d'avant et d'après.
+  const scenes = (episode?.scenes || []).map((sc, i, all) =>
+    sc.bascule
+      ? { ...sc, bascule: { ...sc.bascule, imgDe: all[i - 1]?.image || null, imgVers: all[i + 1]?.image || null } }
+      : sc,
+  );
 
   if (scenes.length === 0) {
     return (

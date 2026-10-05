@@ -273,9 +273,10 @@ function sceneImagePrompt(project, scene) {
 }
 
 // Options de génération d'une image de scène : références + leur nature.
-function sceneImageOptions(project, scene) {
+function sceneImageOptions(project, scene, episode = null) {
+  const modele = scene.memeQue && episode ? (episode.scenes || []).find((s) => s.id === scene.memeQue) : null;
   return {
-    referenceUrls: sceneReferenceUrls(project, scene),
+    referenceUrls: modele && modele.imageUrl ? [modele.imageUrl] : sceneReferenceUrls(project, scene),
     referenceKind: project.mode === 'recette' ? 'kitchen' : 'faces',
   };
 }
@@ -566,7 +567,7 @@ async function generateEpisodeAssets(project, episode, update) {
         const { ok, url, provider } = await generateImage(
           sceneImagePrompt(project, scene),
           path.join(dir, file),
-          sceneImageOptions(project, scene),
+          sceneImageOptions(project, scene, episode),
         );
         if (ok) {
           scene.image = file;
@@ -2026,9 +2027,15 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     project.ctaLogo = `erea-icone${path.extname(icone)}`;
     fs.copyFileSync(icone, path.join(dir, project.ctaLogo));
   }
-  const rv = raw.revelation || {};
-  const BUGS = [0.5, 0.82]; // moments du bug, en fraction du plan
-  const sfx = (frac) => (sonBug ? [{ file: sonBug, frac, volume: 0.9 }] : []);
+  // Deux voix : l'historien posé (Nicolas), puis le narrateur qui panique (Léo).
+  project.voixRoles = {
+    historien: { voice: 'aQROLel5sQbj1vuIVi6B', settings: { stability: 0.7, similarity_boost: 0.8, style: 0.25, speed: 0.92 } },
+    panique: { voice: 'AfbuxQ9DVtS4azaxN1W7', settings: { stability: 0.22, similarity_boost: 0.8, style: 0.8, speed: 1.12 } },
+  };
+  const role = (who, t) => (t ? [{ speaker: who, text: String(t).trim().slice(0, 220), audio: null, audioDurationSec: null }] : []);
+  const hi = raw.historien || {};
+  const ca = raw.catastrophe || {};
+  const bug = (at) => (sonBug ? [{ file: sonBug, at, volume: 0.9 }] : []);
   const scenes = [
     // 1. Le logo, une seconde.
     base(0, {
@@ -2038,39 +2045,42 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
       videoDisabled: true,
       sfx: sonLogo ? [{ file: sonLogo, at: 0, volume: 0.8 }] : [],
     }),
-    // 2. La révélation : visage → buste → la mauvaise époque, le temps bugue.
+    // 2. L'historien : le vrai moment, dans sa vraie époque.
     base(1, {
-      imagePrompt: `${String(rv.imagePrompt || '').trim()} The character: ${visuel}`,
-      motionPrompt: String(rv.motionPrompt || '').trim().slice(0, 300),
+      coupeNette: true,
+      imagePrompt: `${String(hi.imagePrompt || '').trim()} The character: ${visuel}`,
+      motionPrompt: String(hi.motionPrompt || '').trim().slice(0, 300),
       clip: true,
       fixedDuration: true,
       durationSec: 7,
-      coupeNette: true,
-      revelation: {
-        focus: { x: 50, y: 27 },
-        zoomDe: 2,
-        bugs: BUGS,
-        legende: {
-          qui: nom,
-          quand: String(raw.moment || anneePerso).slice(0, 40),
-          ou: String(rv.ou || '').slice(0, 60),
-        },
-        fonts: friseAssets.fonts,
-      },
-      sfx: [...sfx(BUGS[0]), ...sfx(BUGS[1])],
-      lines: line(rv.voix),
+      historien: { nom, moment: String(raw.moment || anneePerso).slice(0, 50), fonts: friseAssets.fonts },
+      sfx: [{ ...(sonBug ? { file: sonBug, frac: 0.9, volume: 0.9 } : {}) }].filter((x) => x.file),
+      lines: role('historien', hi.voix),
     }),
-    // 3. Coupure nette : la phrase choc.
+    // 3. Le bug du temps : les deux époques se déchirent.
     base(2, {
       coupeNette: true,
-      slogan: { texte: String(raw.slogan || "Dans Erea, ne te trompe pas d'époque.").slice(0, 60), fonts: friseAssets.fonts },
-      durationSec: 2.4,
+      bascule: { de: 's2', vers: 's4' },
+      durationSec: 1.1,
+      fixedDuration: true,
       videoDisabled: true,
-      sfx: sfx(0),
-      lines: line(raw.slogan || "Dans Erea, ne te trompe pas d'époque."),
+      sfx: bug(0),
     }),
-    // 4. La frise du jeu remet l'événement à sa vraie place.
+    // 4. La catastrophe : même personnage, mauvaise époque, le narrateur panique.
     base(3, {
+      coupeNette: true,
+      memeQue: 's2',
+      imagePrompt: `${String(ca.imagePrompt || '').trim()} The character (same person as in the reference image, calm and unbothered): ${visuel}`,
+      motionPrompt: String(ca.motionPrompt || '').trim().slice(0, 300),
+      clip: true,
+      fixedDuration: true,
+      durationSec: 7,
+      catastrophe: { ecran: String(ca.ecran || '').slice(0, 50), fonts: friseAssets.fonts },
+      sfx: [...bug(0)],
+      lines: role('panique', ca.voix),
+    }),
+    // 5. La frise du jeu remet l'événement à sa vraie place.
+    base(4, {
       frise: { depart: anneeFrise, arrivee: anneePerso, ...friseAssets },
       lines: line(raw.frise),
       durationSec: 5,
@@ -2791,7 +2801,7 @@ export async function ensureEpisodeScript(project, number, update) {
 
 // Écrans dessinés par le studio lui-même (frise d'Erea, écrans de Palabre) :
 // aucune image à générer, donc aucun crédit dépensé.
-const dessineeParLeStudio = (scene) => Boolean(scene.frise || scene.palabre || scene.ereaLogo || scene.slogan);
+const dessineeParLeStudio = (scene) => Boolean(scene.frise || scene.palabre || scene.ereaLogo || scene.slogan || scene.bascule);
 
 export async function produceEpisode(project, number, update) {
   const episode = await ensureEpisodeScript(project, number, update);
@@ -2826,7 +2836,7 @@ export async function retryFailedAssets(project, episode, update) {
         const { ok, url, provider: used } = await generateImage(
           sceneImagePrompt(project, scene),
           path.join(dir, file),
-          sceneImageOptions(project, scene),
+          sceneImageOptions(project, scene, episode),
         );
         if (ok) {
           scene.image = file;
@@ -2952,7 +2962,7 @@ export async function regenerateAllImages(project, episode, update) {
       const { ok, url, provider } = await generateImage(
         sceneImagePrompt(project, scene),
         path.join(dir, file),
-        sceneImageOptions(project, scene),
+        sceneImageOptions(project, scene, episode),
       );
       if (ok) {
         scene.image = file;
@@ -2982,7 +2992,7 @@ export async function regenerateSceneImage(project, episode, scene, update) {
   const { ok, url, provider } = await generateImage(
     sceneImagePrompt(project, scene),
     path.join(assetsDir(project.id), file),
-    sceneImageOptions(project, scene),
+    sceneImageOptions(project, scene, episode),
   );
   if (ok) {
     scene.image = file;

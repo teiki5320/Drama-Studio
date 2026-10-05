@@ -421,6 +421,12 @@ export function voiceFor(project, speaker) {
   if (speaker === 'narrator') {
     return narrator;
   }
+  // Rôle de narration propre à une vidéo (ex. pub Erea : l'historien posé,
+  // puis le narrateur paniqué) : sa voix et ses réglages ElevenLabs.
+  const role = project.voixRoles && project.voixRoles[speaker];
+  if (role) {
+    return { ...narrator, elevenVoice: role.voice, elevenSettings: role.settings || null };
+  }
   const c = (project.characters || []).find((x) => x.id === speaker);
   const female = c ? (c.gender || '').toLowerCase().startsWith('f') : false;
   if (!c) {
