@@ -720,3 +720,9 @@ textarea {
     width: 100%;
   }
 }
+
+/* Planning : sur un écran étroit (iPad portrait, téléphone), la liste
+   « À placer » passe au-dessus de la semaine. */
+@media (max-width: 900px) {
+  .planning { grid-template-columns: minmax(0, 1fr) !important; }
+}

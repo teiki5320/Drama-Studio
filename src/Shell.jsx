@@ -14,6 +14,7 @@ import { BrandCard, FrenchVoicesCard, AppCreate, ChannelCreate } from './App.jsx
 import { appLook, NOT_ADVERTISED } from './apps.js';
 import { QueuePanel } from './QueuePanel.jsx';
 import { RecipesPage } from './RecipesPage.jsx';
+import { PlanningPage } from './PlanningPage.jsx';
 import { PlansPage } from './PlansPage.jsx';
 import { AdPage } from './AdPage.jsx';
 import './clay.css';
@@ -74,6 +75,7 @@ const KEURCOOK_REPO = 'teiki5320/keurcook';
 const NAV = [
   { id: 'pub', icon: '📣', label: 'Publicité', path: 'pub' },
   { id: 'chaine', icon: '🎥', label: 'Chaîne', path: 'chaine' },
+  { id: 'planning', icon: '🗓️', label: 'Planning', path: 'planning' },
   { id: 'sep' },
   { id: 'encours', icon: '🏭', label: 'En cours', path: 'encours' },
   { id: 'reglages', icon: '⚙️', label: 'Réglages', path: 'reglages' },
@@ -333,6 +335,7 @@ const TITLES = {
   chaine: 'Chaîne',
   encours: 'En cours',
   reglages: 'Réglages',
+  planning: 'Planning',
 };
 
 export function Shell() {
@@ -482,6 +485,8 @@ export function Shell() {
           <RecettesEntry projects={projects} loaded={loaded} onCreate={runCreation} />
         ) : route.page === 'chaine' ? (
           <ChainePage projects={projects} onCreate={runCreation} />
+        ) : route.page === 'planning' ? (
+          <PlanningPage />
         ) : route.page === 'encours' ? (
           <EnCoursPage />
         ) : route.page === 'reglages' ? (

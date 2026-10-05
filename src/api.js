@@ -79,6 +79,10 @@ export const api = {
     }),
   activeJob: (id) => request(`/api/projects/${id}/active-job`),
   activeJobs: () => request('/api/active-jobs'),
+  planning: () => request('/api/planning'),
+  placerPlanning: (body) => request('/api/planning', { method: 'POST', body: JSON.stringify(body) }),
+  modifierPlanning: (id, body) => request(`/api/planning/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  retirerPlanning: (id) => request(`/api/planning/${id}`, { method: 'DELETE' }),
   validateEpisode: (id, n, ok = true) =>
     request(`/api/projects/${id}/episodes/${n}/validate`, { method: 'POST', body: JSON.stringify({ ok }) }),
   renderEpisode: (id, n) =>

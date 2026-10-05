@@ -93,6 +93,7 @@ import { listRepos, fetchRepoBrief, githubUser } from './github.js';
 import { fetchSiteBrief } from './sitebrief.js';
 import { publicHost, verifyAccessToken } from './cfaccess.js';
 import { listQueue, addToQueue, removeFromQueue, startQueue } from './queue.js';
+import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning } from './planning.js';
 import {
   RECIPE_SECONDS,
   RECIPE_TONES,
@@ -1271,6 +1272,33 @@ app.delete('/api/projects/:id/episodes/:n', (req, res) => {
     supprimerEpisode(p, ep);
     res.json({ ok: true });
   });
+});
+
+// ---------- Planning des réseaux sociaux ----------
+app.get('/api/planning', (req, res) => {
+  try {
+    res.json(planning());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.post('/api/planning', (req, res) => {
+  try {
+    res.json(placer(req.body || {}));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.patch('/api/planning/:id', (req, res) => {
+  try {
+    res.json(modifierPlanning(req.params.id, req.body || {}));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.delete('/api/planning/:id', (req, res) => {
+  retirerPlanning(req.params.id);
+  res.json({ ok: true });
 });
 
 // ---------- Synchronisation dossiers du Bureau ⇄ Studio ----------
