@@ -114,9 +114,13 @@ function episodeFileName(project, episode) {
   const caption = tiktokCaption(project, episode)
     .replace(/[\/\\:*?"<>|]/g, '-')
     .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 180);
-  return `${caption}.mp4`;
+    .trim();
+  // Trop long : on coupe avant le dernier hashtag entier (jamais « #pourt »).
+  let nom = caption;
+  while (nom.length > 180 && nom.includes(' #')) {
+    nom = nom.slice(0, nom.lastIndexOf(' #'));
+  }
+  return `${nom.slice(0, 180)}.mp4`;
 }
 
 // Copie le MP4 d'un épisode validé vers le dossier du drama sur le Bureau.

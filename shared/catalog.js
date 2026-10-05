@@ -124,9 +124,13 @@ export function tiktokHashtags(project) {
       tags.push(v);
     }
   };
+  // Pub ou chaîne : jamais de hashtags de drama (le Studio n'en fait plus).
+  const sansDrama = project.kind === 'pub' || project.mode === 'chaine';
   // 1. Hashtags proposés par Claude à l'écriture de la série (s'ils existent)
   for (const t of project.hashtags || []) {
-    push(t);
+    if (!(sansDrama && tagSlug(t).includes('drama'))) {
+      push(t);
+    }
   }
   // 2. Le titre de la série + ses styles
   push(project.title);
@@ -137,7 +141,10 @@ export function tiktokHashtags(project) {
     }
   }
   // 3. Le socle qui marche pour tous les micro-dramas
-  for (const t of ['drama', 'dramaafricain', 'serieafricaine', 'miniserie', 'storytime', 'pourtoi', 'fyp', 'afrique']) {
+  const socle = sansDrama
+    ? ['pourtoi', 'fyp']
+    : ['drama', 'dramaafricain', 'serieafricaine', 'miniserie', 'storytime', 'pourtoi', 'fyp', 'afrique'];
+  for (const t of socle) {
     push(t);
   }
   return tags.slice(0, 12).map((t) => `#${t}`);
