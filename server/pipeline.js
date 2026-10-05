@@ -56,6 +56,7 @@ import { copyRecipeImage, fetchRecipe, manualRecipe, recipeAsText } from './reci
 import { tourAfrique, logoKeurCook } from './keurcook.js';
 import { chargeArticles, logoKeurDeco, VUES } from './keurdeco.js';
 import { composeMusic, composeSfx } from './music.js';
+import { STUDIO_DIR } from './studio.js';
 import { chargeLivres, logoKeurbook } from './keurbook.js';
 import { chargeCultures, optiledRepo } from './optiled.js';
 import { iconeErea, evenementsCelebres, fichiersFrise } from './erea.js';
@@ -1998,6 +1999,7 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     return nom;
   };
   const friseAssets = {
+    sons: { tic: copie(src.sons.tic, 'erea-tic.wav'), tac: copie(src.sons.tac, 'erea-tac.wav') },
     bg: src.bg.map((p, i) => copie(p, `erea-bg-${i}.webp`)),
     anim: src.anim.map((p, i) => copie(p, `erea-anim-${i}.webp`)),
     fonts: {
@@ -2027,6 +2029,14 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     project.ctaLogo = `erea-icone${path.extname(icone)}`;
     fs.copyFileSync(icone, path.join(dir, project.ctaLogo));
   }
+  // Écran de fin : le logo sans fond (studio/erea-logo-transparent.png), si
+  // on l'a ; l'intro garde l'icône de l'appli.
+  const sansFond = path.join(STUDIO_DIR, 'erea-logo-transparent.png');
+  const logoIntro = icone ? `erea-icone${path.extname(icone)}` : null;
+  if (fs.existsSync(sansFond)) {
+    fs.copyFileSync(sansFond, path.join(dir, 'erea-logo.png'));
+    project.ctaLogo = 'erea-logo.png';
+  }
   // Deux voix : l'historien posé (Nicolas), puis le narrateur qui panique (Léo).
   project.voixRoles = {
     historien: { voice: 'aQROLel5sQbj1vuIVi6B', settings: { stability: 0.7, similarity_boost: 0.8, style: 0.25, speed: 0.92 } },
@@ -2039,7 +2049,7 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
   const scenes = [
     // 1. Le logo, une seconde.
     base(0, {
-      ereaLogo: { icone: project.ctaLogo || null, fonts: friseAssets.fonts },
+      ereaLogo: { icone: logoIntro, fonts: friseAssets.fonts },
       durationSec: 1.3,
       fixedDuration: true,
       videoDisabled: true,

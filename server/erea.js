@@ -71,6 +71,8 @@ export function fichiersFrise() {
   return {
     bg: ORDRE.map((e) => f(`img/bg-${e}.webp`)),
     anim: ORDRE.map((e) => f(`img/anim-${e}.webp`)),
+    // Le cliquetis de la frise : « tic » puis « tac » (lib/core/sons.dart).
+    sons: { tic: f('sfx/tic.wav'), tac: f('sfx/tac.wav') },
     fonts: {
       baloo: f('fonts/Baloo2-ExtraBold.ttf'),
       nunito: f('fonts/Nunito-ExtraBold.ttf'),

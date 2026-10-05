@@ -70,6 +70,7 @@ const SceneBadge = ({ text }) => {
 // Pub Erea : fichiers de l'appli (décors, personnages, polices) copiés dans
 // le projet → adresses complètes.
 const ereaAssets = (o, base) => ({
+  sons: o.sons ? { tic: o.sons.tic ? `${base}/${o.sons.tic}` : null, tac: o.sons.tac ? `${base}/${o.sons.tac}` : null } : null,
   bg: (o.bg || []).map((f) => (f ? `${base}/${f}` : null)),
   anim: (o.anim || []).map((f) => (f ? `${base}/${f}` : null)),
   fonts: o.fonts

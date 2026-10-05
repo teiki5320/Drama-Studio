@@ -7,7 +7,7 @@
 // Tout est dessiné dans l'espace logique d'un iPhone (390 points de large),
 // puis agrandi à 1080 px : la frise de la vidéo a les proportions du jeu.
 import React, { useEffect, useState } from 'react';
-import { AbsoluteFill, Easing, continueRender, delayRender, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Easing, Sequence, continueRender, delayRender, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 // ---- timeline_scale.dart ----
 const SEGMENTS = [
@@ -328,6 +328,22 @@ export const EreaFrise = ({ depart, arrivee, assets = {} }) => {
   };
   const frac = pos(frame);
   const facingLeft = pos(frame + 1) > frac; // on avance dans le temps → ils marchent vers la gauche
+  // Le cliquetis du jeu (tape_widget.dart) : un cran tous les 24 px de
+  // ruban parcourus, jamais deux à moins de 55 ms, en alternant « tic » et
+  // « tac » — il ralentit tout seul quand la frise freine.
+  const crans = [];
+  if (assets.sons && assets.sons.tic) {
+    let parcouru = 0;
+    let dernier = -1e9;
+    for (let f = 1; f < durationInFrames; f++) {
+      parcouru += Math.abs(pos(f) - pos(f - 1)) * TAPE_W;
+      if (parcouru >= 24 && ((f - dernier) / fps) * 1000 >= 55) {
+        parcouru = 0;
+        dernier = f;
+        crans.push(f);
+      }
+    }
+  }
   const done = frame >= durationInFrames - 0.9 * fps;
   const annee = done ? arrivee : fracToYear(frac);
   const era = eraIndexAt(annee);
@@ -337,6 +353,11 @@ export const EreaFrise = ({ depart, arrivee, assets = {} }) => {
 
   return (
     <AbsoluteFill style={{ background: theme.tint }}>
+      {crans.map((f, i) => (
+        <Sequence key={`cran-${f}`} from={f} durationInFrames={Math.round(0.12 * fps)} layout="none">
+          <Audio src={i % 2 === 0 ? assets.sons.tic : assets.sons.tac || assets.sons.tic} volume={0.35} />
+        </Sequence>
+      ))}
       {/* Décor de l'époque en haut d'écran, presque invisible (EraBackdrop). */}
       {assets.bg && assets.bg[era] ? (
         <img
