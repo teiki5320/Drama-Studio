@@ -2045,6 +2045,7 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
       clip: true,
       fixedDuration: true,
       durationSec: 7,
+      coupeNette: true,
       revelation: {
         focus: { x: 50, y: 27 },
         zoomDe: 2,

@@ -203,7 +203,9 @@ export const EreaSlogan = ({ texte, fonts }) => {
   const k = intensiteBug(t, [0], 0.45);
   const entree = interpolate(t, [0, 0.12], [1.35, 1], { extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) });
   const tremble = k > 0 ? (hasard(frame * 5) - 0.5) * 30 * k : 0;
-  const respire = 1 + 0.03 * Math.min(1, t / 2.5);
+  // Le texte ne reste jamais figé : il se rapproche et dérive doucement.
+  const respire = 1 + 0.12 * Math.min(1, t / 4);
+  const derive = Math.sin(t * 1.3) * 14;
   return (
     <AbsoluteFill style={{ background: 'radial-gradient(ellipse at 50% 45%, #2a2016 0%, #0b0907 75%)', alignItems: 'center', justifyContent: 'center', padding: 80 }}>
       <div
@@ -214,7 +216,7 @@ export const EreaSlogan = ({ texte, fonts }) => {
           lineHeight: 1.05,
           color: '#fff8e8',
           textAlign: 'center',
-          transform: `translateX(${tremble}px) scale(${entree * respire})`,
+          transform: `translate(${tremble}px, ${derive}px) scale(${entree * respire})`,
           textShadow: `${-10 * k}px 0 rgba(255,0,60,0.85), ${10 * k}px 0 rgba(0,220,255,0.85)`,
           whiteSpace: 'pre-line',
         }}
