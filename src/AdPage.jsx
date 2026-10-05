@@ -13,7 +13,8 @@ import { Episode } from './remotion/Episode.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
 import { Credits } from './RecipesPage.jsx';
 import { VideoSave, lienVideo, LogoAfrotok, surLeMac, CasesBoutiques } from './VideoSave.jsx';
-import { badgesBoutiques } from './apps.js';
+import { badgesBoutiques, logoAfrotokVisible } from './apps.js';
+const isPubProjet = (p) => p && p.kind === 'pub';
 import { ScreenshotsPanel } from './ProjectView.jsx';
 
 function Apercu({ project, episode, studio }) {
@@ -646,7 +647,7 @@ export function AdPage({ projectId, onAdvanced }) {
   return (
     <div className="rp">
       <div className="rp-left">
-        <Apercu project={project} episode={shown} studio={project.noSticker ? { ...(studio || {}), sticker: null } : studio || {}} />
+        <Apercu project={project} episode={shown} studio={{ ...(studio || {}), sticker: logoAfrotokVisible(project) ? studio?.sticker : null, outro: isPubProjet(project) ? null : studio?.outro }} />
         {shown && (
           <div className="rp-video-title">
             <b>{shown.title}</b>

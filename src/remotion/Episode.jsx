@@ -165,18 +165,27 @@ const CtaCard = ({ appName, cta, logo, theme, badges = [] }) => {
         // Badges officiels des boutiques, après la phrase.
         <div
           style={{
-            marginTop: 56,
+            marginTop: 64,
             display: 'flex',
-            gap: 28,
+            flexWrap: 'nowrap',
+            gap: 22,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: interpolate(frame, [0.6 * fps, 1 * fps], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
             transform: `translateY(${interpolate(frame, [0.6 * fps, 1 * fps], [24, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}px)`,
           }}
         >
-          {badges.map((src) => (
-            <SafeImg key={src} src={src} style={{ height: src.endsWith('.png') ? 200 : 140, objectFit: 'contain' }} />
-          ))}
+          {badges.map((src) =>
+            // Même hauteur visible pour les deux : le badge Google (PNG) porte
+            // une marge transparente d'environ 11 % en haut et en bas.
+            src.endsWith('.png') ? (
+              <div key={src} style={{ height: 130, display: 'flex', alignItems: 'center', overflow: 'visible' }}>
+                <SafeImg src={src} style={{ height: 167, objectFit: 'contain' }} />
+              </div>
+            ) : (
+              <SafeImg key={src} src={src} style={{ height: 130, objectFit: 'contain' }} />
+            ),
+          )}
         </div>
       ) : null}
     </AbsoluteFill>

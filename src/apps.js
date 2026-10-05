@@ -30,6 +30,15 @@ export function badgesBoutiques(project, studioBase) {
   return [b.appStore ? `${studioBase}/badge-app-store.svg` : null, b.googlePlay ? `${studioBase}/badge-google-play.png` : null].filter(Boolean);
 }
 
+// Logo Afrotok dans le coin : par défaut sur les recettes et les chaînes,
+// pas sur les pubs (sauf si la case est cochée).
+export function logoAfrotokVisible(project) {
+  if (!project) {
+    return true;
+  }
+  return project.kind === 'pub' ? project.noSticker === false : !project.noSticker;
+}
+
 // Dépôts qui ne sont pas des produits à promouvoir.
 export const NOT_ADVERTISED = new Set(['dashboard', 'drama-studio', 'bd']);
 

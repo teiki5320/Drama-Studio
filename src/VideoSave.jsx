@@ -4,7 +4,7 @@
 // (il arrive dans Fichiers → Téléchargements, prêt pour TikTok).
 import React from 'react';
 import { api } from './api.js';
-import { APPLIS_MOBILES } from './apps.js';
+import { APPLIS_MOBILES, logoAfrotokVisible } from './apps.js';
 
 export const surLeMac = () => ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
@@ -38,7 +38,7 @@ export function LogoAfrotok({ project, onChange }) {
     <label className="clay-muted small" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
       <input
         type="checkbox"
-        checked={!project.noSticker}
+        checked={logoAfrotokVisible(project)}
         onChange={(e) =>
           api
             .patchProject(project.id, { noSticker: !e.target.checked })

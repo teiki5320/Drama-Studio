@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { loadStudio, videoDurationSec } from './studio.js';
 import { assetsDir } from './projects.js';
 import { assertNoHealthClaims } from './pipeline.js';
-import { badgesBoutiques } from '../src/apps.js';
+import { badgesBoutiques, logoAfrotokVisible } from '../src/apps.js';
 
 let bundlePromise = null;
 
@@ -33,8 +33,12 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
   if (project.mode === 'recette') {
     studio.outro = null;
   }
-  if (project.noSticker) {
+  if (!logoAfrotokVisible(project)) {
     studio.sticker = null;
+  }
+  // Pub : elle finit sur l'écran de l'appli, sans la vidéo de la chaîne.
+  if (project.kind === 'pub') {
+    studio.outro = null;
   }
   if (project.channelOutro) {
     studio.outro = project.channelOutro;
