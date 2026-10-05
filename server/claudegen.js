@@ -1184,41 +1184,44 @@ ${regles}`;
 // projeté dans cette époque (ex. Napoléon stupéfait devant son armée voit les
 // légions de César courir vers lui). Puis une accroche, et l'outro.
 export function buildEreaAdPrompt({ personnage = '', deja = [], idees = [] }) {
-  return `Tu imagines une pub TikTok pour Erea, le jeu d'histoire où l'on place des événements sur une frise de -3000 à aujourd'hui (appli gratuite). Le ressort de la pub : L'ANACHRONISME, drôle et spectaculaire.
+  return `Tu imagines une pub TikTok TRÈS accrocheuse pour Erea, le jeu d'histoire où l'on place des événements sur une frise de -3000 à aujourd'hui (appli gratuite). Le ressort : L'ANACHRONISME, spectaculaire, avec un effet « le temps qui bugue ».
 
-DÉROULÉ (déjà monté par le studio, tu fournis le contenu) :
-1. intro — une phrase d'accroche courte.
-2. question — on présente un personnage historique très connu et on demande à quelle époque il a vécu.
-3. frise — la frise du jeu s'emballe et se pose sur une MAUVAISE époque, très éloignée (au moins 300 ans d'écart).
-4. scène — le personnage est projeté dans cette époque : une image spectaculaire et drôle, animée en clip (ex. « Napoléon, stupéfait devant son armée, voit les légions de Jules César courir vers lui »).
-5. réaction — gros plan sur le personnage, stupéfait ; la phrase d'accroche qui invite à jouer.
-6. outro — carton final avec le logo.
+DÉROULÉ (monté par le studio, tu fournis le contenu) :
+1. logo Erea, une seconde (rien à écrire).
+2. révélation : on part en très gros plan sur le VISAGE du personnage, la caméra recule sans s'arrêter — son buste, puis tout le décor autour de lui : ce n'est PAS son époque. Le temps « bugue » au moment où l'on comprend. À l'écran : qui il est, où et quand il devrait être, puis où il est vraiment.
+3. coupure nette : une phrase choc sur fond noir (ex. « Dans Erea, ne te trompe pas d'époque. »).
+4. la frise du jeu remet l'événement à sa vraie place.
+5. carton final avec le logo.
 
-${personnage ? `PERSONNAGE IMPOSÉ : ${personnage}` : 'Choisis toi-même un personnage TRÈS connu en France (empereur, reine, inventeur, explorateur, artiste…).'}
+Exemple à dépasser : Napoléon, en 1815, à la veille de Waterloo… mais le décor qui se dévoile est Alésia, en pleine bataille entre Gaulois et Romains.
+
+${personnage ? `PERSONNAGE IMPOSÉ : ${personnage}` : 'Choisis toi-même un personnage TRÈS connu en France (empereur, reine, inventeur, explorateur, artiste…), dans un moment célèbre de sa vie.'}
 ${deja.length ? `PERSONNAGES DÉJÀ UTILISÉS (à éviter) : ${deja.join(', ')}` : ''}
 Pour t'inspirer, quelques événements du jeu : ${idees.join(' ; ')}
 
-VOIX : dynamique et amusée, elle TUTOIE le spectateur. Phrases courtes.
+VOIX : dynamique et amusée, elle TUTOIE le spectateur. Phrases courtes, rythmées.
 
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour) :
 {
   "title": "titre court (usage interne)",
-  "personnage": "son nom tel qu'on l'affiche (ex. « Napoléon Bonaparte »)",
-  "anneePersonnage": année emblématique de sa vie (entier, négatif avant J.-C.),
-  "visuel": "EN ANGLAIS : description physique très précise et STABLE du personnage (visage, coiffure, costume d'époque), réutilisée dans les deux images",
-  "anneeFrise": l'année (entier) où la frise se pose — une époque très éloignée et reconnaissable,
-  "epoqueFrise": "cette époque en quelques mots (ex. « la Rome de Jules César »)",
-  "intro": "phrase d'intro, 10 mots maximum",
-  "question": "la question dite à voix haute, 14 mots maximum",
-  "questionCarte": "la question écrite sur la carte, 8 mots maximum (ex. « À quelle époque a-t-il vécu ? »)",
-  "frise": "phrase courte pendant que la frise s'emballe (ex. « Oups… la frise s'emballe ! »), 8 mots maximum",
-  "scene": {"imagePrompt": "EN ANGLAIS : la scène anachronique, plan large spectaculaire et drôle, photo réaliste cinématographique, vertical 9:16, no text, no logo, no watermark", "motionPrompt": "EN ANGLAIS : le mouvement du clip (ex. « Roman legionaries charging toward the camera, Napoleon turning in shock, dust rising »)"},
-  "reaction": {"imagePrompt": "EN ANGLAIS : gros plan sur le personnage, stupéfait, dans cette époque, photo réaliste, vertical 9:16, no text", "accroche": "la phrase d'accroche finale, 16 mots maximum, qui invite à remettre l'histoire dans le bon ordre avec Erea (ex. « Le Roi-Soleil chez les pharaons ? Remets chaque événement à sa place sur la frise d'Erea ! »)"},
+  "personnage": "son nom tel qu'on l'affiche (ex. « Napoléon »)",
+  "anneePersonnage": l'année du moment célèbre (entier, négatif avant J.-C.),
+  "moment": "où et quand il devrait être, 5 mots maximum (ex. « Waterloo, 1815 »)",
+  "anneeFrise": l'année de la MAUVAISE époque où il apparaît (entier, au moins 300 ans d'écart),
+  "epoqueFrise": "cette mauvaise époque, 6 mots maximum (ex. « Alésia, 52 av. J.-C. »)",
+  "revelation": {
+    "imagePrompt": "EN ANGLAIS : photo réaliste cinématographique, vertical 9:16. Le personnage (décris précisément visage, coiffure, costume de SON époque) est AU CENTRE de l'image, au premier plan, cadré de la tête aux hanches, visage net et bien éclairé situé dans le tiers supérieur, l'air stupéfait. Tout autour et derrière lui, la mauvaise époque, spectaculaire et reconnaissable (ex. légionnaires romains et guerriers gaulois en pleine bataille, sans sang). no text, no logo, no watermark",
+    "motionPrompt": "EN ANGLAIS : le mouvement du clip — la caméra continue de reculer lentement, le personnage tourne la tête, stupéfait ; l'action de l'époque bouge autour de lui",
+    "voix": "dite pendant la révélation, 20 mots maximum : d'abord qui et quand, puis la chute (ex. « Napoléon. 1815. Demain, Waterloo… Sauf que là, il est à Alésia ! »)",
+    "ou": "texte à l'écran au moment du bug, 7 mots maximum (ex. « …à Alésia, 52 av. J.-C. ?! »)"
+  },
+  "slogan": "la phrase choc, 7 mots maximum (ex. « Dans Erea, ne te trompe pas d'époque. »)",
+  "frise": "dite pendant que la frise remet tout en place, 12 mots maximum (ex. « Remets chaque événement à sa place sur la frise ! »)",
   "cta": "phrase du carton final, 8 mots maximum (ex. « Joue gratuitement à Erea »)"
 }
 
-CONTRAINTES : rien de choquant ni de violent (pas de sang, pas d'armes qui blessent) — c'est drôle et bon enfant. Aucune phrase de vente : on invite à jouer (l'appli est gratuite).
-Erea fait placer des ÉVÉNEMENTS sur une frise (inventions, batailles, découvertes, règnes…), pas seulement des personnages : n'emploie JAMAIS le mot « héros » ; parle d'événements, d'histoire, de dates, d'époques.`;
+CONTRAINTES : rien de choquant (pas de sang, pas de blessure) — spectaculaire mais bon enfant. Aucune phrase de vente : on invite à jouer (l'appli est gratuite).
+Erea fait placer des ÉVÉNEMENTS sur une frise (inventions, batailles, découvertes, règnes…), pas seulement des personnages : n'emploie JAMAIS le mot « héros ».`;
 }
 
 // ---------- Pub Kultiva : « le potager kawaii dans ta poche » ----------

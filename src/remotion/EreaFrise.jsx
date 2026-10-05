@@ -88,6 +88,9 @@ const TAPE_W = 3200; // TapeWidget.tapeW
 const TAPE_H = 282; // tapeHeightFor() sur iPhone (0,44 × ~640 pt disponibles)
 
 // Polices de l'appli, chargées avant le rendu.
+export function usePolicesErea(fonts) {
+  return useFonts(fonts);
+}
 function useFonts(fonts) {
   const [handle] = useState(() => (fonts ? delayRender('Polices Erea') : null));
   useEffect(() => {

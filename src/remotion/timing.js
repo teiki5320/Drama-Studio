@@ -96,6 +96,8 @@ export function episodeDurationInFrames(episode, studio, noOutroCard = false, ct
   const clip = outroClipFrames(studio);
   // TransitionSeries : un fondu par coupe — entre les scènes, puis vers
   // chaque élément de fin présent (carton et/ou outro perso).
-  const cuts = scenes.length - 1 + (card > 0 ? 1 : 0) + (clip > 0 ? 1 : 0);
+  // Une scène « coupeNette » arrive sans fondu.
+  const fondus = scenes.slice(1).filter((sc) => !sc.coupeNette).length;
+  const cuts = fondus + (card > 0 ? 1 : 0) + (clip > 0 ? 1 : 0);
   return scenesTotal + card + clip - TRANSITION_FRAMES * cuts;
 }

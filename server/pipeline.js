@@ -55,10 +55,10 @@ import {
 import { copyRecipeImage, fetchRecipe, manualRecipe, recipeAsText } from './recipes.js';
 import { tourAfrique, logoKeurCook } from './keurcook.js';
 import { chargeArticles, logoKeurDeco, VUES } from './keurdeco.js';
-import { composeMusic } from './music.js';
+import { composeMusic, composeSfx } from './music.js';
 import { chargeLivres, logoKeurbook } from './keurbook.js';
 import { chargeCultures, optiledRepo } from './optiled.js';
-import { decorEpoque, iconeErea, evenementsCelebres, fichiersFrise } from './erea.js';
+import { iconeErea, evenementsCelebres, fichiersFrise } from './erea.js';
 import { cartesJouables, carteSerment, finsDuJeu, palais, fichiersPalabre, sonDeLaReponse, applique, JAUGES, palabreRepo } from './palabre.js';
 import { chargeEspeces, aSemer, tamassi, fondPastel, iconeKultiva, REGIONS, MOIS } from './kultiva.js';
 import { applyVoicePreset } from './voicepresets.js';
@@ -1969,13 +1969,6 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
   const visuel = String(raw.visuel || '').trim();
   const line = (t) => (t ? [{ speaker: 'narrator', text: String(t).trim().slice(0, 200), audio: null, audioDurationSec: null }] : []);
 
-  // Décor de l'époque du personnage (appli Erea) pour l'intro et la question.
-  const decor = decorEpoque(anneePerso);
-  let decorFile = null;
-  if (decor) {
-    decorFile = `e${number}_decor${path.extname(decor)}`;
-    fs.copyFileSync(decor, path.join(dir, decorFile));
-  }
   const base = (i, extra) => ({
     id: `s${i + 1}`,
     location: '',
@@ -1990,7 +1983,6 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     lines: [],
     ...extra,
   });
-  const decorScene = decorFile ? { image: decorFile, fromSite: true, videoDisabled: true } : {};
   // Les images et polices de l'appli, copiées une fois dans le projet : la
   // frise de la pub est dessinée exactement comme dans le jeu.
   const src = fichiersFrise();
@@ -2013,40 +2005,82 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
       nunitoBlack: copie(src.fonts.nunitoBlack, 'erea-nunito-black.ttf'),
     },
   };
+  // Bruitages de la marque, composés une fois par projet (quelques centimes).
+  const bruitage = async (nom, prompt, sec) => {
+    const f = path.join(dir, nom);
+    if (!fs.existsSync(f)) {
+      try {
+        await composeSfx(prompt, sec, f);
+      } catch (e) {
+        console.error(`Bruitage ${nom} :`, e.message);
+        return null;
+      }
+    }
+    return nom;
+  };
+  update('Bruitages « le temps qui bugue »…');
+  const sonBug = await bruitage('erea-bug.mp3', 'short harsh digital glitch, time distortion, vhs tape rewind stutter, electric crackle', 0.8);
+  const sonLogo = await bruitage('erea-logo.mp3', 'quick magical whoosh with a soft bright chime, logo reveal', 1.2);
+  const icone = iconeErea();
+  if (icone && !project.ctaLogo) {
+    project.ctaLogo = `erea-icone${path.extname(icone)}`;
+    fs.copyFileSync(icone, path.join(dir, project.ctaLogo));
+  }
+  const rv = raw.revelation || {};
+  const BUGS = [0.5, 0.82]; // moments du bug, en fraction du plan
+  const sfx = (frac) => (sonBug ? [{ file: sonBug, frac, volume: 0.9 }] : []);
   const scenes = [
-    base(0, { ...decorScene, badge: 'Erea', lines: line(raw.intro) }),
-    base(1, {
-      ...decorScene,
-      kenBurns: 'zoom-out',
-      question: { titre: nom, texte: String(raw.questionCarte || 'À quelle époque a-t-il vécu ?').slice(0, 60), fonts: friseAssets.fonts },
-      lines: line(raw.question),
+    // 1. Le logo, une seconde.
+    base(0, {
+      ereaLogo: { icone: project.ctaLogo || null, fonts: friseAssets.fonts },
+      durationSec: 1.3,
+      fixedDuration: true,
+      videoDisabled: true,
+      sfx: sonLogo ? [{ file: sonLogo, at: 0, volume: 0.8 }] : [],
     }),
+    // 2. La révélation : visage → buste → la mauvaise époque, le temps bugue.
+    base(1, {
+      imagePrompt: `${String(rv.imagePrompt || '').trim()} The character: ${visuel}`,
+      motionPrompt: String(rv.motionPrompt || '').trim().slice(0, 300),
+      clip: true,
+      fixedDuration: true,
+      durationSec: 7,
+      revelation: {
+        focus: { x: 50, y: 27 },
+        zoomDe: 2,
+        bugs: BUGS,
+        legende: {
+          qui: nom,
+          quand: String(raw.moment || anneePerso).slice(0, 40),
+          ou: String(rv.ou || '').slice(0, 60),
+        },
+        fonts: friseAssets.fonts,
+      },
+      sfx: [...sfx(BUGS[0]), ...sfx(BUGS[1])],
+      lines: line(rv.voix),
+    }),
+    // 3. Coupure nette : la phrase choc.
     base(2, {
-      frise: { depart: anneePerso, arrivee: anneeFrise, ...friseAssets },
+      coupeNette: true,
+      slogan: { texte: String(raw.slogan || "Dans Erea, ne te trompe pas d'époque.").slice(0, 60), fonts: friseAssets.fonts },
+      durationSec: 2.4,
+      videoDisabled: true,
+      sfx: sfx(0),
+      lines: line(raw.slogan || "Dans Erea, ne te trompe pas d'époque."),
+    }),
+    // 4. La frise du jeu remet l'événement à sa vraie place.
+    base(3, {
+      frise: { depart: anneeFrise, arrivee: anneePerso, ...friseAssets },
       lines: line(raw.frise),
       durationSec: 5,
       fixedDuration: true,
       videoDisabled: true,
     }),
-    base(3, {
-      imagePrompt: `${String(raw.scene?.imagePrompt || '').trim()} The main character: ${visuel}`,
-      motionPrompt: String(raw.scene?.motionPrompt || '').trim().slice(0, 300),
-      clip: true,
-      fixedDuration: true,
-      durationSec: 6,
-      badge: String(raw.epoqueFrise || '').slice(0, 40) || null,
-    }),
-    base(4, {
-      imagePrompt: `${String(raw.reaction?.imagePrompt || '').trim()} The character: ${visuel}`,
-      kenBurns: 'zoom-in',
-      videoDisabled: true,
-      lines: line(raw.reaction?.accroche),
-    }),
   ];
   const episode = {
     number,
     title: String(raw.title || `${nom} — mauvaise époque`).slice(0, 120),
-    topic: `Anachronisme — ${nom} dans ${String(raw.epoqueFrise || anneeFrise)}`,
+    topic: `${nom} (${String(raw.moment || anneePerso)}) → ${String(raw.epoqueFrise || anneeFrise)}`,
     locations: {},
     cliffhanger: '',
     status: 'script',
@@ -2054,11 +2088,6 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     scenes,
     cta: String(raw.cta || 'Joue gratuitement à Erea').slice(0, 60),
   };
-  const icone = iconeErea();
-  if (icone && !project.ctaLogo) {
-    project.ctaLogo = `erea-icone${path.extname(icone)}`;
-    fs.copyFileSync(icone, path.join(dir, project.ctaLogo));
-  }
   // Couleurs du jeu : parchemin et ocre de l'âge du bronze.
   project.ctaTheme = {
     bg: 'radial-gradient(ellipse at 50% 40%, #fff8e8 0%, #f2e2bf 80%)',
@@ -2761,7 +2790,7 @@ export async function ensureEpisodeScript(project, number, update) {
 
 // Écrans dessinés par le studio lui-même (frise d'Erea, écrans de Palabre) :
 // aucune image à générer, donc aucun crédit dépensé.
-const dessineeParLeStudio = (scene) => Boolean(scene.frise || scene.palabre);
+const dessineeParLeStudio = (scene) => Boolean(scene.frise || scene.palabre || scene.ereaLogo || scene.slogan);
 
 export async function produceEpisode(project, number, update) {
   const episode = await ensureEpisodeScript(project, number, update);

@@ -204,7 +204,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, musicVolume
         />
       </TransitionSeries.Sequence>,
     );
-    if (i < scenes.length - 1) {
+    if (i < scenes.length - 1 && !scenes[i + 1].coupeNette) {
       seriesChildren.push(transition(`tr-${i}`));
     }
   });

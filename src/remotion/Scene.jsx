@@ -12,6 +12,7 @@ import {
 import { SafeImg } from './SafeImg.jsx';
 import { EreaFrise, EreaQuestion } from './EreaFrise.jsx';
 import { PalabreJeu } from './PalabreJeu.jsx';
+import { EreaLogoIntro, EreaRevelation, EreaSlogan } from './EreaPub.jsx';
 import { Clip, mouvementImage } from './Clip.jsx';
 import { FPS, SHOT_AUDIO_DELAY, sceneFrames, lineOffsets, shotOffsets, shotDurations } from './timing.js';
 
@@ -392,13 +393,68 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
       })
     : 0;
 
+  // Voix et bruitages d'un écran dessiné par le studio.
+  const pistes = (
+    <>
+      {(scene.sfx || []).map((x, i) => (
+        <Sequence key={`sfx-${i}`} from={x.frac != null ? Math.round(x.frac * total) : Math.round((x.at || 0) * fps)} layout="none">
+          <Audio src={`${assetBase}/${x.file}`} volume={x.volume ?? 0.8} />
+        </Sequence>
+      ))}
+      {lines.map((line, i) =>
+        line.audio ? (
+          <Sequence key={`v-${i}`} from={offsets[i]} layout="none">
+            <Audio src={`${assetBase}/${line.audio}`} />
+          </Sequence>
+        ) : null,
+      )}
+    </>
+  );
+  const ereaFonts = (o) => (o && o.fonts ? ereaAssets(o, assetBase).fonts : null);
+
+  // Pub Erea « temps qui bug » : logo, révélation, phrase choc.
+  if (scene.ereaLogo) {
+    return (
+      <AbsoluteFill>
+        <EreaLogoIntro icone={scene.ereaLogo.icone ? `${assetBase}/${scene.ereaLogo.icone}` : null} fonts={ereaFonts(scene.ereaLogo)} />
+        {pistes}
+      </AbsoluteFill>
+    );
+  }
+  if (scene.revelation) {
+    return (
+      <AbsoluteFill>
+        <EreaRevelation
+          image={scene.image ? `${assetBase}/${scene.image}` : null}
+          video={scene.video ? `${assetBase}/${scene.video}` : null}
+          clipSec={scene.videoDurationSec}
+          focus={scene.revelation.focus}
+          zoomDe={scene.revelation.zoomDe}
+          bugs={scene.revelation.bugs}
+          legende={scene.revelation.legende}
+          fonts={ereaFonts(scene.revelation)}
+          planFrames={total}
+        />
+        {pistes}
+      </AbsoluteFill>
+    );
+  }
+  if (scene.slogan) {
+    return (
+      <AbsoluteFill>
+        <EreaSlogan texte={scene.slogan.texte} fonts={ereaFonts(scene.slogan)} />
+        {pistes}
+      </AbsoluteFill>
+    );
+  }
+
   // Pub Palabre : un écran du jeu, avec ses sons.
   if (scene.palabre) {
     return (
       <AbsoluteFill>
         <PalabreJeu jeu={palabreUrls(scene.palabre, assetBase)} fonts={palabreFonts(scene.palabreFonts, assetBase)} />
         {(scene.sfx || []).map((x, i) => (
-          <Sequence key={`sfx-${i}`} from={Math.round((x.at || 0) * fps)} layout="none">
+          <Sequence key={`sfx-${i}`} from={x.frac != null ? Math.round(x.frac * total) : Math.round((x.at || 0) * fps)} layout="none">
             <Audio src={`${assetBase}/${x.file}`} volume={x.volume ?? 0.8} />
           </Sequence>
         ))}
