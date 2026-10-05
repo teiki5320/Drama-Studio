@@ -1966,12 +1966,13 @@ export function accrocheErea(fonts) {
 
 // Les mauvaises époques déjà montrées (« … → La Lune, juillet 1969 »), pour
 // ne pas retomber deux fois sur la Lune ou Gizeh.
+// Gardées aussi dans ereaTour.lieux : une pub supprimée compte encore.
 function lieuxErea(project) {
-  return (project.episodes || [])
+  const vus = (project.episodes || [])
     .map((e) => String(e.topic || '').split('→')[1] || String(e.topic || '').split(' dans ')[1] || '')
     .map((x) => x.trim())
-    .filter(Boolean)
-    .slice(-40);
+    .filter(Boolean);
+  return [...new Set([...((project.ereaTour && project.ereaTour.lieux) || []), ...vus])].slice(-40);
 }
 
 export async function createEreaAd(project, { personnage = '' } = {}, update) {
@@ -2162,6 +2163,7 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
   project.episodes.sort((a, b) => a.number - b.number);
   project.episodeCount = project.episodes.length;
   state.deja.push(nom);
+  state.lieux = [...(state.lieux || []), String(raw.epoqueFrise || anneeFrise)].slice(-60);
   saveProject(project);
   return { number };
 }

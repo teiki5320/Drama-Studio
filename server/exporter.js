@@ -196,6 +196,11 @@ export function exportAllProjects() {
       if (!project) {
         continue;
       }
+      // Pubs, recettes, chaînes : le dossier du Bureau fait foi (une vidéo
+      // supprimée là-bas ne doit pas revenir au redémarrage).
+      if (dossierStudio(project)) {
+        continue;
+      }
       for (const episode of project.episodes || []) {
         if (exportEpisode(project, episode)) {
           copied++;

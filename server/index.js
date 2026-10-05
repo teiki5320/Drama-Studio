@@ -74,6 +74,7 @@ import { claudeBin } from './claudebin.js';
 import {
   exportAllProjects,
   exportEpisode,
+  dossierVideo,
   EXPORT_ROOT,
   exportRootFor,
   projectExportDir,
@@ -1223,6 +1224,40 @@ app.post(
 // Supprime un épisode (scénario + images + clips + voix + MP4) pour le
 // refaire de zéro : il repasse en « à produire ». Sa copie exportée est
 // retirée aussi ; une vidéo de chaîne rend son sujet aux idées.
+// Supprime une vidéo et tout ce qui lui appartient (images, voix, clips, MP4,
+// copie sur le Bureau).
+function supprimerEpisode(p, ep) {
+  const dir = projectDir(p.id);
+  const assets = path.join(dir, 'assets');
+  try {
+    for (const f of fs.readdirSync(assets)) {
+      if (f.startsWith(`e${ep.number}_`)) {
+        fs.rmSync(path.join(assets, f), { force: true });
+      }
+    }
+  } catch {
+    // pas de dossier assets : rien à nettoyer
+  }
+  if (ep.renderedFile) {
+    fs.rmSync(path.join(dir, ep.renderedFile), { force: true });
+  }
+  if (ep.exportedTo) {
+    try {
+      fs.rmSync(ep.exportedTo, { force: true });
+    } catch {
+      // dossier d'export indisponible (iCloud) : on n'insiste pas
+    }
+  }
+  if (p.mode === 'chaine' && ep.topic) {
+    p.topicIdeas = [ep.topic, ...(p.topicIdeas || []).filter((t) => t !== ep.topic)].slice(0, 20);
+  }
+  p.episodes = (p.episodes || []).filter((e) => e.number !== ep.number);
+  if (p.mode === 'chaine') {
+    p.episodeCount = p.episodes.length;
+  }
+  saveProject(p);
+}
+
 app.delete('/api/projects/:id/episodes/:n', (req, res) => {
   withEpisode(req, res, (p, ep) => {
     if (!ep) {
@@ -1233,38 +1268,81 @@ app.delete('/api/projects/:id/episodes/:n', (req, res) => {
       res.status(409).json({ error: 'Une production est en cours sur ce drama — attends la fin.' });
       return;
     }
-    const dir = projectDir(p.id);
-    const assets = path.join(dir, 'assets');
-    try {
-      for (const f of fs.readdirSync(assets)) {
-        if (f.startsWith(`e${ep.number}_`)) {
-          fs.rmSync(path.join(assets, f), { force: true });
-        }
-      }
-    } catch {
-      // pas de dossier assets : rien à nettoyer
-    }
-    if (ep.renderedFile) {
-      fs.rmSync(path.join(dir, ep.renderedFile), { force: true });
-    }
-    if (ep.exportedTo) {
-      try {
-        fs.rmSync(ep.exportedTo, { force: true });
-      } catch {
-        // dossier d'export indisponible (iCloud) : on n'insiste pas
-      }
-    }
-    if (p.mode === 'chaine' && ep.topic) {
-      p.topicIdeas = [ep.topic, ...(p.topicIdeas || []).filter((t) => t !== ep.topic)].slice(0, 20);
-    }
-    p.episodes = (p.episodes || []).filter((e) => e.number !== ep.number);
-    if (p.mode === 'chaine') {
-      p.episodeCount = p.episodes.length;
-    }
-    saveProject(p);
+    supprimerEpisode(p, ep);
     res.json({ ok: true });
   });
 });
+
+// ---------- Synchronisation dossiers du Bureau ⇄ Studio ----------
+// Le Finder fait foi : une vidéo glissée de « À valider » à « Validées » est
+// validée (et inversement) ; une vidéo supprimée du dossier est supprimée du
+// Studio. Garde-fous : jamais pendant une fabrication, jamais si le dossier
+// de l'appli est introuvable, une vidéo mise de côté par iCloud (.icloud)
+// compte comme présente, et il faut deux constats d'absence d'affilée.
+const absences = new Map();
+function synchroniserDossiers() {
+  let projets = [];
+  try {
+    projets = listProjects();
+  } catch {
+    return;
+  }
+  for (const s of projets) {
+    const p = loadProject(s.id);
+    if (!p || !(p.kind === 'pub' || p.mode === 'recette' || p.mode === 'chaine') || activeJobFor(p.id)) {
+      continue;
+    }
+    const enFile = listQueue().some((it) => it.projectId === p.id && (it.status === 'running' || it.status === 'waiting'));
+    if (enFile) {
+      continue;
+    }
+    let change = false;
+    for (const ep of [...(p.episodes || [])]) {
+      if (!ep.renderedFile || !ep.exportedTo) {
+        continue;
+      }
+      const aValider = dossierVideo(p, { validation: 'a_valider' });
+      const validees = dossierVideo(p, { validation: 'validee' });
+      const racine = path.dirname(aValider);
+      if (!fs.existsSync(racine) || !ep.exportedTo.startsWith(racine + path.sep)) {
+        continue;
+      }
+      const nom = path.basename(ep.exportedTo);
+      const present = (d) => fs.existsSync(path.join(d, nom)) || fs.existsSync(path.join(d, `.${nom}.icloud`));
+      const cle = `${p.id}:${ep.number}`;
+      if (present(validees)) {
+        absences.delete(cle);
+        if (ep.validation !== 'validee' || path.dirname(ep.exportedTo) !== validees) {
+          ep.validation = 'validee';
+          ep.exportedTo = path.join(validees, nom);
+          change = true;
+        }
+      } else if (present(aValider)) {
+        absences.delete(cle);
+        if (ep.validation === 'validee' || path.dirname(ep.exportedTo) !== aValider) {
+          ep.validation = 'a_valider';
+          ep.exportedTo = path.join(aValider, nom);
+          change = true;
+        }
+      } else {
+        const n = (absences.get(cle) || 0) + 1;
+        absences.set(cle, n);
+        if (n >= 2) {
+          absences.delete(cle);
+          console.log(`Synchronisation : « ${nom} » supprimée du dossier → supprimée du Studio`);
+          ep.exportedTo = null;
+          supprimerEpisode(p, ep);
+          change = false;
+        }
+      }
+    }
+    if (change) {
+      saveProject(p);
+    }
+  }
+}
+setInterval(synchroniserDossiers, 20000);
+
 
 // « Réparer » : relance uniquement les images/voix/vidéos ratées ou manquantes.
 app.post('/api/projects/:id/episodes/:n/retry-assets', (req, res) => {
