@@ -787,8 +787,8 @@ export function AdPage({ projectId, onAdvanced }) {
           ))}
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <VideoSave project={project} episode={shown && shown.renderedFile ? shown : episodes.find((e) => e.renderedFile)} />
-            <button className="clay-btn ghost small" onClick={onAdvanced} title="Scènes, voix, images une par une">
-              ⚙️ Réglages avancés
+            <button className="clay-btn ghost small" onClick={onAdvanced} title="Refaire une image, un clip ou une voix">
+              🔧 Retoucher
             </button>
             <LogoAfrotok project={project} onChange={loadProject} />
           </div>

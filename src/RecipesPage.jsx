@@ -272,6 +272,11 @@ export function RecipesPage({ projectId }) {
           ))}
           <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <VideoSave project={project} episode={shown && shown.renderedFile ? shown : episodes.find((e) => e.renderedFile)} />
+            {episodes.length > 0 && (
+              <a className="clay-btn ghost small" href={`#/avance/${project.id}`} title="Refaire une image, un clip ou une voix">
+                🔧 Retoucher
+              </a>
+            )}
             <LogoAfrotok project={project} onChange={loadProject} />
           </div>
         </div>

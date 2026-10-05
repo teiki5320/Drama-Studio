@@ -14,6 +14,7 @@ import { BrandCard, FrenchVoicesCard, AppCreate, ChannelCreate } from './App.jsx
 import { appLook, NOT_ADVERTISED } from './apps.js';
 import { QueuePanel } from './QueuePanel.jsx';
 import { RecipesPage } from './RecipesPage.jsx';
+import { PlansPage } from './PlansPage.jsx';
 import { AdPage } from './AdPage.jsx';
 import './clay.css';
 
@@ -427,6 +428,19 @@ export function Shell() {
             go(active === 'chaine' ? 'chaine' : 'pub');
           }}
         />
+      </>
+    );
+  } else if (route.page === 'avance' && project && (project.mode === 'chaine' || project.mode === 'recette')) {
+    // Retoucher une pub, une vidéo de chaîne ou une recette, plan par plan.
+    body = (
+      <>
+        <TopBar
+          title={`🔧 ${project.title}`}
+          onBack={() => go(project.mode === 'recette' ? 'recettes' : `projet/${route.arg}`)}
+          theme={theme}
+          onTheme={toggleTheme}
+        />
+        <PlansPage key={route.arg} projectId={route.arg} />
       </>
     );
   } else if ((route.page === 'projet' || route.page === 'avance') && project && project.mode !== 'chaine') {
