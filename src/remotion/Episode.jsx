@@ -136,6 +136,8 @@ const CtaCard = ({ appName, cta, logo, theme, badges = [] }) => {
               objectFit: 'contain',
               display: 'block',
               margin: '0 auto',
+              // Icône d'appli : coins arrondis et ombre, comme dans l'intro.
+              ...(t.logoArrondi ? { borderRadius: '22%', boxShadow: '0 24px 56px rgba(80,50,10,0.35)' } : {}),
             }}
           />
         ) : null}
