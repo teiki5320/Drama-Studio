@@ -397,7 +397,12 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
   const pistes = (
     <>
       {(scene.sfx || []).map((x, i) => (
-        <Sequence key={`sfx-${i}`} from={x.frac != null ? Math.round(x.frac * total) : Math.round((x.at || 0) * fps)} layout="none">
+        <Sequence
+          key={`sfx-${i}`}
+          from={x.frac != null ? Math.round(x.frac * total) : Math.round((x.at || 0) * fps)}
+          durationInFrames={x.dur ? Math.max(1, Math.round(x.dur * fps)) : undefined}
+          layout="none"
+        >
           <Audio src={`${assetBase}/${x.file}`} volume={x.volume ?? 0.8} />
         </Sequence>
       ))}
@@ -496,7 +501,12 @@ export const Scene = ({ scene, characters, assetBase, isFirst, episodeTitle, epi
       <AbsoluteFill>
         <PalabreJeu jeu={palabreUrls(scene.palabre, assetBase)} fonts={palabreFonts(scene.palabreFonts, assetBase)} />
         {(scene.sfx || []).map((x, i) => (
-          <Sequence key={`sfx-${i}`} from={x.frac != null ? Math.round(x.frac * total) : Math.round((x.at || 0) * fps)} layout="none">
+          <Sequence
+          key={`sfx-${i}`}
+          from={x.frac != null ? Math.round(x.frac * total) : Math.round((x.at || 0) * fps)}
+          durationInFrames={x.dur ? Math.max(1, Math.round(x.dur * fps)) : undefined}
+          layout="none"
+        >
             <Audio src={`${assetBase}/${x.file}`} volume={x.volume ?? 0.8} />
           </Sequence>
         ))}

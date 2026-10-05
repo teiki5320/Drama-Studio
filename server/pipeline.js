@@ -2054,7 +2054,19 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
       fixedDuration: true,
       durationSec: 7,
       historien: { nom, moment: String(raw.moment || anneePerso).slice(0, 50), fonts: friseAssets.fonts },
-      sfx: [{ ...(sonBug ? { file: sonBug, frac: 0.9, volume: 0.9 } : {}) }].filter((x) => x.file),
+      // Le bug, précédé de petits grésillements de plus en plus forts.
+      sfx: sonBug
+        ? [
+            ...[
+              [0.42, 0.12, 0.08],
+              [0.58, 0.18, 0.1],
+              [0.7, 0.25, 0.12],
+              [0.78, 0.35, 0.14],
+              [0.84, 0.5, 0.18],
+            ].map(([frac, volume, dur]) => ({ file: sonBug, frac, volume, dur })),
+            { file: sonBug, frac: 0.9, volume: 0.9 },
+          ]
+        : [],
       lines: role('historien', hi.voix),
     }),
     // 3. Le bug du temps : les deux époques se déchirent.

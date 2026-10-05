@@ -254,12 +254,28 @@ const Media = ({ video, image, clipSec, planFrames, index = 0 }) => {
   return null;
 };
 
+// Signes avant-coureurs du bug : de petits sursauts de plus en plus forts
+// pendant que l'historien parle — on sent le temps vaciller.
+// [moment (fraction du plan), force, durée (s)]
+export const ANNONCES_BUG = [
+  [0.42, 0.1, 0.07],
+  [0.58, 0.16, 0.09],
+  [0.7, 0.24, 0.1],
+  [0.78, 0.34, 0.12],
+  [0.84, 0.46, 0.14],
+];
+
 export const EreaHistorien = ({ video, image, clipSec, nom, moment, fonts, planFrames, bugFin = 0.9 }) => {
   usePolicesErea(fonts);
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
-  const k = intensiteBug(t, [bugFin * (planFrames / fps)], 0.6);
+  const dureeSec = planFrames / fps;
+  const annonce = ANNONCES_BUG.reduce((m, [f, force, d]) => {
+    const u = (t - f * dureeSec) / d;
+    return u >= 0 && u <= 1 ? Math.max(m, force * (1 - u * 0.6)) : m;
+  }, 0);
+  const k = Math.max(intensiteBug(t, [bugFin * dureeSec], 0.6), annonce);
   const titre = interpolate(t, [0.4, 1.1], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const trait = interpolate(t, [0.6, 1.4], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const rendu = () => (
