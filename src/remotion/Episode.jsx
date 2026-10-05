@@ -89,7 +89,7 @@ const Outro = ({ title, cliffhanger }) => {
 // Carton final d'une PUB : le nom de l'appli et l'appel à l'action.
 // theme : couleurs de la marque (fond, texte, bouton) — Keur Déco a un fond
 // sable clair et un bouton terracotta ; par défaut, bleu nuit et blanc.
-const CtaCard = ({ appName, cta, logo, theme }) => {
+const CtaCard = ({ appName, cta, logo, theme, badges = [] }) => {
   const t = { bg: 'radial-gradient(ellipse at 50% 40%, #12243a 0%, #05080c 78%)', ink: '#ffffff', pill: '#ffffff', pillInk: '#05080c', ...(theme || {}) };
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -161,11 +161,29 @@ const CtaCard = ({ appName, cta, logo, theme }) => {
       >
         {cta}
       </div>
+      {badges && badges.length ? (
+        // Badges officiels des boutiques, après la phrase.
+        <div
+          style={{
+            marginTop: 56,
+            display: 'flex',
+            gap: 28,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: interpolate(frame, [0.6 * fps, 1 * fps], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+            transform: `translateY(${interpolate(frame, [0.6 * fps, 1 * fps], [24, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}px)`,
+          }}
+        >
+          {badges.map((src) => (
+            <SafeImg key={src} src={src} style={{ height: src.endsWith('.png') ? 150 : 104, objectFit: 'contain' }} />
+          ))}
+        </div>
+      ) : null}
     </AbsoluteFill>
   );
 };
 
-export const Episode = ({ episode, characters, assetBase, musicFile, musicVolume, seriesTitle, studio, studioBase, noOutroCard, cta, ctaLogo, ctaTheme }) => {
+export const Episode = ({ episode, characters, assetBase, musicFile, musicVolume, seriesTitle, studio, studioBase, noOutroCard, cta, ctaLogo, ctaTheme, ctaBadges }) => {
   // Pub d'ambiance (sans voix) : la musique passe au premier plan.
   const vol = typeof musicVolume === 'number' ? musicVolume : 0.12;
   // Pub Erea : la bascule entre deux époques montre les images des plans
@@ -227,7 +245,7 @@ export const Episode = ({ episode, characters, assetBase, musicFile, musicVolume
     seriesChildren.push(
       transition('tr-cta-card'),
       <TransitionSeries.Sequence key="cta-card" durationInFrames={Math.round(CTA_SECONDS * FPS)}>
-        <CtaCard appName={seriesTitle} cta={cta} logo={ctaLogo} theme={ctaTheme} />
+        <CtaCard appName={seriesTitle} cta={cta} logo={ctaLogo} theme={ctaTheme} badges={ctaBadges} />
       </TransitionSeries.Sequence>,
     );
   }

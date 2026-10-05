@@ -16,6 +16,20 @@ export const APP_LOOKS = {
   survival: { name: 'Survival', icon: '🏕️' },
 };
 
+// Applis mobiles (les autres sont des sites) : leurs pubs peuvent finir sur
+// les badges officiels des boutiques où elles sont publiées.
+export const APPLIS_MOBILES = new Set(['erea', 'palabre', 'kultiva', 'kultivaprix', 'tama', 'd-sign', 'survival']);
+
+// Badges officiels (Apple, Google), rangés dans studio/.
+export function badgesBoutiques(project, studioBase) {
+  const depot = String(project?.repo || '').split('/').pop().toLowerCase();
+  const b = project?.boutiques || {};
+  if (project?.kind !== 'pub' || !APPLIS_MOBILES.has(depot)) {
+    return [];
+  }
+  return [b.appStore ? `${studioBase}/badge-app-store.svg` : null, b.googlePlay ? `${studioBase}/badge-google-play.png` : null].filter(Boolean);
+}
+
 // Dépôts qui ne sont pas des produits à promouvoir.
 export const NOT_ADVERTISED = new Set(['dashboard', 'drama-studio', 'bd']);
 

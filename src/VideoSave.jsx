@@ -4,6 +4,7 @@
 // (il arrive dans Fichiers → Téléchargements, prêt pour TikTok).
 import React from 'react';
 import { api } from './api.js';
+import { APPLIS_MOBILES } from './apps.js';
 
 export const surLeMac = () => ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
@@ -47,5 +48,31 @@ export function LogoAfrotok({ project, onChange }) {
       />
       Logo Afrotok
     </label>
+  );
+}
+
+// Appli mobile : où elle est publiée (badges sur l'écran de fin).
+export function CasesBoutiques({ project, onChange }) {
+  const depot = String(project.repo || '').split('/').pop().toLowerCase();
+  if (project.kind !== 'pub' || !APPLIS_MOBILES.has(depot)) {
+    return null;
+  }
+  const b = project.boutiques || {};
+  const coche = (cle, valeur) =>
+    api
+      .patchProject(project.id, { boutiques: { ...b, [cle]: valeur } })
+      .then(onChange)
+      .catch((err) => alert(err.message));
+  const cas = (cle, libelle) => (
+    <label className="clay-muted small" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+      <input type="checkbox" checked={Boolean(b[cle])} onChange={(e) => coche(cle, e.target.checked)} />
+      {libelle}
+    </label>
+  );
+  return (
+    <>
+      {cas('appStore', 'App Store')}
+      {cas('googlePlay', 'Google Play')}
+    </>
   );
 }

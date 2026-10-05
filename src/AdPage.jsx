@@ -12,7 +12,8 @@ import { api, followJob } from './api.js';
 import { Episode } from './remotion/Episode.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
 import { Credits } from './RecipesPage.jsx';
-import { VideoSave, lienVideo, LogoAfrotok, surLeMac } from './VideoSave.jsx';
+import { VideoSave, lienVideo, LogoAfrotok, surLeMac, CasesBoutiques } from './VideoSave.jsx';
+import { badgesBoutiques } from './apps.js';
 import { ScreenshotsPanel } from './ProjectView.jsx';
 
 function Apercu({ project, episode, studio }) {
@@ -54,6 +55,7 @@ function Apercu({ project, episode, studio }) {
           noOutroCard: true,
           cta,
           ctaLogo,
+          ctaBadges: badgesBoutiques(project, '/studio'),
           ctaTheme: project.ctaTheme,
         }}
         durationInFrames={Math.max(1, episodeDurationInFrames(episode, studio, true, cta))}
@@ -791,6 +793,7 @@ export function AdPage({ projectId, onAdvanced }) {
               🔧 Retoucher
             </button>
             <LogoAfrotok project={project} onChange={loadProject} />
+            <CasesBoutiques project={project} onChange={loadProject} />
           </div>
         </div>
       </div>

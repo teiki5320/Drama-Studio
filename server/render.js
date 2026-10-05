@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { loadStudio, videoDurationSec } from './studio.js';
 import { assetsDir } from './projects.js';
 import { assertNoHealthClaims } from './pipeline.js';
+import { badgesBoutiques } from '../src/apps.js';
 
 let bundlePromise = null;
 
@@ -64,6 +65,8 @@ export function buildEpisodeProps(project, episode, assetBase, studioBase) {
     cta: project.kind === 'pub' ? episode.cta || project.cta || '' : '',
     ctaLogo: project.kind === 'pub' && project.ctaLogo ? `${assetBase}/${project.ctaLogo}` : '',
     ctaTheme: project.kind === 'pub' && project.ctaTheme ? project.ctaTheme : undefined,
+    // Appli mobile : les badges des boutiques où elle est publiée.
+    ctaBadges: badgesBoutiques(project, studioBase || ''),
   };
 }
 
