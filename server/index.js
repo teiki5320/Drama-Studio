@@ -890,8 +890,11 @@ app.post('/api/projects/:id/open-folder', (req, res) => {
   }
   const dramaDir = projectExportDir(p);
   const root = exportRootFor(p);
-  const target = fs.existsSync(dramaDir) ? dramaDir : fs.existsSync(root) ? root : rendersDir(p.id);
-  execFile('open', [target], (err) => {
+  // Une vidéo précise : le Finder s'ouvre sur son dossier, la vidéo sélectionnée.
+  const ep = req.body && req.body.episode ? (p.episodes || []).find((e) => e.number === Number(req.body.episode)) : null;
+  const fichier = ep && ep.exportedTo && fs.existsSync(ep.exportedTo) ? ep.exportedTo : null;
+  const target = fichier || (fs.existsSync(dramaDir) ? dramaDir : fs.existsSync(root) ? root : rendersDir(p.id));
+  execFile('open', fichier ? ['-R', fichier] : [target], (err) => {
     if (err) {
       res.status(500).json({ error: `Ouverture impossible : ${err.message}` });
     } else {

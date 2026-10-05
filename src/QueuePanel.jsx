@@ -2,7 +2,7 @@
 // projectId : n'afficher que les vidéos d'un projet (page d'une appli).
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { lienVideo } from './VideoSave.jsx';
+import { lienVideo, surLeMac } from './VideoSave.jsx';
 
 const STATES = {
   running: { cls: 'run', text: 'en cours' },
@@ -82,7 +82,7 @@ export function QueuePanel({ projectId = null, refreshKey = 0, onDone = null }) 
               {st.text}
               {it.status === 'running' && it.progress != null ? ` · ${Math.round(it.progress * 100)} %` : ''}
             </span>
-            {it.status === 'done' && it.number != null && (
+            {it.status === 'done' && it.number != null && !surLeMac() && (
               <a
                 className="clay-btn ghost small"
                 href={lienVideo(it.projectId, `renders/episode-${it.number}.mp4`, it.label)}

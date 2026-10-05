@@ -12,7 +12,7 @@ import { api, followJob } from './api.js';
 import { Episode } from './remotion/Episode.jsx';
 import { FPS, WIDTH, HEIGHT, episodeDurationInFrames } from './remotion/timing.js';
 import { Credits } from './RecipesPage.jsx';
-import { VideoSave, lienVideo, LogoAfrotok } from './VideoSave.jsx';
+import { VideoSave, lienVideo, LogoAfrotok, surLeMac } from './VideoSave.jsx';
 import { ScreenshotsPanel } from './ProjectView.jsx';
 
 function Apercu({ project, episode, studio }) {
@@ -763,7 +763,7 @@ export function AdPage({ projectId, onAdvanced }) {
               <span className={`clay-state ${ep.renderedFile ? 'ok' : 'att'}`}>
                 {ep.renderedFile ? 'MP4 prêt' : 'à monter'}
               </span>
-              {ep.renderedFile && (
+              {ep.renderedFile && !surLeMac() && (
                 <a
                   className="clay-btn ghost small"
                   href={lienVideo(project.id, ep.renderedFile, ep.title)}

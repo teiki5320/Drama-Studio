@@ -160,7 +160,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ data: dataUrl }),
     }),
-  openFolder: (id) => request(`/api/projects/${id}/open-folder`, { method: 'POST' }),
+  openFolder: (id, n) =>
+    request(`/api/projects/${id}/open-folder`, { method: 'POST', body: JSON.stringify(n ? { episode: n } : {}) }),
   voices: () => request('/api/voices'),
   libraryVoices: () => request('/api/voices/library'),
   adoptVoice: (voice) =>

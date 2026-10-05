@@ -17,14 +17,16 @@ export function VideoSave({ project, episode, style }) {
   }
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', ...style }}>
-      {surLeMac() && (
-        <button className="clay-btn ghost small" onClick={() => api.openFolder(project.id).catch((e) => alert(e.message))}>
-          📂 Ouvrir le dossier iCloud
+      {surLeMac() ? (
+        // Sur le Mac, la vidéo est déjà rangée sur le Bureau : on l'y montre.
+        <button className="clay-btn small" onClick={() => api.openFolder(project.id, episode.number).catch((e) => alert(e.message))}>
+          📂 Ouvrir le dossier
         </button>
+      ) : (
+        <a className="clay-btn small" href={lienVideo(project.id, episode.renderedFile, episode.title)}>
+          ⬇️ Enregistrer la vidéo
+        </a>
       )}
-      <a className="clay-btn small" href={lienVideo(project.id, episode.renderedFile, episode.title)}>
-        ⬇️ Enregistrer la vidéo
-      </a>
     </div>
   );
 }
