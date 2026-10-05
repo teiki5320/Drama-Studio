@@ -1946,6 +1946,24 @@ export function ereaAdPlan(project) {
   return { deja };
 }
 
+// Voix des pubs Erea : l'historien grave (Nicolas) ; le narrateur, vif et
+// expressif (Léo) — il panique à la catastrophe, il entraîne à la frise et à
+// l'accroche.
+export const EREA_VOIX = {
+  historien: { voice: 'aQROLel5sQbj1vuIVi6B', settings: { stability: 0.68, similarity_boost: 0.8, style: 0.3, speed: 0.95 } },
+  panique: { voice: 'AfbuxQ9DVtS4azaxN1W7', settings: { stability: 0.15, similarity_boost: 0.8, style: 0.95, speed: 1.18 } },
+  dynamique: { voice: 'AfbuxQ9DVtS4azaxN1W7', settings: { stability: 0.22, similarity_boost: 0.8, style: 0.85, speed: 1.15 } },
+};
+export const ACCROCHE_EREA = 'Avec Erea, devenez les maîtres du temps.';
+export function accrocheErea(fonts) {
+  return {
+    slogan: { texte: 'Avec Erea,\ndevenez les maîtres du temps.', fonts },
+    durationSec: 2.8,
+    videoDisabled: true,
+    lines: [{ speaker: 'dynamique', text: ACCROCHE_EREA, audio: null, audioDurationSec: null }],
+  };
+}
+
 // Les mauvaises époques déjà montrées (« … → La Lune, juillet 1969 »), pour
 // ne pas retomber deux fois sur la Lune ou Gizeh.
 function lieuxErea(project) {
@@ -2049,10 +2067,7 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     project.ctaLogo = logoIntro;
   }
   // Deux voix : l'historien posé (Nicolas), puis le narrateur qui panique (Léo).
-  project.voixRoles = {
-    historien: { voice: 'aQROLel5sQbj1vuIVi6B', settings: { stability: 0.7, similarity_boost: 0.8, style: 0.25, speed: 0.92 } },
-    panique: { voice: 'AfbuxQ9DVtS4azaxN1W7', settings: { stability: 0.22, similarity_boost: 0.8, style: 0.8, speed: 1.12 } },
-  };
+  project.voixRoles = EREA_VOIX;
   const role = (who, t) => (t ? [{ speaker: who, text: String(t).trim().slice(0, 220), audio: null, audioDurationSec: null }] : []);
   const hi = raw.historien || {};
   const ca = raw.catastrophe || {};
@@ -2115,11 +2130,13 @@ export async function createEreaAd(project, { personnage = '' } = {}, update) {
     // 5. La frise du jeu remet l'événement à sa vraie place.
     base(4, {
       frise: { depart: anneeFrise, arrivee: anneePerso, ...friseAssets },
-      lines: line(raw.frise),
+      lines: role('dynamique', raw.frise),
       durationSec: 5,
       fixedDuration: true,
       videoDisabled: true,
     }),
+    // 6. L'accroche, avant l'écran de téléchargement.
+    base(5, accrocheErea(friseAssets.fonts)),
   ];
   const episode = {
     number,
