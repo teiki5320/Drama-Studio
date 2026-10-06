@@ -302,6 +302,63 @@ function RecettesEntry({ projects, loaded, onCreate }) {
 }
 
 // ---------- Réglages : ma marque, voix françaises ----------
+// YouTube : coller les clés du projet Google « Studio », puis se connecter.
+function YoutubeCard() {
+  const [etat, setEtat] = useState(null);
+  const [id, setId] = useState('');
+  const [secret, setSecret] = useState('');
+  const [error, setError] = useState('');
+  const load = () => api.youtube().then(setEtat).catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  if (!etat) {
+    return null;
+  }
+  return (
+    <div className="clay-block">
+      <h3>▶️ YouTube</h3>
+      {etat.connecte ? (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="clay-state ok">Connecté{etat.chaine ? ` — ${etat.chaine}` : ''}</span>
+          <a className="clay-btn ghost small" href="/api/youtube/connecter">
+            Reconnecter
+          </a>
+          <button className="clay-btn ghost small" onClick={() => api.youtubeDeconnecter().then(setEtat)}>
+            Déconnecter
+          </button>
+        </div>
+      ) : etat.configure ? (
+        <a className="clay-btn" href="/api/youtube/connecter">
+          Connecter YouTube
+        </a>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 560 }}>
+          <input className="rp-input" placeholder="ID client (…apps.googleusercontent.com)" value={id} onChange={(e) => setId(e.target.value)} />
+          <input className="rp-input" type="password" placeholder="Code secret du client" value={secret} onChange={(e) => setSecret(e.target.value)} />
+          <button
+            className="clay-btn"
+            onClick={() =>
+              api
+                .youtubeCles(id, secret)
+                .then((e) => {
+                  setEtat(e);
+                  setId('');
+                  setSecret('');
+                  setError('');
+                })
+                .catch((e) => setError(e.message))
+            }
+          >
+            Enregistrer les clés
+          </button>
+        </div>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
 function ReglagesPage() {
   const [studio, setStudio] = useState(null);
   const [voices, setVoices] = useState(VOICES);
@@ -313,6 +370,7 @@ function ReglagesPage() {
   }, []);
   return (
     <div className="clay-content">
+      <YoutubeCard />
       <BrandCard studio={studio} onChange={refreshStudio} />
       <FrenchVoicesCard voices={voices} onChange={refreshVoices} />
     </div>

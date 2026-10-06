@@ -79,6 +79,11 @@ export const api = {
     }),
   activeJob: (id) => request(`/api/projects/${id}/active-job`),
   activeJobs: () => request('/api/active-jobs'),
+  youtube: () => request('/api/youtube'),
+  youtubeCles: (clientId, clientSecret) =>
+    request('/api/youtube/cles', { method: 'POST', body: JSON.stringify({ clientId, clientSecret }) }),
+  youtubeDeconnecter: () => request('/api/youtube/deconnecter', { method: 'POST' }),
+  publierYoutube: (id) => request(`/api/planning/${id}/youtube`, { method: 'POST' }),
   planning: () => request('/api/planning'),
   placerPlanning: (body) => request('/api/planning', { method: 'POST', body: JSON.stringify(body) }),
   modifierPlanning: (id, body) => request(`/api/planning/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

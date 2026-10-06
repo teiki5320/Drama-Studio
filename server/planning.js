@@ -128,3 +128,19 @@ export function modifier(id, { date, publie }) {
 export function retirer(id) {
   ecrire(lire().filter((e) => e.id !== id));
 }
+
+// Une entrée du planning et sa vidéo (pour la publier).
+export function entree(id) {
+  return lire().find((e) => e.id === id) || null;
+}
+
+// Publiée sur un réseau par le Studio : coche + lien.
+export function noterPublication(id, reseau, infos) {
+  const entrees = lire();
+  const e = entrees.find((x) => x.id === id);
+  if (!e || !e.reseaux[reseau]) {
+    return;
+  }
+  e.reseaux[reseau] = { ...e.reseaux[reseau], publie: true, ...infos };
+  ecrire(entrees);
+}

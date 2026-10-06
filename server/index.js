@@ -11,6 +11,7 @@ import {
   MAX_VIDEO_SCENES,
   wantsLipsync,
   lipsyncSpeaker,
+  tiktokCaption,
 } from '../shared/catalog.js';
 import {
   listProjects,
@@ -93,7 +94,8 @@ import { listRepos, fetchRepoBrief, githubUser } from './github.js';
 import { fetchSiteBrief } from './sitebrief.js';
 import { publicHost, verifyAccessToken } from './cfaccess.js';
 import { listQueue, addToQueue, removeFromQueue, startQueue } from './queue.js';
-import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning } from './planning.js';
+import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning, entree as entreePlanning, noterPublication } from './planning.js';
+import { etatYoutube, enregistrerCles, urlConnexion, terminerConnexion, deconnecter as deconnecterYoutube, publierShort } from './youtube.js';
 import {
   RECIPE_SECONDS,
   RECIPE_TONES,
@@ -1299,6 +1301,66 @@ app.patch('/api/planning/:id', (req, res) => {
 app.delete('/api/planning/:id', (req, res) => {
   retirerPlanning(req.params.id);
   res.json({ ok: true });
+});
+
+// ---------- YouTube ----------
+app.get('/api/youtube', (req, res) => res.json(etatYoutube()));
+app.post('/api/youtube/cles', (req, res) => {
+  try {
+    enregistrerCles(req.body || {});
+    res.json(etatYoutube());
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+// Google renvoie sur l'adresse d'où l'on vient : studio.keurcook.com (iPad)
+// ou localhost (Mac).
+const retourYoutube = (req) =>
+  process.env.PUBLIC_HOST && String(req.headers.host || '').startsWith(process.env.PUBLIC_HOST)
+    ? `https://${process.env.PUBLIC_HOST}/api/youtube/retour`
+    : `http://localhost:${PORT}/api/youtube/retour`;
+app.get('/api/youtube/connecter', (req, res) => {
+  try {
+    res.redirect(urlConnexion(retourYoutube(req)));
+  } catch (e) {
+    res.status(400).send(e.message);
+  }
+});
+app.get('/api/youtube/retour', async (req, res) => {
+  if (req.query.error) {
+    res.redirect('/#/reglages');
+    return;
+  }
+  try {
+    await terminerConnexion(String(req.query.code || ''), String(req.query.state || ''));
+    res.redirect('/#/reglages');
+  } catch (e) {
+    res.status(400).send(`Connexion YouTube impossible : ${e.message}`);
+  }
+});
+app.post('/api/youtube/deconnecter', (req, res) => {
+  deconnecterYoutube();
+  res.json(etatYoutube());
+});
+// Publier sur YouTube une vidéo du planning.
+app.post('/api/planning/:id/youtube', (req, res) => {
+  const e = entreePlanning(req.params.id);
+  if (!e || !e.reseaux.youtube) {
+    res.status(404).json({ error: 'Cette vidéo n’est pas prévue sur YouTube.' });
+    return;
+  }
+  const p = loadProject(e.projectId);
+  const ep = p && (p.episodes || []).find((x) => x.number === e.number);
+  if (!ep || !ep.renderedFile) {
+    res.status(404).json({ error: 'Vidéo introuvable.' });
+    return;
+  }
+  const job = startJob(`YouTube — ${p.title} · ${String(ep.title || ep.topic).slice(0, 60)}`, async (update) => {
+    const r = await publierShort(path.join(projectDir(p.id), ep.renderedFile), { titre: ep.title || ep.topic, description: tiktokCaption(p, ep) }, update);
+    noterPublication(e.id, 'youtube', { url: r.url, prive: r.prive });
+    return r;
+  }, { projectId: p.id });
+  res.json({ jobId: job.id });
 });
 
 // ---------- Synchronisation dossiers du Bureau ⇄ Studio ----------

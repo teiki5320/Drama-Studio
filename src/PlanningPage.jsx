@@ -3,7 +3,7 @@
 // vidéo, puis un jour, on choisit les réseaux. Le jour venu : copier la
 // légende, publier, cocher le réseau.
 import React, { useEffect, useState } from 'react';
-import { api } from './api.js';
+import { api, followJob } from './api.js';
 import { surLeMac } from './VideoSave.jsx';
 
 const RESEAUX = [
@@ -52,6 +52,7 @@ export function PlanningPage() {
   const [jour, setJour] = useState(null); // jour choisi → choix des réseaux
   const [reseaux, setReseaux] = useState([]);
   const [ouverte, setOuverte] = useState(null); // entrée du planning ouverte
+  const [envoi, setEnvoi] = useState(null); // publication YouTube en cours
   const [error, setError] = useState('');
 
   const load = () =>
@@ -224,6 +225,28 @@ export function PlanningPage() {
                                 ⬇️
                               </a>
                             )}
+                            {e.reseaux.youtube && !e.reseaux.youtube.publie ? (
+                              <button
+                                className="clay-btn small"
+                                disabled={envoi === e.id}
+                                onClick={() => {
+                                  setEnvoi(e.id);
+                                  api
+                                    .publierYoutube(e.id)
+                                    .then(({ jobId }) => followJob(jobId))
+                                    .then(load)
+                                    .catch((err) => setError(err.message))
+                                    .finally(() => setEnvoi(null));
+                                }}
+                              >
+                                {envoi === e.id ? '⏳ Envoi…' : '▶️ Publier sur YouTube'}
+                              </button>
+                            ) : null}
+                            {e.reseaux.youtube && e.reseaux.youtube.url ? (
+                              <a className="clay-btn ghost small" href={e.reseaux.youtube.url} target="_blank" rel="noreferrer">
+                                Voir sur YouTube{e.reseaux.youtube.prive ? ' (privée)' : ''}
+                              </a>
+                            ) : null}
                             <button className="clay-btn ghost small" onClick={() => action(api.retirerPlanning(e.id))}>
                               ✕ Retirer
                             </button>
