@@ -60,12 +60,18 @@ async function graphql(query, variables) {
   return j.data;
 }
 
-const RUM = `query ($acc: String!, $tag: String!, $debut: Date!) {
+const RUM = `query ($acc: String!, $hote: String!, $debut: Date!) {
   viewer { accounts(filter: {accountTag: $acc}) {
-    parJour: rumPageloadEventsAdaptiveGroups(limit: 400, filter: {siteTag: $tag, date_geq: $debut}, orderBy: [date_ASC]) { count sum { visits } dimensions { date } }
-    pages: rumPageloadEventsAdaptiveGroups(limit: 15, filter: {siteTag: $tag, date_geq: $debut}, orderBy: [count_DESC]) { count dimensions { requestPath } }
-    pays: rumPageloadEventsAdaptiveGroups(limit: 10, filter: {siteTag: $tag, date_geq: $debut}, orderBy: [count_DESC]) { count dimensions { countryName } }
-    sources: rumPageloadEventsAdaptiveGroups(limit: 10, filter: {siteTag: $tag, date_geq: $debut}, orderBy: [count_DESC]) { count dimensions { refererHost } }
+    parJour: rumPageloadEventsAdaptiveGroups(limit: 400, filter: {requestHost: $hote, date_geq: $debut}, orderBy: [date_ASC]) { count sum { visits } dimensions { date } }
+    pages: rumPageloadEventsAdaptiveGroups(limit: 15, filter: {requestHost: $hote, date_geq: $debut}, orderBy: [count_DESC]) { count dimensions { requestPath } }
+    pays: rumPageloadEventsAdaptiveGroups(limit: 10, filter: {requestHost: $hote, date_geq: $debut}, orderBy: [count_DESC]) { count dimensions { countryName } }
+    sources: rumPageloadEventsAdaptiveGroups(limit: 10, filter: {requestHost: $hote, date_geq: $debut}, orderBy: [count_DESC]) { count dimensions { refererHost } }
+  } }
+}`;
+
+const HOTES = `query ($acc: String!, $debut: Date!) {
+  viewer { accounts(filter: {accountTag: $acc}) {
+    hotes: rumPageloadEventsAdaptiveGroups(limit: 50, filter: {date_geq: $debut}, orderBy: [count_DESC]) { count dimensions { requestHost } }
   } }
 }`;
 
@@ -88,16 +94,19 @@ const nomPays = (code) => {
   }
 };
 
-async function siteRum(acc, s, debut) {
-  const d = await graphql(RUM, { acc, tag: s.site_tag, debut });
+async function siteRum(acc, hote, debut) {
+  const d = await graphql(RUM, { acc, hote, debut });
   const a = d.viewer.accounts[0] || {};
   return {
-    nom: s.host || s.ruleset?.zone_name || s.site_tag,
+    nom: hote.replace(/^www\./, ''),
     source: 'Web Analytics',
     jours: (a.parJour || []).map((g) => ({ date: g.dimensions.date, visiteurs: g.sum.visits, vues: g.count })),
     pages: (a.pages || []).map((g) => ({ nom: g.dimensions.requestPath || '/', vues: g.count })),
     pays: (a.pays || []).map((g) => ({ nom: nomPays(g.dimensions.countryName), vues: g.count })),
-    sources: (a.sources || []).map((g) => ({ nom: g.dimensions.refererHost || 'Accès direct', vues: g.count })),
+    // La navigation d'une page à l'autre du même site n'est pas une provenance.
+    sources: (a.sources || [])
+      .filter((g) => String(g.dimensions.refererHost || '').replace(/^www\./, '') !== hote.replace(/^www\./, ''))
+      .map((g) => ({ nom: g.dimensions.refererHost || 'Accès direct', vues: g.count })),
   };
 }
 
@@ -136,31 +145,34 @@ export async function audience(jours = 30) {
   }
   const debutD = new Date(Date.now() - (n - 1) * 86400000);
   const debut = debutD.toISOString().slice(0, 10);
-  const comptes = await rest('/accounts?per_page=5');
-  const acc = comptes[0]?.id;
   const sites = [];
   const erreurs = [];
   const couverts = new Set();
-  let rum = [];
-  try {
-    rum = acc ? await rest(`/accounts/${acc}/rum/site_info/list?per_page=50`) : [];
-  } catch (e) {
-    erreurs.push(e.message);
-  }
-  for (const s of rum || []) {
-    try {
-      const site = await siteRum(acc, s, debut);
-      sites.push(site);
-      couverts.add(String(site.nom).replace(/^www\./, ''));
-    } catch (e) {
-      erreurs.push(`${s.host || s.site_tag} : ${e.message}`);
-    }
-  }
   let zones = [];
   try {
     zones = await rest('/zones?per_page=50');
   } catch (e) {
     erreurs.push(e.message);
+  }
+  // Le compte : celui des domaines (la liste des comptes peut rester vide
+  // avec une clé en lecture seule).
+  const acc = zones[0]?.account?.id || (await rest('/accounts?per_page=5').catch(() => []))[0]?.id;
+  // Web Analytics : les sites mesurés, retrouvés par leur nom.
+  let hotes = [];
+  try {
+    const d = acc ? await graphql(HOTES, { acc, debut }) : null;
+    hotes = (d?.viewer.accounts[0]?.hotes || []).map((g) => g.dimensions.requestHost).filter((h) => h && !/localhost|pages\.dev$|^\d/.test(h));
+  } catch (e) {
+    erreurs.push(e.message);
+  }
+  for (const h of hotes) {
+    try {
+      const site = await siteRum(acc, h, debut);
+      sites.push(site);
+      couverts.add(site.nom);
+    } catch (e) {
+      erreurs.push(`${h} : ${e.message}`);
+    }
   }
   for (const z of zones || []) {
     if (couverts.has(z.name)) {
