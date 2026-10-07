@@ -167,7 +167,8 @@ export async function audience(jours = 30) {
       continue;
     }
     try {
-      sites.push(await siteZone(z, debut));
+      const site = await siteZone(z, debut);
+      if (site.jours.length) sites.push(site);
     } catch (e) {
       erreurs.push(`${z.name} : ${e.message}`);
     }

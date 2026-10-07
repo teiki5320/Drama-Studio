@@ -95,6 +95,20 @@ import { fetchSiteBrief } from './sitebrief.js';
 import { publicHost, verifyAccessToken } from './cfaccess.js';
 import { listQueue, addToQueue, removeFromQueue, startQueue } from './queue.js';
 import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning, entree as entreePlanning, noterPublication } from './planning.js';
+import {
+  etatIndexation,
+  estConnexionIndexation,
+  urlConnexionIndexation,
+  terminerConnexionIndexation,
+  deconnecterIndexation,
+  passage as passageIndexation,
+  passageDuJour,
+  renvoyerPlans,
+  consigneClaude,
+  trouverProbleme,
+  noterCorrection,
+  depotDe,
+} from './indexation.js';
 import { audience, etatCloudflare, enregistrerCle as enregistrerCleCloudflare, oublierCle as oublierCleCloudflare } from './audience.js';
 import { comptes, changerEtat as changerEtatCompte } from './comptes.js';
 import { etatYoutube, enregistrerCles, urlConnexion, terminerConnexion, deconnecter as deconnecterYoutube, publierShort } from './youtube.js';
@@ -1327,6 +1341,64 @@ app.delete('/api/cloudflare/cle', (req, res) => {
   res.json(etatCloudflare());
 });
 
+// ---------- Indexation (Google Search Console) ----------
+let passageId = null;
+function lancerPassage() {
+  passageId = startJob('Indexation — vérification des sites', (update) => passageIndexation(update)).id;
+  return passageId;
+}
+app.get('/api/indexation', (req, res) =>
+  res.json({ ...etatIndexation(), passageId: getJob(passageId)?.status === 'running' ? passageId : null }),
+);
+app.get('/api/indexation/connecter', (req, res) => {
+  try {
+    res.redirect(urlConnexionIndexation(retourYoutube(req)));
+  } catch (e) {
+    res.status(400).send(e.message);
+  }
+});
+app.post('/api/indexation/deconnecter', (req, res) => {
+  deconnecterIndexation();
+  res.json(etatIndexation());
+});
+app.post('/api/indexation/verifier', (req, res) => res.json({ jobId: lancerPassage() }));
+// Renvoyer le plan du site à Google (le Studio le fait lui-même).
+app.post('/api/indexation/plan', (req, res) => {
+  try {
+    const { site, probleme } = trouverProbleme(String((req.body || {}).id || ''));
+    const job = startJob(`Indexation — ${site.domaine} : plan renvoyé à Google`, async () => {
+      const plans = await renvoyerPlans(site.propriete);
+      noterCorrection(probleme.id, `Plan du site renvoyé à Google : ${plans.join(', ')}`);
+      return { plans };
+    });
+    res.json({ jobId: job.id });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+// La consigne à donner à Claude pour corriger le code du site.
+app.get('/api/indexation/consigne', (req, res) => {
+  try {
+    const { site, probleme } = trouverProbleme(String(req.query.id || ''));
+    res.json({ consigne: consigneClaude(probleme, site.domaine), dossier: depotDe(site.domaine) });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post('/api/indexation/corrige', (req, res) => {
+  try {
+    noterCorrection(String((req.body || {}).id || ''), 'Corrigé (noté à la main)');
+    res.json(etatIndexation());
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+setInterval(() => {
+  try {
+    if (passageDuJour() && getJob(passageId)?.status !== 'running') lancerPassage();
+  } catch {}
+}, 30 * 60 * 1000);
+
 // ---------- Comptes & adresses ----------
 app.get('/api/comptes', (req, res) => res.json(comptes()));
 app.patch('/api/comptes/:id', (req, res) => {
@@ -1365,8 +1437,19 @@ app.get('/api/youtube/retour', async (req, res) => {
     res.redirect('/#/reglages');
     return;
   }
+  const state = String(req.query.state || '');
+  // Même adresse de retour Google pour YouTube et Search Console.
+  if (estConnexionIndexation(state)) {
+    try {
+      await terminerConnexionIndexation(String(req.query.code || ''), state);
+      res.redirect('/#/indexation');
+    } catch (e) {
+      res.status(400).send(`Connexion Search Console impossible : ${e.message}`);
+    }
+    return;
+  }
   try {
-    await terminerConnexion(String(req.query.code || ''), String(req.query.state || ''));
+    await terminerConnexion(String(req.query.code || ''), state);
     res.redirect('/#/reglages');
   } catch (e) {
     res.status(400).send(`Connexion YouTube impossible : ${e.message}`);

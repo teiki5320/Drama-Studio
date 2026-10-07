@@ -15,6 +15,7 @@ import { appLook, NOT_ADVERTISED } from './apps.js';
 import { ComptesTab } from './ComptesTab.jsx';
 import { QueuePanel } from './QueuePanel.jsx';
 import { RecipesPage } from './RecipesPage.jsx';
+import { IndexationPage } from './IndexationPage.jsx';
 import { AudiencePage } from './AudiencePage.jsx';
 import { PlanningPage } from './PlanningPage.jsx';
 import { PlansPage } from './PlansPage.jsx';
@@ -77,6 +78,7 @@ const KEURCOOK_REPO = 'teiki5320/keurcook';
 const NAV = [
   { id: 'pub', icon: '📣', label: 'Publicité', path: 'pub' },
   { id: 'chaine', icon: '🎥', label: 'Chaîne', path: 'chaine' },
+  { id: 'indexation', icon: '🔎', label: 'Indexation', path: 'indexation' },
   { id: 'audience', icon: '📈', label: 'Audience', path: 'audience' },
   { id: 'planning', icon: '🗓️', label: 'Planning', path: 'planning' },
   { id: 'sep' },
@@ -427,6 +429,7 @@ const TITLES = {
   reglages: 'Réglages',
   planning: 'Planning',
   audience: 'Audience',
+  indexation: 'Indexation',
 };
 
 export function Shell() {
@@ -576,6 +579,8 @@ export function Shell() {
           <RecettesEntry projects={projects} loaded={loaded} onCreate={runCreation} />
         ) : route.page === 'chaine' ? (
           <ChainePage projects={projects} onCreate={runCreation} />
+        ) : route.page === 'indexation' ? (
+          <IndexationPage />
         ) : route.page === 'audience' ? (
           <AudiencePage />
         ) : route.page === 'planning' ? (
