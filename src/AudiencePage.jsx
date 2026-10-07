@@ -76,11 +76,12 @@ function Courbe({ jours, h = 180 }) {
   );
 }
 
-function Liste({ titre, lignes, vide }) {
+function Liste({ titre, lignes, vide, note }) {
   const max = Math.max(1, ...lignes.map((l) => l.vues));
   return (
     <div className="clay-block" style={{ minWidth: 0 }}>
-      <h3 style={{ marginTop: 0 }}>{titre}</h3>
+      <h3 style={{ marginTop: 0, marginBottom: note ? 4 : undefined }}>{titre}</h3>
+      {note ? <p className="clay-muted small" style={{ marginTop: 0 }}>{note}</p> : null}
       {lignes.length === 0 ? <p className="clay-muted small">{vide}</p> : null}
       {lignes.map((l) => (
         <div key={l.nom} style={{ position: 'relative', padding: '5px 8px', marginBottom: 4, borderRadius: 8, overflow: 'hidden' }}>
@@ -231,7 +232,12 @@ export function AudiencePage() {
           vide="Visible avec la mesure Web Analytics."
           lignes={fusion(choisis.map((s) => (site === 'tous' ? s.pages.map((p) => ({ ...p, nom: `${s.nom}${p.nom}` })) : s.pages)))}
         />
-        <Liste titre="🌍 Pays" vide="Pas de données." lignes={fusion(choisis.map((s) => s.pays))} />
+        <Liste
+          titre="🌍 Pays"
+          vide="Pas de données."
+          note={choisis.some((s) => s.source === 'Domaine') ? 'Fichiers chargés depuis chaque pays (pages, images, robots compris) : pas des visiteurs.' : null}
+          lignes={fusion(choisis.map((s) => s.pays))}
+        />
         <Liste titre="🔗 D’où ils viennent" vide="Visible avec la mesure Web Analytics." lignes={fusion(choisis.map((s) => s.sources))} />
       </div>
       {(data.erreurs || []).length > 0 && <p className="clay-muted small">⚠️ {data.erreurs.join(' · ')}</p>}
