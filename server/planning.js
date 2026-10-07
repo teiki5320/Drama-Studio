@@ -1,8 +1,13 @@
 // ---------- Planning des réseaux sociaux ----------
-// Les vidéos VALIDÉES de toutes les applis arrivent « à placer » ; on les
-// pose sur un jour, avec les réseaux choisis (TikTok, YouTube, Pinterest).
-// Publication manuelle pour l'instant : on coche « publié » réseau par
-// réseau. Rangé dans studio/planning.json.
+// Les vidéos VALIDÉES de toutes les applis arrivent « à placer ». Une
+// publication = une vidéo sur UN compte (TikTok, YouTube, Pinterest…), un
+// jour : une même vidéo peut donc partir sur plusieurs comptes, à des jours
+// différents. On coche « publiée » compte par compte (YouTube : publication
+// directe sur la chaîne connectée). Rangé dans studio/planning.json.
+//
+// Ancien format (une entrée par vidéo, { reseaux: { tiktok: { publie } } }) :
+// converti tout seul au premier passage, chaque réseau allant sur le premier
+// compte de ce réseau (créé au besoin).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,23 +16,52 @@ import { STUDIO_DIR } from './studio.js';
 import { listProjects, loadProject } from './projects.js';
 import { tiktokCaption } from '../shared/catalog.js';
 import { appLook } from '../src/apps.js';
+import { listeComptes, compteParDefaut, comptesProposes } from './reseaux.js';
 
-export const RESEAUX = ['tiktok', 'youtube', 'pinterest'];
 const FICHIER = path.join(STUDIO_DIR, 'planning.json');
+const nouvelId = () => `pl_${crypto.randomBytes(5).toString('hex')}`;
+const cle = (x) => `${x.projectId}:${Number(x.number)}`;
+
+function ecrire(pubs) {
+  const tmp = `${FICHIER}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(pubs, null, 2));
+  fs.renameSync(tmp, FICHIER);
+}
 
 function lire() {
+  let d;
   try {
-    const d = JSON.parse(fs.readFileSync(FICHIER, 'utf8'));
-    return Array.isArray(d) ? d : [];
+    d = JSON.parse(fs.readFileSync(FICHIER, 'utf8'));
   } catch {
     return [];
   }
-}
-
-function ecrire(entrees) {
-  const tmp = `${FICHIER}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(entrees, null, 2));
-  fs.renameSync(tmp, FICHIER);
+  if (!Array.isArray(d)) {
+    return [];
+  }
+  if (!d.some((e) => e.reseaux)) {
+    return d;
+  }
+  const out = [];
+  for (const e of d) {
+    if (!e.reseaux) {
+      out.push(e);
+      continue;
+    }
+    for (const [reseau, info] of Object.entries(e.reseaux)) {
+      out.push({
+        id: nouvelId(),
+        projectId: e.projectId,
+        number: Number(e.number),
+        compte: compteParDefaut(reseau).id,
+        date: e.date,
+        publie: Boolean(info && info.publie),
+        ...(info && info.url ? { url: info.url } : {}),
+        ...(info && info.prive !== undefined ? { prive: info.prive } : {}),
+      });
+    }
+  }
+  ecrire(out);
+  return out;
 }
 
 // Une vidéo du Studio, telle que le planning l'affiche.
@@ -35,15 +69,17 @@ function fiche(p, ep) {
   const depot = String(p.repo || '').split('/').pop().toLowerCase();
   const nomAppli = p.mode === 'recette' ? 'Recettes Keur Cook' : p.kind === 'pub' ? appLook(depot, p.title).name : p.title;
   const vignette = (ep.scenes || []).find((s) => s.image && !s.image.startsWith('erea-'))?.image || null;
+  const d = p.mode === 'recette' ? 'recettes' : depot;
   return {
     projectId: p.id,
     number: ep.number,
     appli: nomAppli,
-    depot: p.mode === 'recette' ? 'recettes' : depot,
+    depot: d,
     titre: String(ep.title || ep.topic || `Vidéo ${ep.number}`),
     vignette: vignette ? `/files/${p.id}/${vignette}` : null,
     video: `/files/${p.id}/${ep.renderedFile}`,
     legende: tiktokCaption(p, ep),
+    proposes: comptesProposes(d),
   };
 }
 
@@ -67,80 +103,137 @@ function videosValidees() {
 
 export function planning() {
   const videos = videosValidees();
-  const entrees = lire();
-  const valides = entrees.filter((e) => videos.has(`${e.projectId}:${e.number}`));
-  if (valides.length !== entrees.length) {
+  const comptes = listeComptes();
+  const connus = new Set(comptes.map((c) => c.id));
+  const pubs = lire();
+  const valides = pubs.filter((p) => videos.has(cle(p)) && connus.has(p.compte));
+  if (valides.length !== pubs.length) {
     ecrire(valides);
   }
-  const placees = new Set(valides.map((e) => `${e.projectId}:${e.number}`));
+  const placees = new Set(valides.map(cle));
   return {
+    comptes,
     aPlacer: [...videos.entries()].filter(([k]) => !placees.has(k)).map(([, v]) => v),
-    entrees: valides.map((e) => ({ ...e, video: videos.get(`${e.projectId}:${e.number}`) })),
+    publications: valides.map((p) => ({ ...p, video: videos.get(cle(p)) })),
   };
 }
 
 const jourValide = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const lendemain = (s) => {
+  const d = new Date(`${s}T12:00:00`);
+  d.setDate(d.getDate() + 1);
+  return iso(d);
+};
 
-export function placer({ projectId, number, date, reseaux }) {
-  const videos = videosValidees();
-  if (!videos.has(`${projectId}:${Number(number)}`)) {
+function compteValide(id) {
+  if (!listeComptes().some((c) => c.id === id)) {
+    throw new Error('Compte inconnu (Réglages → Comptes des réseaux).');
+  }
+}
+
+// Place une vidéo sur un ou plusieurs comptes, le même jour. Un compte où
+// elle est déjà prévue est ignoré.
+export function placer({ projectId, number, comptes, date }) {
+  if (!videosValidees().has(`${projectId}:${Number(number)}`)) {
     throw new Error('Seule une vidéo validée peut aller au planning.');
   }
   if (!jourValide(date)) {
     throw new Error('Jour invalide.');
   }
-  const choisis = (reseaux || []).filter((r) => RESEAUX.includes(r));
+  const choisis = [...new Set(Array.isArray(comptes) ? comptes : [])];
   if (!choisis.length) {
-    throw new Error('Choisis au moins un réseau.');
+    throw new Error('Choisis au moins un compte.');
   }
-  const entrees = lire().filter((e) => !(e.projectId === projectId && e.number === Number(number)));
-  const e = {
-    id: `pl_${crypto.randomBytes(5).toString('hex')}`,
-    projectId,
-    number: Number(number),
-    date,
-    reseaux: Object.fromEntries(choisis.map((r) => [r, { publie: false }])),
-  };
-  entrees.push(e);
-  ecrire(entrees);
-  return e;
+  choisis.forEach(compteValide);
+  const pubs = lire();
+  const k = `${projectId}:${Number(number)}`;
+  const nouvelles = choisis
+    .filter((c) => !pubs.some((p) => cle(p) === k && p.compte === c))
+    .map((compte) => ({ id: nouvelId(), projectId, number: Number(number), compte, date, publie: false }));
+  ecrire([...pubs, ...nouvelles]);
+  return nouvelles;
 }
 
-export function modifier(id, { date, publie }) {
-  const entrees = lire();
-  const e = entrees.find((x) => x.id === id);
-  if (!e) {
+// Changer le jour, le compte, ou l'état « publiée » d'une publication.
+export function modifier(id, { date, compte, publie }) {
+  const pubs = lire();
+  const p = pubs.find((x) => x.id === id);
+  if (!p) {
     throw new Error('Introuvable dans le planning.');
   }
   if (date !== undefined) {
     if (!jourValide(date)) {
       throw new Error('Jour invalide.');
     }
-    e.date = date;
+    p.date = date;
   }
-  if (publie && RESEAUX.includes(publie.reseau) && e.reseaux[publie.reseau]) {
-    e.reseaux[publie.reseau].publie = Boolean(publie.fait);
+  if (compte !== undefined && compte !== p.compte) {
+    compteValide(compte);
+    if (pubs.some((x) => x.id !== p.id && cle(x) === cle(p) && x.compte === compte)) {
+      throw new Error('Cette vidéo est déjà prévue sur ce compte.');
+    }
+    p.compte = compte;
   }
-  ecrire(entrees);
-  return e;
+  if (publie !== undefined) {
+    p.publie = Boolean(publie);
+  }
+  ecrire(pubs);
+  return p;
 }
 
 export function retirer(id) {
-  ecrire(lire().filter((e) => e.id !== id));
+  ecrire(lire().filter((p) => p.id !== id));
 }
 
-// Une entrée du planning et sa vidéo (pour la publier).
+// Retire une vidéo de tous ses comptes (elle revient « à placer »).
+export function retirerVideo(projectId, number) {
+  const k = `${projectId}:${Number(number)}`;
+  ecrire(lire().filter((p) => cle(p) !== k));
+}
+
+// Remplissage automatique : chaque vidéo à placer part sur ses comptes
+// proposés, au premier jour libre de chaque compte (1 vidéo par compte et
+// par jour), à partir d'aujourd'hui. Sans `appliquer` : simple aperçu.
+export function remplir(appliquer = false) {
+  const { aPlacer } = planning();
+  const pubs = lire();
+  const prevues = [];
+  const debut = iso(new Date());
+  for (const v of aPlacer) {
+    for (const compte of v.proposes) {
+      let d = debut;
+      for (let n = 0; n < 60 && pubs.some((p) => p.compte === compte && p.date === d); n++) {
+        d = lendemain(d);
+      }
+      const p = { id: nouvelId(), projectId: v.projectId, number: v.number, compte, date: d, publie: false };
+      pubs.push(p);
+      prevues.push(p);
+    }
+  }
+  if (appliquer && prevues.length) {
+    ecrire(pubs);
+  }
+  return prevues;
+}
+
+// Nombre de publications encore rattachées à un compte (avant de le supprimer).
+export function publicationsDuCompte(compte) {
+  return lire().filter((p) => p.compte === compte).length;
+}
+
+// Une publication (pour la publier).
 export function entree(id) {
-  return lire().find((e) => e.id === id) || null;
+  return lire().find((p) => p.id === id) || null;
 }
 
-// Publiée sur un réseau par le Studio : coche + lien.
-export function noterPublication(id, reseau, infos) {
-  const entrees = lire();
-  const e = entrees.find((x) => x.id === id);
-  if (!e || !e.reseaux[reseau]) {
+// Publiée par le Studio : coche + lien.
+export function noterPublication(id, infos) {
+  const pubs = lire();
+  const p = pubs.find((x) => x.id === id);
+  if (!p) {
     return;
   }
-  e.reseaux[reseau] = { ...e.reseaux[reseau], publie: true, ...infos };
-  ecrire(entrees);
+  Object.assign(p, infos, { publie: true });
+  ecrire(pubs);
 }

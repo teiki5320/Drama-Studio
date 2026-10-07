@@ -100,6 +100,12 @@ export const api = {
   placerPlanning: (body) => request('/api/planning', { method: 'POST', body: JSON.stringify(body) }),
   modifierPlanning: (id, body) => request(`/api/planning/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   retirerPlanning: (id) => request(`/api/planning/${id}`, { method: 'DELETE' }),
+  retirerVideoPlanning: (projectId, number) => request(`/api/planning/video/${projectId}/${number}`, { method: 'DELETE' }),
+  remplirPlanning: (appliquer) => request('/api/planning/remplir', { method: 'POST', body: JSON.stringify({ appliquer }) }),
+  comptesReseaux: () => request('/api/reseaux/comptes'),
+  ajouterCompteReseau: (c) => request('/api/reseaux/comptes', { method: 'POST', body: JSON.stringify(c) }),
+  modifierCompteReseau: (id, patch) => request(`/api/reseaux/comptes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  retirerCompteReseau: (id) => request(`/api/reseaux/comptes/${id}`, { method: 'DELETE' }),
   validateEpisode: (id, n, ok = true) =>
     request(`/api/projects/${id}/episodes/${n}/validate`, { method: 'POST', body: JSON.stringify({ ok }) }),
   renderEpisode: (id, n) =>

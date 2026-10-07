@@ -721,8 +721,7 @@ textarea {
   }
 }
 
-/* Planning : sur un écran étroit (iPad portrait, téléphone), la liste
-   « À placer » passe au-dessus de la semaine. */
-@media (max-width: 900px) {
-  .planning { grid-template-columns: minmax(0, 1fr) !important; }
+/* Planning, onglet Publier : la file passe au-dessus sur écran étroit. */
+@media (max-width: 760px) {
+  .planning-publier { grid-template-columns: minmax(0, 1fr) !important; }
 }

@@ -94,7 +94,8 @@ import { listRepos, fetchRepoBrief, githubUser } from './github.js';
 import { fetchSiteBrief } from './sitebrief.js';
 import { publicHost, verifyAccessToken } from './cfaccess.js';
 import { listQueue, addToQueue, removeFromQueue, startQueue } from './queue.js';
-import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning, entree as entreePlanning, noterPublication } from './planning.js';
+import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning, retirerVideo as retirerVideoPlanning, remplir as remplirPlanning, publicationsDuCompte, entree as entreePlanning, noterPublication } from './planning.js';
+import { listeComptes, ajouterCompte, modifierCompte, retirerCompte } from './reseaux.js';
 import {
   etatIndexation,
   estConnexionIndexation,
@@ -1295,7 +1296,7 @@ app.delete('/api/projects/:id/episodes/:n', (req, res) => {
 // ---------- Planning des réseaux sociaux ----------
 app.get('/api/planning', (req, res) => {
   try {
-    res.json(planning());
+    res.json({ ...planning(), youtube: etatYoutube().chaine });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1307,6 +1308,13 @@ app.post('/api/planning', (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+app.post('/api/planning/remplir', (req, res) => {
+  try {
+    res.json(remplirPlanning(Boolean((req.body || {}).appliquer)));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
 app.patch('/api/planning/:id', (req, res) => {
   try {
     res.json(modifierPlanning(req.params.id, req.body || {}));
@@ -1314,8 +1322,38 @@ app.patch('/api/planning/:id', (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+app.delete('/api/planning/video/:projectId/:number', (req, res) => {
+  retirerVideoPlanning(req.params.projectId, req.params.number);
+  res.json({ ok: true });
+});
 app.delete('/api/planning/:id', (req, res) => {
   retirerPlanning(req.params.id);
+  res.json({ ok: true });
+});
+
+// ---------- Comptes des réseaux (lignes du Planning) ----------
+app.get('/api/reseaux/comptes', (req, res) => res.json(listeComptes()));
+app.post('/api/reseaux/comptes', (req, res) => {
+  try {
+    res.json(ajouterCompte(req.body || {}));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.patch('/api/reseaux/comptes/:id', (req, res) => {
+  try {
+    res.json(modifierCompte(req.params.id, req.body || {}));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.delete('/api/reseaux/comptes/:id', (req, res) => {
+  const n = publicationsDuCompte(req.params.id);
+  if (n) {
+    res.status(400).json({ error: `Ce compte a encore ${n} vidéo(s) au planning : retire-les d'abord.` });
+    return;
+  }
+  retirerCompte(req.params.id);
   res.json({ ok: true });
 });
 
@@ -1459,11 +1497,17 @@ app.post('/api/youtube/deconnecter', (req, res) => {
   deconnecterYoutube();
   res.json(etatYoutube());
 });
-// Publier sur YouTube une vidéo du planning.
+// Publier sur YouTube une publication du planning (chaîne connectée seulement).
 app.post('/api/planning/:id/youtube', (req, res) => {
   const e = entreePlanning(req.params.id);
-  if (!e || !e.reseaux.youtube) {
-    res.status(404).json({ error: 'Cette vidéo n’est pas prévue sur YouTube.' });
+  const compte = e && listeComptes().find((c) => c.id === e.compte);
+  if (!compte || compte.reseau !== 'youtube') {
+    res.status(404).json({ error: 'Cette publication n’est pas prévue sur YouTube.' });
+    return;
+  }
+  const chaine = etatYoutube().chaine;
+  if (!chaine || chaine.toLowerCase() !== compte.nom.toLowerCase()) {
+    res.status(400).json({ error: `Le Studio publie sur la chaîne connectée (${chaine || 'aucune'}) ; « ${compte.nom} » se publie à la main.` });
     return;
   }
   const p = loadProject(e.projectId);
@@ -1474,7 +1518,7 @@ app.post('/api/planning/:id/youtube', (req, res) => {
   }
   const job = startJob(`YouTube — ${p.title} · ${String(ep.title || ep.topic).slice(0, 60)}`, async (update) => {
     const r = await publierShort(path.join(projectDir(p.id), ep.renderedFile), { titre: ep.title || ep.topic, description: tiktokCaption(p, ep) }, update);
-    noterPublication(e.id, 'youtube', { url: r.url, prive: r.prive });
+    noterPublication(e.id, { url: r.url, prive: r.prive });
     return r;
   }, { projectId: p.id });
   res.json({ jobId: job.id });
