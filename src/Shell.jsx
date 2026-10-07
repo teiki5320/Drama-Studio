@@ -12,6 +12,7 @@ import { api, followJob } from './api.js';
 import { ProjectView } from './ProjectView.jsx';
 import { BrandCard, FrenchVoicesCard, AppCreate, ChannelCreate } from './App.jsx';
 import { appLook, NOT_ADVERTISED } from './apps.js';
+import { ComptesTab } from './ComptesTab.jsx';
 import { QueuePanel } from './QueuePanel.jsx';
 import { RecipesPage } from './RecipesPage.jsx';
 import { PlanningPage } from './PlanningPage.jsx';
@@ -362,6 +363,19 @@ function YoutubeCard() {
 function ReglagesPage() {
   const [studio, setStudio] = useState(null);
   const [voices, setVoices] = useState(VOICES);
+  const [onglet, setOnglet] = useState(() => {
+    try {
+      return localStorage.getItem('reglages-onglet') || 'studio';
+    } catch {
+      return 'studio';
+    }
+  });
+  const choisirOnglet = (id) => {
+    setOnglet(id);
+    try {
+      localStorage.setItem('reglages-onglet', id);
+    } catch {}
+  };
   const refreshStudio = () => api.getStudio().then(setStudio).catch(() => {});
   const refreshVoices = () => api.voices().then(setVoices).catch(() => {});
   useEffect(() => {
@@ -370,9 +384,25 @@ function ReglagesPage() {
   }, []);
   return (
     <div className="clay-content">
-      <YoutubeCard />
-      <BrandCard studio={studio} onChange={refreshStudio} />
-      <FrenchVoicesCard voices={voices} onChange={refreshVoices} />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {[
+          ['studio', '⚙️ Studio'],
+          ['comptes', '🗂️ Comptes & adresses'],
+        ].map(([id, nom]) => (
+          <button key={id} className={`clay-btn small${onglet === id ? '' : ' ghost'}`} onClick={() => choisirOnglet(id)}>
+            {nom}
+          </button>
+        ))}
+      </div>
+      {onglet === 'comptes' ? (
+        <ComptesTab />
+      ) : (
+        <>
+          <YoutubeCard />
+          <BrandCard studio={studio} onChange={refreshStudio} />
+          <FrenchVoicesCard voices={voices} onChange={refreshVoices} />
+        </>
+      )}
     </div>
   );
 }

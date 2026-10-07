@@ -79,6 +79,8 @@ export const api = {
     }),
   activeJob: (id) => request(`/api/projects/${id}/active-job`),
   activeJobs: () => request('/api/active-jobs'),
+  comptes: () => request('/api/comptes'),
+  etatCompte: (id, etat) => request(`/api/comptes/${id}`, { method: 'PATCH', body: JSON.stringify({ etat }) }),
   youtube: () => request('/api/youtube'),
   youtubeCles: (clientId, clientSecret) =>
     request('/api/youtube/cles', { method: 'POST', body: JSON.stringify({ clientId, clientSecret }) }),
