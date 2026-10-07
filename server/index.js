@@ -95,6 +95,7 @@ import { fetchSiteBrief } from './sitebrief.js';
 import { publicHost, verifyAccessToken } from './cfaccess.js';
 import { listQueue, addToQueue, removeFromQueue, startQueue } from './queue.js';
 import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning, entree as entreePlanning, noterPublication } from './planning.js';
+import { audience, etatCloudflare, enregistrerCle as enregistrerCleCloudflare, oublierCle as oublierCleCloudflare } from './audience.js';
 import { comptes, changerEtat as changerEtatCompte } from './comptes.js';
 import { etatYoutube, enregistrerCles, urlConnexion, terminerConnexion, deconnecter as deconnecterYoutube, publierShort } from './youtube.js';
 import {
@@ -1302,6 +1303,28 @@ app.patch('/api/planning/:id', (req, res) => {
 app.delete('/api/planning/:id', (req, res) => {
   retirerPlanning(req.params.id);
   res.json({ ok: true });
+});
+
+// ---------- Audience (Cloudflare) ----------
+app.get('/api/audience', async (req, res) => {
+  try {
+    res.json(await audience(req.query.jours));
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+app.get('/api/cloudflare', (req, res) => res.json(etatCloudflare()));
+app.post('/api/cloudflare/cle', (req, res) => {
+  try {
+    enregistrerCleCloudflare((req.body || {}).token);
+    res.json(etatCloudflare());
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.delete('/api/cloudflare/cle', (req, res) => {
+  oublierCleCloudflare();
+  res.json(etatCloudflare());
 });
 
 // ---------- Comptes & adresses ----------
