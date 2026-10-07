@@ -313,6 +313,7 @@ function YoutubeCard() {
   const [etat, setEtat] = useState(null);
   const [id, setId] = useState('');
   const [secret, setSecret] = useState('');
+  const [changer, setChanger] = useState(false);
   const [error, setError] = useState('');
   const load = () => api.youtube().then(setEtat).catch((e) => setError(e.message));
   useEffect(() => {
@@ -333,8 +334,12 @@ function YoutubeCard() {
           <button className="clay-btn ghost small" onClick={() => api.youtubeDeconnecter().then(setEtat)}>
             Déconnecter
           </button>
+          <button className="clay-btn ghost small" onClick={() => setChanger(!changer)}>
+            Changer les clés
+          </button>
         </div>
-      ) : etat.configure ? (
+      ) : null}
+      {etat.connecte && !changer ? null : etat.configure && !changer ? (
         <a className="clay-btn" href="/api/youtube/connecter">
           Connecter YouTube
         </a>
@@ -351,6 +356,7 @@ function YoutubeCard() {
                   setEtat(e);
                   setId('');
                   setSecret('');
+                  setChanger(false);
                   setError('');
                 })
                 .catch((e) => setError(e.message))
