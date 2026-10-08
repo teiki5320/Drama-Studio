@@ -486,17 +486,36 @@ button.clay-big {
     width: auto;
     height: auto;
     flex-direction: row;
-    justify-content: space-around;
+    justify-content: space-between;
+    gap: 0;
     border-radius: 24px 24px 0 0;
-    padding: 8px 6px;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    /* Les 7 onglets tiennent sur un téléphone ; sinon la barre défile. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .clay-side::-webkit-scrollbar {
+    display: none;
   }
   .clay-logo,
   .clay-sep {
     display: none;
   }
   .clay-nav {
+    flex: 1 0 52px;
     width: auto;
-    padding: 6px;
+    min-width: 52px;
+    padding: 4px 2px;
+    gap: 3px;
+    font-size: 10px;
+    border-radius: 14px;
+    white-space: nowrap;
+  }
+  .clay-nav-ic {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    font-size: 17px;
   }
   .clay-main {
     padding-bottom: 96px;
