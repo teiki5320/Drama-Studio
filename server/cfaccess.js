@@ -16,8 +16,13 @@ const CERTS_TTL_MS = 60 * 60 * 1000;
 let certsCache = { team: null, at: 0, keys: [] };
 let loggedAud = false;
 
-export function publicHost() {
-  return String(process.env.PUBLIC_HOST || '').trim().toLowerCase();
+// Une ou plusieurs adresses publiques, séparées par des virgules (le temps
+// d'un changement d'adresse, l'ancienne et la nouvelle marchent ensemble).
+export function publicHosts() {
+  return String(process.env.PUBLIC_HOST || '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 function accessConfig() {

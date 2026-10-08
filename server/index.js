@@ -92,7 +92,7 @@ import { keurcookRepo } from './keurcook.js';
 import { listRecipes, RECIPE_SITE } from './recipes.js';
 import { listRepos, fetchRepoBrief, githubUser } from './github.js';
 import { fetchSiteBrief } from './sitebrief.js';
-import { publicHost, verifyAccessToken } from './cfaccess.js';
+import { publicHosts, verifyAccessToken } from './cfaccess.js';
 import { listQueue, addToQueue, removeFromQueue, startQueue } from './queue.js';
 import { planning, placer, modifier as modifierPlanning, retirer as retirerPlanning, retirerVideo as retirerVideoPlanning, remplir as remplirPlanning, publicationsDuCompte, entree as entreePlanning, noterPublication } from './planning.js';
 import { listeComptes, ajouterCompte, modifierCompte, retirerCompte } from './reseaux.js';
@@ -146,7 +146,7 @@ app.use((req, res, next) => {
     next();
     return;
   }
-  if (host && host === publicHost()) {
+  if (host && publicHosts().includes(host)) {
     verifyAccessToken(req.headers['cf-access-jwt-assertion'])
       .then(() => next())
       .catch((e) => {
@@ -1457,12 +1457,19 @@ app.post('/api/youtube/cles', (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
-// Google renvoie sur l'adresse d'où l'on vient : studio.keurcook.com (iPad)
-// ou localhost (Mac).
-const retourYoutube = (req) =>
-  process.env.PUBLIC_HOST && String(req.headers.host || '').startsWith(process.env.PUBLIC_HOST)
-    ? `https://${process.env.PUBLIC_HOST}/api/youtube/retour`
-    : `http://localhost:${PORT}/api/youtube/retour`;
+// Google renvoie sur localhost (Mac) ou, depuis l'iPad, sur l'adresse
+// publique déclarée chez Google : OAUTH_HOST, sinon la dernière de
+// PUBLIC_HOST (l'ancienne, studio.keurcook.com, tant que la nouvelle n'est
+// pas autorisée dans le projet Google « Studio »).
+const retourYoutube = (req) => {
+  const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
+  const hosts = publicHosts();
+  if (!hosts.includes(host)) {
+    return `http://localhost:${PORT}/api/youtube/retour`;
+  }
+  const oauth = String(process.env.OAUTH_HOST || '').trim().toLowerCase() || hosts[hosts.length - 1];
+  return `https://${oauth}/api/youtube/retour`;
+};
 app.get('/api/youtube/connecter', (req, res) => {
   try {
     res.redirect(urlConnexion(retourYoutube(req)));
