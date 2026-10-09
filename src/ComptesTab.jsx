@@ -1,6 +1,6 @@
 // Réglages → Comptes & adresses / Reste à faire : le récapitulatif de
 // l'harmonisation sous toakeur.com. « Comptes & adresses » montre ce qui est
-// réglé (le résultat final) ; « Reste à faire » montre ce qui reste, avec
+// réglé, en tableau simple sans commentaires ; « Reste à faire » montre ce qui reste, avec
 // quand le faire, et la barre de progression. On touche « À faire » une fois
 // la chose faite : la ligne part dans l'autre onglet.
 import React, { useEffect, useState } from 'react';
@@ -47,12 +47,13 @@ export function ComptesTab({ resteSeulement = false }) {
       {resteSeulement && !sections.length ? <p className="clay-muted">Tout est réglé 🎉</p> : null}
       {sections.map((s) => (
         <div key={s.titre} className="clay-block" style={{ overflowX: 'auto' }}>
-          {resteSeulement ? null : <h3 style={{ marginTop: 0 }}>{s.titre}</h3>}
+          {resteSeulement ? null : <h3 style={{ marginTop: 0, marginBottom: s.sousTitre ? 4 : undefined }}>{s.titre}</h3>}
+          {!resteSeulement && s.sousTitre ? <p className="clay-muted small" style={{ marginTop: 0 }}>{s.sousTitre}</p> : null}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr className="clay-muted small" style={{ textAlign: 'left' }}>
-                <th style={th}>Quoi</th>
-                <th style={th}>{resteSeulement ? 'Quand' : 'Résultat'}</th>
+                <th style={th}>{resteSeulement ? 'Quoi' : s.colonnes?.[0] || 'Quoi'}</th>
+                <th style={th}>{resteSeulement ? 'Quand' : s.colonnes?.[1] || 'Résultat'}</th>
                 {resteSeulement ? <th style={th}>État</th> : null}
               </tr>
             </thead>
@@ -61,7 +62,7 @@ export function ComptesTab({ resteSeulement = false }) {
                 <tr key={l.id} style={{ borderTop: '1px solid var(--ligne)', verticalAlign: 'top' }}>
                   <td style={{ ...td, fontWeight: 700 }}>
                     {l.quoi}
-                    {l.note ? <div className="clay-muted small" style={{ fontWeight: 400 }}>{l.note}</div> : null}
+                    {resteSeulement && l.note ? <div className="clay-muted small" style={{ fontWeight: 400 }}>{l.note}</div> : null}
                   </td>
                   <td style={td}>{resteSeulement ? l.quand : l.resultat}</td>
                   {resteSeulement ? (
