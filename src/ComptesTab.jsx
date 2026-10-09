@@ -1,6 +1,7 @@
 // Réglages → Comptes & adresses : le récapitulatif de l'harmonisation sous
 // toakeur.com. On touche « À faire » une fois l'adresse changée : la ligne
-// passe à « Fait » et l'adresse actuelle devient la nouvelle.
+// passe à « Fait » et l'adresse actuelle devient la nouvelle. Avec
+// resteSeulement, on ne montre que les lignes encore à faire.
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 
@@ -11,7 +12,7 @@ const ETIQUETTES = {
   impossible: ['ko', 'Ne change pas'],
 };
 
-export function ComptesTab() {
+export function ComptesTab({ resteSeulement = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -25,6 +26,9 @@ export function ComptesTab() {
   }
   const lignes = data.sections.flatMap((s) => s.lignes).filter((l) => l.etat === 'a_faire' || l.etat === 'fait');
   const faites = lignes.filter((l) => l.etat === 'fait').length;
+  const sections = resteSeulement
+    ? data.sections.map((s) => ({ ...s, lignes: s.lignes.filter((l) => l.etat === 'a_faire') })).filter((s) => s.lignes.length)
+    : data.sections;
   const basculer = (l) =>
     api
       .etatCompte(l.id, l.etat === 'fait' ? 'a_faire' : 'fait')
@@ -41,7 +45,8 @@ export function ComptesTab() {
           <div style={{ width: `${lignes.length ? (100 * faites) / lignes.length : 0}%`, height: '100%', background: 'var(--ok)' }} />
         </div>
       </div>
-      {data.sections.map((s) => (
+      {resteSeulement && faites === lignes.length ? <p className="clay-muted">Tout est fait 🎉</p> : null}
+      {sections.map((s) => (
         <div key={s.titre} className="clay-block" style={{ overflowX: 'auto' }}>
           <h3 style={{ marginTop: 0 }}>{s.titre}</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -49,7 +54,6 @@ export function ComptesTab() {
               <tr className="clay-muted small" style={{ textAlign: 'left' }}>
                 <th style={{ padding: '6px 8px' }}>Quoi</th>
                 <th style={{ padding: '6px 8px' }}>Adresse actuelle</th>
-                <th style={{ padding: '6px 8px' }}>Nouvelle</th>
                 <th style={{ padding: '6px 8px' }}>État</th>
               </tr>
             </thead>
@@ -65,9 +69,6 @@ export function ComptesTab() {
                       {l.note ? <div className="clay-muted small" style={{ fontWeight: 400 }}>{l.note}</div> : null}
                     </td>
                     <td style={{ padding: '8px', overflowWrap: 'anywhere' }}>{actuelle}</td>
-                    <td style={{ padding: '8px', overflowWrap: 'anywhere', fontWeight: l.etat === 'a_faire' ? 700 : 400 }}>
-                      {l.etat === 'a_faire' ? l.apres : '—'}
-                    </td>
                     <td style={{ padding: '8px' }}>
                       {cochable ? (
                         <button

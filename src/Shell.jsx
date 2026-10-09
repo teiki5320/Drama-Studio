@@ -399,14 +399,15 @@ function ReglagesPage() {
         {[
           ['studio', '⚙️ Studio'],
           ['comptes', '🗂️ Comptes & adresses'],
+          ['reste', '📌 Reste à faire'],
         ].map(([id, nom]) => (
           <button key={id} className={`clay-btn small${onglet === id ? '' : ' ghost'}`} onClick={() => choisirOnglet(id)}>
             {nom}
           </button>
         ))}
       </div>
-      {onglet === 'comptes' ? (
-        <ComptesTab />
+      {onglet === 'comptes' || onglet === 'reste' ? (
+        <ComptesTab key={onglet} resteSeulement={onglet === 'reste'} />
       ) : (
         <>
           <YoutubeCard />
