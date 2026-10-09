@@ -1,7 +1,8 @@
 // Réglages → Comptes & adresses : le récapitulatif de l'harmonisation sous
 // toakeur.com. On touche « À faire » une fois l'adresse changée : la ligne
 // passe à « Fait » et l'adresse actuelle devient la nouvelle. Avec
-// resteSeulement, on ne montre que les lignes encore à faire.
+// resteSeulement, on ne montre que les lignes encore à faire ; sinon,
+// seulement celles réglées (faites, gardées ou impossibles).
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 
@@ -26,9 +27,9 @@ export function ComptesTab({ resteSeulement = false }) {
   }
   const lignes = data.sections.flatMap((s) => s.lignes).filter((l) => l.etat === 'a_faire' || l.etat === 'fait');
   const faites = lignes.filter((l) => l.etat === 'fait').length;
-  const sections = resteSeulement
-    ? data.sections.map((s) => ({ ...s, lignes: s.lignes.filter((l) => l.etat === 'a_faire') })).filter((s) => s.lignes.length)
-    : data.sections;
+  const sections = data.sections
+    .map((s) => ({ ...s, lignes: s.lignes.filter((l) => (l.etat === 'a_faire') === resteSeulement) }))
+    .filter((s) => s.lignes.length);
   const basculer = (l) =>
     api
       .etatCompte(l.id, l.etat === 'fait' ? 'a_faire' : 'fait')
