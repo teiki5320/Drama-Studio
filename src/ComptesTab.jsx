@@ -38,14 +38,16 @@ export function ComptesTab({ resteSeulement = false }) {
 
   return (
     <>
-      <div className="clay-block">
-        <h3 style={{ margin: 0 }}>
-          🗂️ Tout sous {data.domaine || 'toakeur.com'} · {faites} / {lignes.length} fait{faites > 1 ? 's' : ''}
-        </h3>
-        <div style={{ height: 8, borderRadius: 99, background: 'var(--none-tint)', marginTop: 10, overflow: 'hidden' }}>
-          <div style={{ width: `${lignes.length ? (100 * faites) / lignes.length : 0}%`, height: '100%', background: 'var(--ok)' }} />
+      {resteSeulement ? (
+        <div className="clay-block">
+          <h3 style={{ margin: 0 }}>
+            🗂️ Tout sous {data.domaine || 'toakeur.com'} · {faites} / {lignes.length} fait{faites > 1 ? 's' : ''}
+          </h3>
+          <div style={{ height: 8, borderRadius: 99, background: 'var(--none-tint)', marginTop: 10, overflow: 'hidden' }}>
+            <div style={{ width: `${lignes.length ? (100 * faites) / lignes.length : 0}%`, height: '100%', background: 'var(--ok)' }} />
+          </div>
         </div>
-      </div>
+      ) : null}
       {resteSeulement && faites === lignes.length ? <p className="clay-muted">Tout est fait 🎉</p> : null}
       {sections.map((s) => (
         <div key={s.titre} className="clay-block" style={{ overflowX: 'auto' }}>
