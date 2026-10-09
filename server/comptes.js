@@ -1,7 +1,7 @@
 // ---------- Comptes & adresses : le récapitulatif de l'harmonisation ----------
 // Le tableau « avant → après » des sites, adresses mail et comptes (passage
-// sous toakeur.com). Rangé dans studio/comptes.json (hors dépôt) : on coche
-// chaque ligne une fois changée, l'adresse actuelle suit toute seule.
+// sous toakeur.com). Rangé dans studio/comptes.json (hors dépôt). Une ligne
+// « à faire » cochée prend son résultat (apres) et rejoint sa section (vers).
 // Aucun mot de passe ni aucune clé ici.
 
 import fs from 'node:fs';
@@ -41,6 +41,16 @@ export function changerEtat(id, etat) {
   }
   ligne.etat = etat;
   ligne.le = etat === 'fait' ? new Date().toISOString().slice(0, 10) : undefined;
+  if (etat === 'fait' && ligne.vers) {
+    const cible = d.sections.find((s) => s.titre === ligne.vers);
+    if (cible) {
+      for (const s of d.sections) s.lignes = s.lignes.filter((l) => l !== ligne);
+      cible.lignes.push(ligne);
+    }
+    ligne.resultat = ligne.resultat || ligne.apres;
+    delete ligne.quand;
+    delete ligne.vers;
+  }
   ecrire(d);
   return d;
 }
