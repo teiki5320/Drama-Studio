@@ -55,7 +55,7 @@ export function ComptesTab({ resteSeulement = false }) {
               <tr className="clay-muted small" style={{ textAlign: 'left' }}>
                 <th style={{ padding: '6px 8px' }}>Quoi</th>
                 <th style={{ padding: '6px 8px' }}>Adresse actuelle</th>
-                <th style={{ padding: '6px 8px' }}>État</th>
+                {resteSeulement ? <th style={{ padding: '6px 8px' }}>État</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -70,20 +70,22 @@ export function ComptesTab({ resteSeulement = false }) {
                       {l.note ? <div className="clay-muted small" style={{ fontWeight: 400 }}>{l.note}</div> : null}
                     </td>
                     <td style={{ padding: '8px', overflowWrap: 'anywhere' }}>{actuelle}</td>
-                    <td style={{ padding: '8px' }}>
-                      {cochable ? (
-                        <button
-                          className={`clay-state ${classe}`}
-                          style={{ border: 0, cursor: 'pointer' }}
-                          title={l.etat === 'fait' ? `Fait le ${l.le || '?'} — toucher pour annuler` : 'Toucher une fois changé'}
-                          onClick={() => basculer(l)}
-                        >
-                          {texte}
-                        </button>
-                      ) : (
-                        <span className={`clay-state ${classe}`}>{texte}</span>
-                      )}
-                    </td>
+                    {resteSeulement ? (
+                      <td style={{ padding: '8px' }}>
+                        {cochable ? (
+                          <button
+                            className={`clay-state ${classe}`}
+                            style={{ border: 0, cursor: 'pointer' }}
+                            title={l.etat === 'fait' ? `Fait le ${l.le || '?'} — toucher pour annuler` : 'Toucher une fois changé'}
+                            onClick={() => basculer(l)}
+                          >
+                            {texte}
+                          </button>
+                        ) : (
+                          <span className={`clay-state ${classe}`}>{texte}</span>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
